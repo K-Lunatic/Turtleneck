@@ -26,6 +26,19 @@
 
 ---
 
+## 구현 살펴보기
+
+과제·강의자료 확인 → 자료 분석 → 웹 시험지 → 채점·복습 기록을 하나의 학습 흐름으로 연결합니다.
+
+| 설계 선택 | 구현 근거 |
+| --- | --- |
+| 자료를 나누어 읽고 분석 결과 재사용 | [학습 파이프라인](skills/university-agent/features/study_pipeline.py) |
+| 답안과 풀이 기록을 기기에 보관 | [학습 저장 구조](skills/university-agent/storage) |
+| 시험 화면과 채점 전 정보 분리 | [시험 웹 기능](skills/university-agent/features/exam_web.py) |
+| 학교 연결과 학습 기능 분리 | [제공자 계층](skills/university-agent/providers) |
+
+검증 범위와 과거 실행 기록은 [검증 문서](skills/university-agent/references/project-tests.md), 함께 작업한 사람은 [Contributors](CONTRIBUTORS.md)에 정리되어 있습니다. 검증 문서의 기록은 각 날짜 기준이며 현재 환경에서의 새 실행 결과를 뜻하지 않습니다.
+
 ## 터틀넥은 무엇인가요?
 
 과제, 공지, 강의자료, 시험 준비가 여러 화면에 흩어져 있을 때 생기는 번거로움을 줄이는 **컴퓨터용 학습 스킬**입니다.
