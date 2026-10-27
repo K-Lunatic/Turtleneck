@@ -65,13 +65,15 @@ def main():
                 'match': '개념 매칭판이 준비됐어요. 왼쪽 개념과 오른쪽 설명을 연결해 보세요.',
                 'sets': '문제 세트를 준비했어요. 풀고 싶은 세트를 골라 주세요.',
             }[view]
-            print(json.dumps(redact_output({'url': url, 'answer': answer}), ensure_ascii=False), flush=True)
+            opened = False
             if not args.no_open:
                 try:
-                    if not webbrowser.open(url):
-                        print('브라우저를 자동으로 열지 못했어요. 위 시험 링크를 열어 주세요.', file=sys.stderr, flush=True)
+                    opened = bool(webbrowser.open(url))
                 except (webbrowser.Error, OSError):
-                    print('브라우저를 자동으로 열지 못했어요. 위 시험 링크를 열어 주세요.', file=sys.stderr, flush=True)
+                    opened = False
+            print(json.dumps(redact_output({'url': url, 'answer': answer, 'opened': opened}), ensure_ascii=False), flush=True)
+            if not opened and not args.no_open:
+                print('브라우저를 자동으로 열지 못했어요. 위 시험 링크를 직접 열어 주세요.', file=sys.stderr, flush=True)
             worker.join()
         finally:
             server.shutdown()

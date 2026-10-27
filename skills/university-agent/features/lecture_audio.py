@@ -1,5 +1,6 @@
 """Private audio files and deterministic course/lecture selection, not transcription."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -47,8 +48,8 @@ def _digest(path):
     return digest.hexdigest()
 
 
-def cached_audio(record, root, source_key):
-    if not record or record.get('sourceKey') != source_key:
+def cached_audio(record, root, source_key=None):
+    if not record or (source_key is not None and record.get('sourceKey') != source_key):
         return None
     try:
         path = Path(record['localPath']).resolve(strict=True)
@@ -60,12 +61,29 @@ def cached_audio(record, root, source_key):
     return None
 
 
+def _source_fingerprint(plan):
+    """Ignore session-bound URLs; the current permission check still runs before this cache hit."""
+    shape = {'format': plan.get('format'),
+             'chunkCount': len(plan.get('chunks', [])),
+             'segmentTimes': plan.get('segmentTimes', []),
+             'durationSeconds': plan.get('durationSeconds')}
+    return 'v3-' + hashlib.sha256(json.dumps(shape, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
 def extract_audio(provider, user, lecture, plan, root, cached=None, progress=None):
     if lecture.get('completed') is not True:
         raise ValueError('끝까지 본 강의만 음성을 가져올 수 있어요.')
+    if plan.get('format') not in ('mpegts', 'mov'):
+        raise ValueError('학교 영상 형식을 확인하지 못해 음성을 가져오지 않았어요.')
     root = root.resolve()
-    source_key = hashlib.sha256((plan['sourceKey'] + lecture['courseId'] + lecture['title']).encode()).hexdigest()
+    source_key = 'v3-' + hashlib.sha256((_source_fingerprint(plan) + lecture['courseId'] + lecture['title']).encode()).hexdigest()
     hit = cached_audio(cached, root, source_key)
+    if not hit and cached and not str(cached.get('sourceKey', '')).startswith('v3-'):
+        # Older records used expiring signed URLs as their key. The live permission and format
+        # checks above have already passed, so preserve that valid local copy and migrate its key.
+        hit = cached_audio(cached, root)
+        if hit:
+            hit = {**hit, 'sourceKey': source_key}
     if hit:
         return {**hit, 'reused': True}
     executable = ffmpeg_path()
@@ -85,14 +103,25 @@ def extract_audio(provider, user, lecture, plan, root, cached=None, progress=Non
                    '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1', '-map_chapters', '-1',
                    '-c:a', 'aac', '-b:a', '96k', '-f', 'ipod', str(output)]
         try:
-            subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600,
+            subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                           text=True, encoding='utf-8', errors='replace', timeout=600,
                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-        except (OSError, subprocess.SubprocessError):
-            raise RuntimeError('이 강의의 음성을 읽지 못했어요. 음성 트랙이 없거나 영상 형식이 달라요. 기존 저장본은 그대로 뒀어요.') from None
-        with output.open('r+b') as stream:
-            if stream.read(12)[4:8] != b'ftyp' or output.stat().st_size < 100:
-                raise ValueError('완성된 음성 파일을 확인하지 못해 보관하지 않았어요.')
-            os.fsync(stream.fileno())
+        except subprocess.TimeoutExpired:
+            raise RuntimeError('영상 변환 시간이 제한을 넘어 중단했어요. 학교 원본과 기존 저장본은 건드리지 않았어요.') from None
+        except subprocess.CalledProcessError as error:
+            detail = error.stderr or ''
+            if re.search(r'no streams|Stream map.*matches no streams|does not contain any stream', detail, re.I):
+                raise RuntimeError('이 영상에는 추출할 음성 트랙이 없어요. 화면 영상만 있는지 확인해 주세요.') from None
+            raise RuntimeError('이 영상 형식을 음성 파일로 바꾸지 못했어요. 기존 저장본은 그대로 뒀어요.') from None
+        except OSError:
+            raise RuntimeError('이 컴퓨터에서 영상 변환 도구를 실행하지 못했어요. FFmpeg 설치 상태를 확인해 주세요.') from None
+        try:
+            with output.open('r+b') as stream:
+                if stream.read(12)[4:8] != b'ftyp' or output.stat().st_size < 100:
+                    raise ValueError('완성된 음성 파일을 확인하지 못해 보관하지 않았어요.')
+                os.fsync(stream.fileno())
+        except FileNotFoundError:
+            raise RuntimeError('영상 변환은 끝났지만 음성 파일이 만들어지지 않았어요. 기존 저장본은 그대로 뒀어요.') from None
         content_hash = _digest(output)
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if not target.resolve().is_relative_to(root):

@@ -74,6 +74,12 @@ class AutonomousCourseTests(unittest.TestCase):
         self.assertEqual(blueprint["sections"][0]["activities"][0]["name"], "과목공지")
         self.assertEqual(blueprint["sections"][1]["activities"][0]["type"], "quiz")
         self.assertEqual(blueprint["sections"][1]["activities"][0]["externalId"], "799872")
+        self.assertEqual(blueprint["sections"][1]["activities"][0]["url"], "/mod/quiz/view.php?id=799872")
+
+    def test_course_structure_accepts_another_moodle_origin(self):
+        blueprint = parse_course_structure(COURSE_PAGE.replace('/mod/', 'https://moodle.example.edu/mod/'),
+                                           'https://moodle.example.edu')
+        self.assertEqual(blueprint["sections"][1]["activities"][0]["type"], "quiz")
 
     def test_section_summary_is_kept_for_schedule_lookup(self):
         html = '''

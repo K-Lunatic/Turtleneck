@@ -63,7 +63,8 @@ def _header_filename(headers):
 
 def _resource_http_error(error):
     code = error.code
-    error.close()
+    if getattr(error, 'fp', None) is not None:
+        error.close()
     if code == 401:
         raise LoginError('학교 로그인이 만료되어 자료 확인을 중단했어요.')
     reason = {403: 'TLS 서버가 파일 다운로드를 거부했습니다. 파일 내용을 가져오지 않았습니다.',
@@ -301,12 +302,13 @@ class _CourseStructureParser(HTMLParser):
             self.anchor["text"].append(data)
 
 
-def _activity_reference(href: str) -> tuple[str | None, str | None]:
+def _activity_reference(href: str, base_url: str = "https://tls.kku.ac.kr/") -> tuple[str | None, str | None]:
     try:
-        parts = urlsplit(urljoin("https://tls.kku.ac.kr/", href))
+        base = urlsplit(base_url)
+        parts = urlsplit(urljoin(base_url, href))
     except ValueError:
         return None, None
-    if parts.hostname not in (None, "tls.kku.ac.kr") or not parts.path.startswith("/mod/"):
+    if parts.hostname not in (None, base.hostname) or parts.scheme != base.scheme or not parts.path.startswith("/mod/"):
         return None, None
     values = parse_qs(parts.query, keep_blank_values=True).get("id", [])
     if len(values) != 1 or not re.fullmatch(r"[1-9][0-9]*", values[0]):
@@ -315,7 +317,7 @@ def _activity_reference(href: str) -> tuple[str | None, str | None]:
     return values[0], path_parts[2] if len(path_parts) > 2 else None
 
 
-def parse_course_structure(html: str) -> dict[str, Any]:
+def parse_course_structure(html: str, base_url: str = "https://tls.kku.ac.kr/") -> dict[str, Any]:
     parser = _CourseStructureParser()
     parser.feed(html)
     if parser.section is not None:
@@ -330,13 +332,14 @@ def parse_course_structure(html: str) -> dict[str, Any]:
         activities = []
         seen_activities: set[str] = set()
         for activity in section.get("activities", []):
-            activity_id, kind = _activity_reference(activity.get("href", ""))
+            activity_id, kind = _activity_reference(activity.get("href", ""), base_url)
             if not activity_id or activity_id in seen_activities:
                 continue
             seen_activities.add(activity_id)
             activities.append({"id": f"tls-activity-{activity_id}", "externalId": activity_id,
                                "type": kind or activity.get("type") or "unknown",
-                               "name": activity.get("name") or f"TLS activity {activity_id}"})
+                               "name": activity.get("name") or f"TLS activity {activity_id}",
+                               "url": activity.get("href") or ""})
         sections.append({"id": section_id, "name": section.get("name") or "강의 개요", "activities": activities})
     return {"source": "tls_course_page", "sections": sections}
 
@@ -522,7 +525,29 @@ class MoodleTLSProvider:
         """Read one observed course page as a local blueprint; never mutates TLS."""
         if not re.fullmatch(r"[1-9][0-9]*", str(external_id)):
             raise ValueError("TLS course id must be numeric")
-        return parse_course_structure(self.session.get(f"/course/view.php?id={external_id}"))
+        return parse_course_structure(self.session.get(f"/course/view.php?id={external_id}"),
+                                      getattr(self.session, "base_url", "https://tls.kku.ac.kr"))
+
+    def get_activity_catalog(self, user_id: str) -> list[dict[str, Any]]:
+        """Store every visible Moodle activity before specialized readers handle it."""
+        result: list[dict[str, Any]] = []
+        for course in self.get_courses(user_id):
+            base_url = getattr(self.session, "base_url", "https://tls.kku.ac.kr")
+            structure = parse_course_structure(self._course_page(course), base_url)
+            for section in structure["sections"]:
+                for activity in section["activities"]:
+                    result.append({
+                        "id": f"{course['id']}-{activity['externalId']}",
+                        "courseId": course["id"],
+                        "sectionId": section["id"],
+                        "sectionName": section["name"],
+                        "externalId": activity["externalId"],
+                        "type": activity["type"],
+                        "title": activity["name"],
+                        "url": urljoin(base_url.rstrip('/') + '/', activity["url"]),
+                        "source": "tls",
+                    })
+        return result
 
     def _course_page(self, course: dict[str, Any]) -> str:
         external_id = str(course["externalId"])
@@ -803,10 +828,21 @@ class MoodleTLSProvider:
             raise DownloadRestricted('이 강의는 다운로드가 제한되어 음성을 가져오지 않았어요.')
         if re.search(r'\b(?:allow_?download|file_download)\s*[:=]\s*[\"\']?(?:0|false)\b|\bdrm\s*:', viewer, re.I):
             raise DownloadRestricted('보호되거나 저장이 제한된 영상이라 음성을 가져오지 않았어요.')
-        sources = re.findall(r'\bsources\s*:\s*\[\s*\{\s*file\s*:\s*([\"\'])(.*?)\1', viewer, re.S)
-        if len(sources) != 1:
+        source_blocks = re.findall(r'\bsources\s*[:=]\s*\[(.*?)\]', viewer, re.S)
+        candidates = []
+        for block in source_blocks:
+            candidates.extend(re.findall(r'[\"\']?(?:file|src|url)[\"\']?\s*:\s*([\"\'])(.*?)\1', block, re.S))
+        candidates.extend(re.findall(r'<source\b[^>]*\bsrc\s*=\s*([\"\'])(.*?)\1', viewer, re.I | re.S))
+        if not candidates:
             raise ResourceUnavailable('이 강의의 실제 재생 주소를 확인하지 못했어요.')
-        return media_plan(self.session, unescape(sources[0][1]).replace('\\/', '/'), video=video)
+        for _, source in candidates[:4]:
+            try:
+                return media_plan(self.session, unescape(source).replace('\\/', '/'), video=video)
+            except DownloadRestricted:
+                raise
+            except (HTTPError, URLError, ValueError):
+                continue
+        raise ResourceUnavailable('학교가 제공한 재생 주소를 읽지 못했어요. 강의 형식이나 로그인 상태를 확인해 주세요.')
 
     def save_lecture_media(self, plan, target, progress=None):
         from providers.lecture_media import download_media

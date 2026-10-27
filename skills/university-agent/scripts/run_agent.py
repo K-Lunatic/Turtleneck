@@ -103,8 +103,11 @@ def _open_exam_web(result: dict[str, Any], conversation: str) -> dict[str, Any]:
         payload = json.loads(line) if line else {}
         if not isinstance(payload, dict) or not payload.get('url'):
             raise ValueError('시험 화면 주소를 받지 못했어요.')
-        return {**result, 'webOpened': True, 'webUrl': payload['url'],
-                'answer': payload.get('answer') or '시험지가 준비됐어요. 열린 시험 화면에서 풀어 주세요.'}
+        opened = payload.get('opened') is True
+        answer = payload.get('answer') or '시험지가 준비됐어요.'
+        if not opened:
+            answer += ' 브라우저가 자동으로 열렸는지 확인되지 않았어요. 아래 로컬 링크를 직접 열어 주세요.'
+        return {**result, 'webOpened': opened, 'webUrl': payload['url'], 'answer': answer}
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         return {**result, 'webOpened': False,
                 'answer': result.get('answer', '시험지가 준비됐어요.') +
@@ -381,6 +384,9 @@ def main() -> None:
     manual_delete.add_argument("--id", required=True)
     lecture_parser = sub.add_parser("lectures")
     lecture_parser.add_argument("--unfinished", action="store_true")
+    activities_parser = sub.add_parser("activities", help="강의실의 모든 Moodle 활동 유형과 위치를 확인")
+    activities_parser.add_argument("--course", default="", help="과목명 또는 일부")
+    activities_parser.add_argument("--type", default="", dest="activity_type", help="Moodle 활동 유형")
     audio_parser = sub.add_parser('lecture-audio', help='저장된 강의 목록에서 복습 음성 대상을 확인')
     audio_parser.add_argument('--course', default='')
     audio_parser.add_argument('--lecture', default='')
@@ -529,6 +535,19 @@ def main() -> None:
             "toolCalls": ["get_lectures"],
             "data": get_lectures(database(), USER_ID, unfinished=args.unfinished),
         }
+    elif args.command == "activities":
+        store = database()
+        courses = store.get_courses(USER_ID)
+        matches = [course for course in courses if not args.course.strip() or normalize(args.course) in normalize(course["name"])]
+        if args.course.strip() and len(matches) != 1:
+            result = {"toolCalls": ["get_course_activities"], "needsInput": True, "data": [],
+                      "answer": "활동을 볼 과목을 하나만 골라 주세요: " + ", ".join(course["name"] for course in matches)}
+        else:
+            result = {"toolCalls": ["get_course_activities"],
+                      "data": store.get_activities(USER_ID,
+                          course_id=matches[0]["id"] if matches else None,
+                          activity_type=args.activity_type.strip() or None),
+                      "answer": "강의실에 올라온 모든 활동을 주차별로 정리했어요. 아직 전용 해석기가 없는 유형도 원본 위치를 보존했어요."}
     elif args.command == "todos":
         result = {"toolCalls": ["get_todos"], "data": database().get_todos(USER_ID)}
     elif args.command == 'lecture-audio':

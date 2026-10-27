@@ -45,6 +45,7 @@ def main():
         results, notices = [], {}
         for index, lecture in enumerate(selected, 1):
             item = {'courseName': names[lecture['courseId']], 'title': lecture['title']}
+            stage = '강의 확인'
             print(f"강의 {index}/{len(selected)} · {item['courseName']} · {item['title']}", flush=True)
             if lecture.get('completed') is not True:
                 results.append({**item, 'status': 'SKIPPED', 'reason': '시청 완료로 기록되지 않은 강의라 제외했어요. 최신 상태가 다르면 학교 목록을 새로 확인해 주세요.'})
@@ -52,21 +53,25 @@ def main():
             try:
                 # Check each selected course's current notices once, never use stale permissions.
                 if lecture['courseId'] not in notices:
+                    stage = '과목 확인'
                     reader = MoodleTLSProvider(session)
                     reader._courses = [course for course in provider.get_courses(user) if course['id'] == lecture['courseId']]
                     if not reader._courses:
                         raise ValueError('현재 수강 중인 과목이 아니에요.')
                     notices[lecture['courseId']] = reader.get_notices(user)
                     provider._course_pages.update(reader._course_pages)
+                stage = '재생 주소·제한 확인'
                 plan = provider.get_lecture_media(user, lecture, notices[lecture['courseId']])
                 if args.check:
-                    results.append({**item, 'status': 'AVAILABLE', 'reason': '현재 시청 완료와 제공 형식을 확인했어요. 음성은 아직 받지 않았어요.'})
+                    results.append({**item, 'status': 'AVAILABLE', 'stage': '확인 완료',
+                                    'reason': '현재 시청 완료와 제공 형식을 확인했어요. 음성은 아직 받지 않았어요.'})
                     continue
+                stage = '조각 다운로드·음성 변환·저장'
                 saved = extract_audio(provider, user, lecture, plan, path.parent / 'audio',
                                       cached.get(lecture['id']), lambda message: print(message, flush=True))
                 with closing(LocalDatabase(path)) as database:
                     database.save_lecture_audio(user, saved)
-                results.append({**item, 'status': 'SAVED', 'localPath': saved['localPath'],
+                results.append({**item, 'status': 'SAVED', 'stage': '저장 완료', 'localPath': saved['localPath'],
                                 'savedAt': saved['savedAt'], 'reused': saved['reused']})
                 print('이미 보관한 음성이 있어 바로 가져왔어요.' if saved['reused'] else '음성을 보관했어요. 임시 영상은 정리했어요.', flush=True)
             except HTTPError as error:
@@ -75,13 +80,14 @@ def main():
                     raise LoginError('학교 연결이 만료됐어요. 다시 연결해 주세요.') from None
                 reason = {403: '학교에서 영상 받기를 거부해 제외했어요.', 404: '학교에서 영상을 찾지 못했어요.',
                           429: '학교에서 잠시 요청을 제한했어요. 여기서 멈추고 나중에 이어갈게요.'}.get(error.code, '학교가 영상 요청을 처리하지 못했어요.')
-                results.append({**item, 'status': 'FAILED', 'reason': reason})
+                results.append({**item, 'status': 'FAILED', 'stage': stage, 'reason': reason})
                 if error.code == 429:
                     break
             except (DownloadRestricted, ValueError, RuntimeError) as error:
-                results.append({**item, 'status': 'SKIPPED', 'reason': str(error)})
+                results.append({**item, 'status': 'SKIPPED', 'stage': stage, 'reason': str(error)})
             except (URLError, TimeoutError, OSError):
-                results.append({**item, 'status': 'FAILED', 'reason': '연결 또는 저장을 마무리하지 못했어요. 기존 보관 파일은 그대로 뒀어요.'})
+                results.append({**item, 'status': 'FAILED', 'stage': stage,
+                                'reason': '연결 또는 저장을 마무리하지 못했어요. 기존 보관 파일은 그대로 뒀어요.'})
         print(json.dumps(redact_output({'data': results, 'transcribed': False, 'answer': '강의 음성 확인을 마쳤어요. 전사나 시험 내용 검수는 아직 하지 않았어요.'}), ensure_ascii=False))
     except (LoginError, URLError, RuntimeError):
         raise SystemExit('학교 연결을 확인하지 못했어요. 비밀번호는 대화가 아니라 학교 연결창에서 입력해 주세요.') from None

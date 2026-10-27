@@ -159,7 +159,7 @@ class LocalDatabase:
         merged.update(state)
         self.save_sync_state(user_id, merged)
 
-    def upsert_tls_snapshot(self, user_id: str, courses: list[dict[str, Any]], assignments: list[dict[str, Any]], lectures: list[dict[str, Any]], user_name: str, department: str | None, now: str | None = None, notices: list[dict[str, Any]] | None = None, resources: list[dict[str, Any]] | None = None) -> None:
+    def upsert_tls_snapshot(self, user_id: str, courses: list[dict[str, Any]], assignments: list[dict[str, Any]], lectures: list[dict[str, Any]], user_name: str, department: str | None, now: str | None = None, notices: list[dict[str, Any]] | None = None, resources: list[dict[str, Any]] | None = None, activities: list[dict[str, Any]] | None = None) -> None:
         now = now or datetime.now(timezone.utc).isoformat()
         db = self.connection
         db.execute("INSERT INTO users(id, external_id, name, department, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, department=excluded.department, updated_at=excluded.updated_at", (user_id, user_id, user_name, department, now, now))
@@ -197,6 +197,15 @@ class LocalDatabase:
                 db.execute(f"DELETE FROM resources WHERE source='tls' AND course_id IN ({course_marks}) AND id NOT IN ({marks})", [*course_ids, *resource_ids])
             else:
                 db.execute(f"DELETE FROM resources WHERE source='tls' AND course_id IN ({course_marks})", course_ids)
+        if activities is not None and course_ids:
+            activity_ids = [item["id"] for item in activities]
+            course_marks = ",".join("?" for _ in course_ids)
+            if activity_ids:
+                marks = ",".join("?" for _ in activity_ids)
+                db.execute(f"DELETE FROM course_activities WHERE user_id=? AND course_id IN ({course_marks}) AND id NOT IN ({marks})",
+                            [user_id, *course_ids, *activity_ids])
+            else:
+                db.execute(f"DELETE FROM course_activities WHERE user_id=? AND course_id IN ({course_marks})", [user_id, *course_ids])
         for course in courses:
             db.execute("INSERT INTO courses(id, external_id, name, professor, semester, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, professor=excluded.professor, semester=excluded.semester, updated_at=excluded.updated_at", (course["id"], course.get("externalId", course["id"]), course["name"], course.get("professor"), course.get("semester"), course.get("source", "tls"), now))
             db.execute("INSERT OR IGNORE INTO enrollments(user_id, course_id) VALUES (?, ?)", (user_id, course["id"]))
@@ -208,6 +217,9 @@ class LocalDatabase:
         for item in lectures:
             db.execute("INSERT INTO lectures(id, external_id, course_id, title, duration_seconds, available_from, available_until, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, duration_seconds=excluded.duration_seconds, available_from=excluded.available_from, available_until=excluded.available_until, updated_at=excluded.updated_at", (item["id"], item.get("externalId", item["id"]), item["courseId"], item["title"], item["durationSeconds"], item.get("availableFrom"), item.get("availableUntil"), item.get("source", "tls"), now))
             db.execute("INSERT INTO lecture_progress(lecture_id, user_id, watched_seconds, watch_progress, completed, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(lecture_id, user_id) DO UPDATE SET watched_seconds=excluded.watched_seconds, watch_progress=excluded.watch_progress, completed=excluded.completed, updated_at=excluded.updated_at", (item["id"], user_id, item["watchedSeconds"], item["watchProgress"], int(item["completed"]), now))
+        for item in activities or []:
+            db.execute("INSERT INTO course_activities(id, user_id, course_id, section_id, section_name, external_id, type, title, url, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET course_id=excluded.course_id, section_id=excluded.section_id, section_name=excluded.section_name, external_id=excluded.external_id, type=excluded.type, title=excluded.title, url=excluded.url, source=excluded.source, updated_at=excluded.updated_at",
+                       (item["id"], user_id, item["courseId"], item.get("sectionId"), item.get("sectionName"), item["externalId"], item["type"], item["title"], item["url"], item.get("source", "tls"), now))
         for item in notices or []:
             db.execute("INSERT INTO notices(id, external_id, course_id, title, content, published_at, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, content=excluded.content, published_at=excluded.published_at, updated_at=excluded.updated_at", (item["id"], item.get("externalId", item["id"]), item.get("courseId"), item["title"], item.get("content", ""), item["publishedAt"], item.get("source", "tls"), now))
         for item in resources or []:
@@ -216,6 +228,25 @@ class LocalDatabase:
 
     def get_courses(self, user_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute("SELECT c.* FROM courses c JOIN enrollments e ON e.course_id=c.id WHERE e.user_id=? ORDER BY c.name", (user_id,))
+        return [dict(row) for row in rows]
+
+    def get_activities(self, user_id: str, *, course_id: str | None = None, activity_type: str | None = None) -> list[dict[str, Any]]:
+        if not self.connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='course_activities'").fetchone():
+            return []
+        clauses = ["a.user_id=?"]
+        values: list[Any] = [user_id]
+        if course_id:
+            clauses.append("a.course_id=?")
+            values.append(course_id)
+        if activity_type:
+            clauses.append("a.type=?")
+            values.append(activity_type)
+        rows = self.connection.execute(
+            "SELECT a.id, a.course_id AS courseId, c.name AS courseName, a.section_id AS sectionId, "
+            "a.section_name AS sectionName, a.external_id AS externalId, a.type, a.title, a.url, "
+            "a.source, a.updated_at AS updatedAt FROM course_activities a "
+            "JOIN courses c ON c.id=a.course_id JOIN enrollments e ON e.course_id=a.course_id AND e.user_id=a.user_id "
+            f"WHERE {' AND '.join(clauses)} ORDER BY c.name, a.section_id, a.title", values)
         return [dict(row) for row in rows]
 
     def merge_courses_resources(self, user_id: str, courses: list[dict[str, Any]], resources: list[dict[str, Any]]) -> None:

@@ -171,6 +171,15 @@ class MoodleSession:
             detail = f" (Moodle errorcode={code})" if code else ""
             raise LoginError(f"TLS login failed{detail}; check credentials or Moodle login flow")
         self.logged_in = True
+        try:
+            # A Moodle session cookie can be issued before the account is actually accepted.
+            self._request("/")
+        except LoginError:
+            self.logged_in = False
+            raise LoginError("TLS login could not be verified; please sign in again") from None
+        except Exception:
+            self.logged_in = False
+            raise
 
     def get(self, path: str) -> str:
         return self.get_page(path)[0]

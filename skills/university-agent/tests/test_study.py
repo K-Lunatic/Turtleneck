@@ -161,13 +161,22 @@ class StudyFlowTests(ProjectTestBase):
 
     def test_web_exam_is_opened_instead_of_returning_plain_questions(self):
         class Process:
-            stdout = StringIO('{"url":"http://127.0.0.1:4321/#token", "answer":"시험지가 준비됐어요."}\n')
+            stdout = StringIO('{"url":"http://127.0.0.1:4321/#token", "answer":"시험지가 준비됐어요.", "opened":true}\n')
 
         with patch('scripts.run_agent.subprocess.Popen', return_value=Process()) as launch:
             result = _open_exam_web({'needsWeb': True, 'answer': '시험지가 저장됐어요.'}, 'web-chat')
         self.assertTrue(result['webOpened'])
         self.assertEqual(result['webUrl'], 'http://127.0.0.1:4321/#token')
         launch.assert_called_once()
+
+    def test_web_exam_does_not_claim_browser_opened_when_launcher_reports_failure(self):
+        class Process:
+            stdout = StringIO('{"url":"http://127.0.0.1:4321/#token", "answer":"시험지가 준비됐어요.", "opened":false}\n')
+
+        with patch('scripts.run_agent.subprocess.Popen', return_value=Process()):
+            result = _open_exam_web({'needsWeb': True}, 'web-chat')
+        self.assertFalse(result['webOpened'])
+        self.assertIn('자동으로 열렸는지 확인되지 않았어요', result['answer'])
 
     def test_context_note_requires_a_real_course_and_does_not_need_conversation(self):
         self.assertEqual(event_from_text('손코딩 시험 방식 저장해줘', [])["action"], 'save_context_note')

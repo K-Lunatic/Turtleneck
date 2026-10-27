@@ -3,10 +3,16 @@ import hashlib
 import json
 import re
 import math
+import time
 from concurrent.futures import ThreadPoolExecutor
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 
 from providers.moodle_session import DownloadRestricted, check_download_origin, check_download_url
+
+
+_RETRYABLE_HTTP = {408, 425, 500, 502, 503, 504}
+_CHUNK_ATTEMPTS = 3
 
 
 def _attributes(line):
@@ -17,7 +23,8 @@ def _attributes(line):
 def media_plan(session, source, *, video=False):
     """All referenced addresses/keys are checked before any media bytes are fetched."""
     parts = urlsplit(source)
-    if parts.hostname not in ('tls.kku.ac.kr', 'tlsvod.kku.ac.kr') or parts.port not in (None, 443, 8443):
+    if (parts.scheme != 'https' or not parts.hostname or parts.username or parts.password or
+        not parts.netloc):
         raise DownloadRestricted('학교에서 제공하는 영상 주소를 확인하지 못했어요.')
     origin, current, seen = parts.netloc, source, set()
     playback_key = hashlib.sha256(source.encode()).hexdigest()
@@ -32,7 +39,7 @@ def media_plan(session, source, *, video=False):
             check_download_origin(final, origin)
             check_download_url(final)
             return {'chunks': [current], 'origin': origin, 'format': 'mov',
-                    'sourceKey': hashlib.sha256(current.encode()).hexdigest(), 'playbackKey': playback_key}
+                    'sourceKey': hashlib.sha256(final.encode()).hexdigest(), 'playbackKey': playback_key}
         if extension != 'm3u8' or current in seen:
             raise ValueError('현재 영상 제공 형식은 아직 읽을 수 없어요.')
         seen.add(current)
@@ -57,7 +64,7 @@ def media_plan(session, source, *, video=False):
         for index, line in enumerate(lines):
             attrs = _attributes(line)
             if line.startswith('#EXT-X-MEDIA:') and attrs.get('TYPE') == 'AUDIO' and attrs.get('URI'):
-                audio.append(attrs['URI'])
+                audio.append((attrs.get('DEFAULT') == 'YES', attrs.get('AUTOSELECT') == 'YES', attrs.get('URI')))
             if line.startswith('#EXT-X-STREAM-INF:'):
                 if index + 1 >= len(lines) or lines[index + 1].startswith('#'):
                     raise ValueError('영상 목록 일부가 비어 있어 가져오기를 멈췄어요.')
@@ -68,7 +75,14 @@ def media_plan(session, source, *, video=False):
         if audio or variants:
             if video and not variants:
                 raise ValueError('이 강의에서는 화면 영상을 제공하지 않아요.')
-            current = urljoin(base, max(variants)[1] if video else audio[0] if audio else min(variants)[1])
+            if video:
+                selected = max(variants)[1]
+            elif audio:
+                # Prefer the playlist explicitly marked as the default audio track.
+                selected = sorted(audio, key=lambda item: (not item[0], not item[1], item[2]))[0][2]
+            else:
+                selected = min(variants)[1]
+            current = urljoin(base, selected)
             continue
         if '#EXT-X-ENDLIST' not in lines:
             raise ValueError('진행 중인 영상은 가져오지 않아요.')
@@ -121,12 +135,24 @@ def download_media(session, plan, target, progress=None):
     chunks = plan['chunks']
     total = 0
     def fetch(url):
-        worker = session.fork()
         limit = 256_000_000 if plan['format'] == 'mov' else 32_000_000
-        data, _ = worker.get_bytes(url, allowed_origin=plan['origin'], max_bytes=limit)
-        if not data or (plan['format'] == 'mpegts' and data[0] != 0x47) or (plan['format'] == 'mov' and data[4:8] != b'ftyp'):
-            raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
-        return data
+        for attempt in range(1, _CHUNK_ATTEMPTS + 1):
+            worker = session.fork()
+            try:
+                data, _ = worker.get_bytes(url, allowed_origin=plan['origin'], max_bytes=limit)
+                if not data or (plan['format'] == 'mpegts' and data[0] != 0x47) or (plan['format'] == 'mov' and data[4:8] != b'ftyp'):
+                    raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
+                return data
+            except HTTPError as error:
+                retry = error.code in _RETRYABLE_HTTP
+                if getattr(error, 'fp', None) is not None:
+                    error.close()
+                if not retry or attempt == _CHUNK_ATTEMPTS:
+                    raise
+            except (URLError, TimeoutError):
+                if attempt == _CHUNK_ATTEMPTS:
+                    raise
+            time.sleep(0.5 * attempt)
     with target.open('wb') as stream, ThreadPoolExecutor(max_workers=4) as pool:
         for start in range(0, len(chunks), 4):
             for data in pool.map(fetch, chunks[start:start + 4]):

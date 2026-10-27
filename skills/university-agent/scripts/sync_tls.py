@@ -114,12 +114,12 @@ def store_resource(file_root, item):
     return item
 
 
-def persist(db_path, user_id, username, courses, *, assignments=None, lectures=None, notices=None, resources=None):
+def persist(db_path, user_id, username, courses, *, assignments=None, lectures=None, notices=None, resources=None, activities=None):
     with closing(LocalDatabase(db_path)) as database:
         database.upsert_tls_snapshot(user_id, courses,
             assignments if assignments is not None else [x for x in database.get_assignments(user_id) if x.get('source') != 'manual'],
             lectures if lectures is not None else database.get_lectures(user_id), username, None,
-            notices=notices, resources=resources)
+            notices=notices, resources=resources, activities=activities)
 
 
 def _saved_sync_state(db_path: Path, user_id: str) -> dict[str, str]:
@@ -190,12 +190,13 @@ def open_connection_terminal(command: list[str] | None = None) -> None:
     else:
         options['start_new_session'] = True
     subprocess.Popen(command, **options)
-    print('학교 연결 화면을 열었어요. 브라우저에서 입력을 마치면 안전하게 저장돼요.', flush=True)
+    print('학교 연결 절차를 시작했어요. 브라우저에 입력 화면이 실제로 보이는지 확인해 주세요.', flush=True)
 
 
 def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False) -> tuple[str, MoodleSession]:
     """Login without ever returning the password to the caller."""
-    for attempt in range(1, 2 if stored_only else 4):
+    total_attempts = 1 if stored_only else 3
+    for attempt in range(1, total_attempts + 1):
         if stored_only:
             try:
                 username, password = load()
@@ -205,7 +206,7 @@ def _login_with_retries(base_url: str, requested_username: str | None = None, *,
                 raise RuntimeError('저장된 학교 계정이 달라요. 학교 연결을 다시 확인해 주세요.')
         else:
             username, password = resolve(requested_username, force_input=attempt > 1)
-        print(f"학교 로그인 확인 중이에요… ({attempt}/3)", flush=True)
+        print(f"학교 로그인을 확인 중이에요… ({attempt}/{total_attempts})", flush=True)
         session = MoodleSession(base_url)
         try:
             session.login(username, password)
@@ -290,17 +291,22 @@ def main() -> None:
         _progress(2, 5, "과제와 마감일을 살펴보는 중이에요…")
         stage_started = monotonic()
         assignments = provider.get_assignments(user_id)
-        persist(db_path, user_id, username, courses, assignments=assignments)
         print(f"과제 {len(assignments)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
+        # Assignment reads already warm the shared course-page cache in the parallel provider.
+        # Parse the activity map after that work so it does not become a serial network gate.
+        catalog_reader = getattr(provider, 'get_activity_catalog', None)
+        activities = catalog_reader(user_id) if catalog_reader else None
+        print(f"강의실 활동 {len(activities or [])}개를 분류했어요. 새 유형도 놓치지 않을게요.", flush=True)
+        persist(db_path, user_id, username, courses, assignments=assignments, activities=activities)
         _progress(3, 5, "강의 시청 상태를 확인하는 중이에요…")
         stage_started = monotonic()
         lectures = provider.get_lectures(user_id)
-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures)
+        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, activities=activities)
         print(f"강의 {len(lectures)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
         _progress(4, 5, "새 공지를 살펴보는 중이에요…")
         stage_started = monotonic()
         notices = provider.get_notices(user_id)
-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices)
+        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, activities=activities)
         print(f"공지 {len(notices)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
         _progress(5, 5, "강의 자료를 확인하는 중이에요…")
         stage_started = monotonic()
@@ -330,10 +336,10 @@ def main() -> None:
             print(f"{course_names.get(item['courseId'], '과목')} · {item['title']} · {resource_unavailable_reason(item)}", flush=True)
             continue
         store_resource(file_root, item)
-    persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, resources=resources)
+    persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, resources=resources, activities=activities)
     _save_sync_state(db_path, user_id, provider)
     elapsed = round(monotonic() - started, 1)
-    print(f"터틀넥 준비 완료 · 과목 {len(courses)}개 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · 공지 {len(notices)}개 · 자료 {len(resources)}개 · 제한으로 건너뜀 {prohibited}개 · {elapsed}초", flush=True)
+    print(f"터틀넥 준비 완료 · 과목 {len(courses)}개 · 활동 {len(activities)}개 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · 공지 {len(notices)}개 · 자료 {len(resources)}개 · 제한으로 건너뜀 {prohibited}개 · {elapsed}초", flush=True)
     print("이제 ‘이번 주에 뭐부터 해야 해?’라고 물어보면 우선순위를 정리해 드릴게요.", flush=True)
 
 

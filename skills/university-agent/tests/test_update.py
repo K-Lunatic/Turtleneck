@@ -95,6 +95,7 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(plugin['name'], claude['name'])
         self.assertEqual((repo / plugin['source']).resolve(), repo.resolve())
         self.assertTrue((ROOT / 'references/claude-code.md').is_file())
+        self.assertTrue((ROOT / 'references/gemini.md').is_file())
 
 
 if __name__ == "__main__":

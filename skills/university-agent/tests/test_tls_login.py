@@ -5,6 +5,7 @@ import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -13,11 +14,32 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from providers.moodle_session import LoginError
+from providers.moodle_session import MoodleSession
 from providers.forms import TLS_CREDENTIALS_FORM, collect_browser
 from scripts import sync_tls
 
 
 class TlsLoginTests(unittest.TestCase):
+    def test_cookie_alone_is_not_reported_as_a_successful_login(self):
+        session = MoodleSession('https://tls.example')
+        session.cookies = [SimpleNamespace(name='MoodleSession')]
+        responses = iter([
+            ('<form><input name="username"></form>', SimpleNamespace(geturl=lambda: 'https://tls.example/login/index.php')),
+            ('<main>redirected</main>', SimpleNamespace(geturl=lambda: 'https://tls.example/')),
+        ])
+
+        def request(path, **kwargs):
+            if 'data' in kwargs:
+                return next(responses)
+            if path == '/':
+                raise LoginError('login page returned')
+            return next(responses)
+
+        with patch.object(session, '_request', side_effect=request):
+            with self.assertRaisesRegex(LoginError, 'could not be verified'):
+                session.login('student', 'secret')
+        self.assertFalse(session.logged_in)
+
     def test_browser_form_returns_values_through_localhost_only(self):
         opened = {}
 
@@ -62,6 +84,9 @@ class TlsLoginTests(unittest.TestCase):
                 Session.total_calls += 1
                 if Session.total_calls == 1:
                     raise LoginError("invalid")
+
+            def _request(self, path, **kwargs):
+                return '<main>dashboard</main>', SimpleNamespace(geturl=lambda: 'https://tls.example/')
 
         with patch.object(sync_tls, 'resolve', side_effect=[('student', 'old'), ('student', 'new')]) as resolve, \
              patch.object(sync_tls, 'MoodleSession', Session), patch.object(sync_tls, 'save') as save, \

@@ -38,11 +38,11 @@ description: 터틀넥 대학생활 Skill. 과제·마감·미시청 강의·공
 - 사용 가능한 스킬과 접근 가능한 자료를 물으면 관련 기능만 평이하게 보여준다. 자격증명·쿠키·숨은 경로·무관한 내부 스킬 목록은 보여주지 않는다. 상세 필드와 동의 상태는 [references/learner-profile.md](references/learner-profile.md)를 따른다.
 - 프로필을 확인한 뒤에는 방식에 맞춘다. Notability는 타임스탬프 회상·필기 근거, 입력 노트는 체크리스트·구조화 요약, 손필기는 짧은 회상 문제, 듣고 끝나는 방식은 강의 직후 작은 확인 문제를 우선한다.
 
-For local Codex or Claude Code, use the same bundled standard-library runner for every data lookup or mutation. In Claude Code, first read [references/claude-code.md](references/claude-code.md) for host-specific invocation, permissions and background exam handling; all academic and study contracts below remain shared. Before setup or an academic lookup, run `python3 scripts/update_turtleneck.py --auto` (Windows: `py -3`) when the installed package is not a Git checkout; it checks the trusted `turtleneck` package at most every six hours and applies a newer package to the installed skill only. A network failure keeps the current version, and a Git checkout is never overwritten. Use `--apply` when an explicit manual update is requested. Supported local platforms are macOS and Windows. Ordinary Claude web chat/cloud sessions cannot use this computer's protected credentials or local web exam. The ChatGPT web/mobile gateway remains an optional, temporarily deferred path described in [server/README.md](../../server/README.md). Do not invent a response from local data when the runner can return the result.
+For local Codex, Claude Code or Gemini, use the same bundled standard-library runner for every data lookup or mutation. In Claude Code, first read [references/claude-code.md](references/claude-code.md) for host-specific invocation, permissions and background exam handling; in Gemini, first read [references/gemini.md](references/gemini.md) for network/loopback sandbox approval and host-specific execution; all academic and study contracts below remain shared. Before setup or an academic lookup, run `python3 scripts/update_turtleneck.py --auto` (Windows: `py -3`) when the installed package is not a Git checkout; it checks the trusted `turtleneck` package at most every six hours and applies a newer package to the installed skill only. A network failure keeps the current version, and a Git checkout is never overwritten. Use `--apply` when an explicit manual update is requested. Supported local platforms are macOS and Windows. Ordinary web chat/cloud sessions without local execution cannot use this computer's protected credentials or local web exam. The ChatGPT web/mobile gateway remains an optional, temporarily deferred path described in [server/README.md](../../server/README.md). Do not invent a response from local data when the runner can return the result.
 
 ## First invocation: one setup for TLS and Everytime
 
-Everytime is bundled under `integrations/everytime/`; do not install a separate Everytime skill. On the first local Turtleneck invocation in a chat (`$turtleneck` in Codex; `/university-agent:turtleneck` for the Claude plugin or `/turtleneck` standalone), resolve this skill's absolute path and run `python3 scripts/setup_turtleneck.py --status` (Windows: the available Python, e.g. `py -3`). This reads existing setup state without passwords, cookies or network requests. READY means initial local data exists, not that the live login is still valid. If both are READY, continue immediately with the user's request; never repeat initial imports just because a new chat started. UNAVAILABLE is not missing login: inspect storage permission, obtain scoped approval and retry the status read once; do not open another login window or overwrite the DB. RUNNING means wait for the existing setup rather than launch it again.
+Everytime is bundled under `integrations/everytime/`; do not install a separate Everytime skill. On the first local Turtleneck invocation in a chat (`$turtleneck` in Codex; `/university-agent:turtleneck` for the Claude plugin or `/turtleneck` standalone; or the `turtleneck` skill in Gemini), resolve this skill's absolute path and run `python3 scripts/setup_turtleneck.py --status` (Windows: the available Python, e.g. `py -3`). This reads existing setup state without passwords, cookies or network requests. READY means initial local data exists, not that the live login is still valid. If both are READY, continue immediately with the user's request; never repeat initial imports just because a new chat started. UNAVAILABLE is not missing login: inspect storage permission, obtain scoped approval and retry the status read once; do not open another login window or overwrite the DB. RUNNING means wait for the existing setup rather than launch it again.
 
 If either is missing, say “학교 자료와 에타 시간표·강의평을 한 번에 준비할게요. 로그인 화면에서 직접 연결해 주세요.” and run `python3 scripts/setup_turtleneck.py` with the required desktop and exact local-write approvals. Do this in the same turn, including a bare skill invocation; do not ask the user to install another skill or paste several commands. If the user asks for help only or declines one service, honor that: provide help without authentication or use `--only tls` / `--only everytime`. Keep the original request pending while the user completes login.
 
@@ -87,8 +87,9 @@ For any future user input, follow [references/form-pattern.md](references/form-p
 
 For completed-lecture audio/review requests, read [references/lecture-audio.md](references/lecture-audio.md).
 Use its local runner with stored credentials, never play the lecture or call attendance/progress endpoints.
-Audio extraction exists; timestamped transcription, AI review and targeted frames are a documented next-stage
-design, not implemented capabilities. Never claim an audio file was transcribed or semantically reviewed.
+Audio extraction, local timestamped transcription and targeted frame extraction are implemented as separate
+commands. AI semantic review is still a separate host-AI step: only call a transcript reviewed after a saved
+review record exists. Never claim an audio file was transcribed or semantically reviewed without the local record.
 
 PDF/PPT/PPTX를 읽을 때는 본문과 함께 문서 안의 이미지·도표를 기기 안에 캐시한다. AI에는 절대경로가
 아닌 이미지 참조만 전달하고, 이미지가 실제 문항에 필요할 때만 그 참조를 문항 후보에 연결한다.
@@ -120,12 +121,16 @@ python3 scripts/run_agent.py assignment-add --title '직접 받은 과제' --cou
 python3 scripts/run_agent.py assignment-complete --id '<직접 등록한 과제 ID>' --submission-answer 예
 python3 scripts/run_agent.py assignment-delete --id '<직접 등록한 과제 ID>'
 python3 scripts/run_agent.py lectures --unfinished
+python3 scripts/run_agent.py activities
+python3 scripts/run_agent.py activities --course "자료구조" --type quiz
 python3 scripts/run_agent.py todos
 python3 scripts/run_agent.py notices
 python3 scripts/run_agent.py resources
 python3 scripts/run_agent.py learning-profile
 # 사용자가 직접 확인한 학습 방식·동의만 JSON으로 병합
 python3 scripts/run_agent.py learning-profile --updates-json '{"learningStyle":"notability","preferredSources":["Notability","TLS"],"consents":{"sourceAnalysis":true,"notabilityMetadata":true,"notabilityContent":false}}'
+python3 scripts/lecture_review.py transcribe --lecture-id '<완료된 강의 ID>' --start 0 --duration 120
+python3 scripts/lecture_review.py show --record-id '<전사 기록 ID>'
 python3 scripts/run_agent.py study-materials --course "자료구조"
 python3 scripts/run_agent.py study-materials --course "자료구조" --resource "3주차"
 python3 scripts/run_agent.py study-notes --course "자료구조"

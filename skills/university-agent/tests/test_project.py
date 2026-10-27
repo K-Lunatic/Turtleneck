@@ -143,7 +143,7 @@ class ProjectTests(ProjectTestBase):
 
     def test_all_read_commands_and_json(self):
         self.seed()
-        for command in ('context', 'assignments', 'lectures', 'bookmarks', 'notices', 'resources'):
+        for command in ('context', 'assignments', 'lectures', 'activities', 'bookmarks', 'notices', 'resources'):
             with self.subTest(command=command):
                 data = self.cli(command)
                 self.assertIn('toolCalls', data); self.assertIn('data', data)

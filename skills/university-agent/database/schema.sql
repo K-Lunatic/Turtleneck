@@ -103,6 +103,23 @@ CREATE TABLE IF NOT EXISTS lecture_progress (
   PRIMARY KEY (lecture_id, user_id)
 );
 
+-- Every Moodle activity is catalogued, including types that do not have a
+-- specialized reader yet. This keeps the course map complete and local.
+CREATE TABLE IF NOT EXISTS course_activities (
+  id TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  section_id TEXT,
+  section_name TEXT,
+  external_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  url TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'tls',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, id)
+);
+
 CREATE TABLE IF NOT EXISTS notices (
   id TEXT PRIMARY KEY,
   external_id TEXT NOT NULL,
@@ -226,6 +243,7 @@ CREATE INDEX IF NOT EXISTS idx_sync_state_user ON sync_state(user_id, state_key)
 CREATE INDEX IF NOT EXISTS idx_submissions_user_status ON assignment_submissions(user_id, submission_status);
 CREATE INDEX IF NOT EXISTS idx_manual_assignments_user_due ON manual_assignments(user_id, due_at);
 CREATE INDEX IF NOT EXISTS idx_progress_user_completed ON lecture_progress(user_id, completed);
+CREATE INDEX IF NOT EXISTS idx_course_activities_user_course ON course_activities(user_id, course_id, section_id, type);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_context_bookmarks_user_assignment ON context_bookmarks(user_id, assignment_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_notices_course_published ON notices(course_id, published_at);

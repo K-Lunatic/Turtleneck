@@ -33,6 +33,23 @@ class TLSDataTests(unittest.TestCase):
             self.assertEqual([item["type"] for item in db.get_todos("student")[0]["items"]], ["ASSIGNMENT", "LECTURE"])
             db.close()
 
+    def test_activity_catalog_keeps_unknown_types_and_course_scope(self):
+        with tempfile.TemporaryDirectory() as folder:
+            db = LocalDatabase(Path(folder) / "university.db")
+            db.upsert_tls_snapshot(
+                "student", [{"id": "course-1", "name": "Course 1"}, {"id": "course-2", "name": "Course 2"}],
+                [], [], "Student", "",
+                activities=[
+                    {"id": "course-1-10", "courseId": "course-1", "sectionId": "section-1", "sectionName": "1주차",
+                     "externalId": "10", "type": "h5pactivity", "title": "복습 활동", "url": "/mod/h5pactivity/view.php?id=10"},
+                    {"id": "course-2-11", "courseId": "course-2", "sectionId": "section-2", "sectionName": "2주차",
+                     "externalId": "11", "type": "unknown_plugin", "title": "확인 필요", "url": "/mod/unknown/view.php?id=11"},
+                ],
+            )
+            self.assertEqual(db.get_activities("student", course_id="course-1")[0]["type"], "h5pactivity")
+            self.assertEqual(db.get_activities("student", activity_type="unknown_plugin")[0]["courseId"], "course-2")
+            db.close()
+
 
 if __name__ == "__main__":
     unittest.main()

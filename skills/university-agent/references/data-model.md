@@ -16,7 +16,7 @@
 
 | 영역 | 데이터 | 담당 |
 | --- | --- | --- |
-| TLS 동기화 | `users`, `courses`, `enrollments`, `assignments`, `lectures`, `notices`, `resources` | TLS 담당자 |
+| TLS 동기화 | `users`, `courses`, `enrollments`, `assignments`, `lectures`, `notices`, `resources`, `course_activities` | TLS 담당자 |
 | 사용자별 학업 상태 | `assignment_submissions`, `lecture_progress` | TLS 담당자 + 기능 담당자 소비 |
 | 서비스 기능 | `manual_assignments`, `bookmarks`, `context_bookmarks` | 기능 담당자 |
 | 레거시 미사용 테이블 | `projects`, `project_members`, `project_tasks`, `handovers`, `handover_items` | 기존 사용자 데이터를 보존하며 신규 기능에서 사용하지 않음 |
@@ -29,8 +29,10 @@
 3. DB 시간은 ISO-8601 UTC 문자열로 저장하고 화면에서 Asia/Seoul로 변환한다.
 4. 외부 TLS에 없는 앱 데이터는 TLS 테이블에 섞지 않는다.
 5. `StudentContext`는 중복 캐시 테이블로 만들지 않는다. 과제·강의·북마크·프로젝트 조회를 조합한다.
-6. 이 DB는 의도적으로 기기별 단일 저장소다. 기기 간 공유와 충돌 해결은 제공하지 않는다.
-7. 과제 Context Bookmark는 사용자가 보낸 정형 명령에서만 읽거나 쓴다. 저장은 진행 이력을 append-only로 남긴다. TLS 과제는 동기화에서 `SUBMITTED`/`LATE`가 확인될 때, 직접 등록한 과제는 사용자가 제출 여부에 정확히 `예`라고 답해 완료 처리할 때 해당 이력을 제거한다. 미완성 저장 목록은 정확한 `list` 명령에 응답한다.
+6. `course_activities`는 Moodle 활동의 공통 카탈로그다. 전용 해석기가 없는 유형도 `type`,
+   `title`, `section_name`, `url`을 보존하고, 상세 내용은 해당 활동 reader가 담당한다.
+7. 이 DB는 의도적으로 기기별 단일 저장소다. 기기 간 공유와 충돌 해결은 제공하지 않는다.
+8. 과제 Context Bookmark는 사용자가 보낸 정형 명령에서만 읽거나 쓴다. 저장은 진행 이력을 append-only로 남긴다. TLS 과제는 동기화에서 `SUBMITTED`/`LATE`가 확인될 때, 직접 등록한 과제는 사용자가 제출 여부에 정확히 `예`라고 답해 완료 처리할 때 해당 이력을 제거한다. 미완성 저장 목록은 정확한 `list` 명령에 응답한다.
    `save "과제명"`은 현재 사용자의 TLS 과제만 검색해 내부 ID에 연결한다. TLS에 없는 캡처 과제는 `save new "제목"`으로 일반 과제 등록과 체크포인트 저장을 함께 한다. 같은 제목의 직접 등록한 과제는 다시 만들지 않고 재사용한다. `load "과제명"`은 저장 기록을 불러온다. 기존 과제 검색에 여러 후보가 있거나 검색 실패 시 체크포인트를 읽거나 쓰지 않는다. 안내·후보·저장/불러오기 결과에는 내부 ID를 내보내지 않는다. 저장 스키마는 그대로 유지한다.
 8. 직접 등록한 과제는 `manual_assignments`에 사용자별로 저장하며 TLS 재동기화에서 삭제하지 않는다. 과목과 마감일은 선택 사항이고, 제출 확인에 따른 완료 처리는 TLS 제출 상태를 변경하지 않는다.
 9. 조회 컨텍스트의 `asOf`는 한국 시간 조회 시각, `lastSyncedAt`는 사용자 행의 마지막 TLS 가져오기 시각, `dataSource`는 `local`이다. `upcomingAssignments`, `overdueAssignments`, `undatedAssignments`는 미제출 과제를 마감으로 구분하고 `unknownSubmissionAssignments`는 제출 상태 미상 과제를 별도로 반환한다. 새 DB 테이블은 만들지 않는다.

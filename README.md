@@ -6,12 +6,13 @@
 
 <p align="center">
   <strong>학교 자료를 모으고, 공부할 만큼 나누고, 시험처럼 풀어요.</strong><br>
-  <sub>KKU TLS와 수업자료를 연결하는 Codex / Claude Code 대학생활 스킬</sub>
+  <sub>KKU TLS와 수업자료를 연결하는 Codex / Claude Code / Gemini 대학생활 스킬</sub>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Codex-Skill-202124?style=flat-square" alt="Codex Skill">
   <img src="https://img.shields.io/badge/Claude_Code-Skill-D97757?style=flat-square" alt="Claude Code Skill">
+  <img src="https://img.shields.io/badge/Gemini-Skill-4285F4?style=flat-square" alt="Gemini Skill">
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows-28654D?style=flat-square" alt="macOS와 Windows">
   <img src="https://img.shields.io/badge/local%20first-28654D?style=flat-square" alt="기기 우선 저장">
   <img src="https://img.shields.io/badge/Turtleneck-local%20study-BC8B36?style=flat-square" alt="터틀넥 로컬 학습">
@@ -41,13 +42,13 @@
 | 자료는 있는데 공부가 막막할 때 | 핵심 개념을 먼저 정리하고 자료 근거 기반 문제 생성 |
 | 문제를 풀고 실력이 남지 않을 때 | 웹 시험지, 자동 저장, AI 채점, 지난 풀이와 약한 문항 기록 |
 
-> 로컬 **Codex·Claude Code의 macOS·Windows**를 대상으로 합니다. 일반 Claude 웹 채팅·클라우드 환경은 지원하지 않습니다. 모바일 기기와 자동 동기화하지 않고, 사용하는 컴퓨터 안에 자료를 보관합니다.
+> 로컬 **Codex·Claude Code·Gemini의 macOS·Windows**를 대상으로 합니다. 일반 웹 채팅·클라우드 환경은 지원하지 않습니다. 모바일 기기와 자동 동기화하지 않고, 사용하는 컴퓨터 안에 자료를 보관합니다.
 
 ## 빠른 시작
 
 ### 1. 설치
 
-로컬 Codex 또는 Claude Code가 필요합니다. 직접 스크립트를 실행할 때는 Python 3.10 이상을 사용하지만, 아래의 macOS·Windows 실행기를 더블클릭하면 Python이 있으면 재사용하고 없으면 사용자 컴퓨터에 필요한 실행 환경을 자동으로 준비합니다.
+로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 직접 스크립트를 실행할 때는 Python 3.10 이상을 사용하지만, 아래의 macOS·Windows 실행기를 더블클릭하면 Python이 있으면 재사용하고 없으면 사용자 컴퓨터에 필요한 실행 환경을 자동으로 준비합니다.
 
 **Codex:**
 
@@ -76,6 +77,8 @@ claude plugin install university-agent@kku-university-agent-local
 스킬 폴더만 쓸 때는 `skills/university-agent`를 `~/.claude/skills/turtleneck`에 복사하고 `/turtleneck`을
 호출합니다. 이 경우 플러그인 자동 업데이트 대신 폴더를 다시 복사해 갱신합니다.
 [Claude 설치 규칙](https://code.claude.com/docs/en/plugin-marketplaces)과 [실행 지침](skills/university-agent/references/claude-code.md)을 참고하세요.
+
+**Gemini:** 저장소 폴더를 연결하거나 GitHub 주소를 전달해 `skills/university-agent`를 `turtleneck` 스킬로 등록합니다. 자세한 로컬 샌드박스·네트워크 승인 규칙은 [Gemini 실행 지침](skills/university-agent/references/gemini.md)을 참고하세요.
 
 로컬 시험 서버나 Actions 연결을 실행할 때는 `University Agent.command`(macOS) 또는 `University Agent.bat`(Windows)를 더블클릭하세요. 실행 전 터틀넥은 신뢰한 `turtleneck` 버전을 확인하고, 설치본이 더 오래된 경우에만 자동으로 교체합니다. 개발 중인 Git 저장소는 자동으로 덮어쓰지 않습니다.
 
@@ -124,6 +127,7 @@ python3 scripts/run_agent.py tls-activity-control \
 | 기능 | 사용 예시 | 얻는 결과 |
 | --- | --- | --- |
 | 학사 정보 | “오늘 뭐 해야 해?” | 과목별 과제, 강의, 공지, 마감, 시청 상태 |
+| Moodle 활동 지도 | “강의실에 뭐가 올라와 있어?” | 주차별 게시판·퀴즈·페이지·자료·H5P 등 모든 활동 유형과 원본 위치 |
 | 일반 할 일 | “TLS에 없는 과제도 추가해줘” | 학교에 없는 개인 과제까지 함께 관리 |
 | 수업자료 | “자료구조 공지와 자료 보여줘” | 저장된 과목 자료와 원본 파일 확인 |
 | 자료 학습 | “자료구조 공부 좀 해야겠다” | 핵심 개념을 먼저 익히고 다음 학습 선택 |
@@ -172,8 +176,10 @@ TLS 자율강좌의 자료·활동 메뉴는 실제 화면에서 확인한 유�
 완료된 강의는 저장된 학교 연결로 창 없이 음성을 가져올 수 있습니다. TLS의 현재 `completed`를
 확인하고 공식 제공 경로만 사용하며 재생·진도·출석 요청은 보내지 않습니다. 보호·금지된 영상은
 제외합니다. 음성을 나눌 도구가 없다면 사용 중인 Python에 `requirements-audio.txt`를 설치합니다.
-음성은 로컬에 보관하고 임시 영상은 정리합니다. 시간표시 전사 → AI 검수 → 모호한 구간의 화면
-확인은 [다음 단계 설계](skills/university-agent/references/lecture-audio.md)이며 아직 실행 기능이 아닙니다.
+음성은 로컬에 보관하고 임시 영상은 정리합니다. `scripts/lecture_review.py transcribe`로
+시간표시 전사를 만들고, 필요한 경우 현재 호스트 AI 검수와 해당 시각 화면 확인을 별도로 이어갑니다.
+검수 기록이 저장되기 전에는 전사문을 의미적으로 확인된 자료로 취급하지 않습니다. 자세한 제한은
+[강의 음원·전사 안내](skills/university-agent/references/lecture-audio.md)를 참고하세요.
 
 ### 약한 개념을 다음 학습에 반영
 
