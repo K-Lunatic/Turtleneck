@@ -54,7 +54,7 @@
 
 ```bash
 codex plugin marketplace add K-Lunatic/Turtleneck --ref turtleneck
-codex plugin add university-agent@kku-university-agent-local
+codex plugin add university-agent@turtleneck
 ```
 
 설치 후 새 Codex 대화에서 호출합니다.
@@ -63,11 +63,11 @@ codex plugin add university-agent@kku-university-agent-local
 $turtleneck
 ```
 
-**Claude Code:** 저장소를 받아 둔 폴더에서 아래 두 명령으로 설치합니다.
+**Claude Code:** 공개 저장소에서 아래 두 명령으로 설치합니다.
 
 ```bash
-claude plugin marketplace add .
-claude plugin install university-agent@kku-university-agent-local
+claude plugin marketplace add K-Lunatic/Turtleneck
+claude plugin install university-agent@turtleneck
 ```
 
 새 Claude Code 대화에서 `/university-agent:turtleneck`을 호출하세요. 설치 없이 개발본을 확인하려면
@@ -423,11 +423,11 @@ Claude Code 2.1.218에서 플러그인·마켓플레이스 엄격 검사, 로컬
 ### 로컬 저장소를 업데이트한 뒤
 
 ```bash
-codex plugin add university-agent@kku-university-agent-local
+codex plugin add university-agent@turtleneck
 ```
 
-Claude Code는 `claude plugin marketplace update kku-university-agent-local` 후
-`claude plugin update university-agent@kku-university-agent-local`로 갱신합니다.
+Claude Code는 `claude plugin marketplace update turtleneck` 후
+`claude plugin update university-agent@turtleneck`로 갱신합니다.
 설치본은 저장소의 사본이므로 업데이트 후 해당 앱에서 새 대화를 시작하세요.
 
 </details>

@@ -1,5 +1,5 @@
 {
-  "name": "kku-university-agent-local",
+  "name": "turtleneck",
   "description": "터틀넥 대학생활 스킬: 학교·에타와 로컬 학습을 한 번에 설치",
   "owner": {"name": "K-Lunatic"},
   "plugins": [

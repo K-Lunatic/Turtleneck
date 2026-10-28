@@ -1,10 +1,14 @@
 {
-  "name": "kku-university-agent-local",
-  "interface": {"displayName": "KKU University Agent (Local)"},
+  "name": "turtleneck",
+  "interface": {"displayName": "터틀넥"},
   "plugins": [
     {
       "name": "university-agent",
-      "source": {"source": "local", "path": "./"},
+      "source": {
+        "source": "url",
+        "url": "https://github.com/K-Lunatic/Turtleneck.git",
+        "ref": "turtleneck"
+      },
       "policy": {"installation": "AVAILABLE", "authentication": "ON_USE"},
       "category": "Productivity"
     }
