@@ -76,6 +76,7 @@ def collect_browser(
     initial_values = dict(initial or {})
     result: dict[str, str] = {}
     finished = threading.Event()
+    page_seen = threading.Event()
 
     def page(message: str = "", values: Mapping[str, str] | None = None, success: bool = False) -> str:
         values = values or {}
@@ -123,6 +124,7 @@ def collect_browser(
             if parsed.path != "/" or parse_qs(parsed.query).get("token", [""])[0] != token:
                 self.send_page("<h1>잘못된 연결 화면이에요.</h1>", 404)
                 return
+            page_seen.set()
             self.send_page(page(values=initial_values))
 
         def do_POST(self):
@@ -149,19 +151,26 @@ def collect_browser(
             finished.set()
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    httpd.timeout = 1
+    httpd.timeout = 0.2
     url = f"http://127.0.0.1:{httpd.server_port}/?token={token}"
     if not webbrowser.open(url):
         httpd.server_close()
         raise FormUnavailable("학교 연결 화면을 자동으로 열지 못했어요. 기본 브라우저를 확인해 주세요.")
+    # webbrowser.open() only reports an OS handoff; the GET proves the browser reached this form.
     deadline = time.monotonic() + timeout
+    page_deadline = min(deadline, time.monotonic() + 15)
+    while not page_seen.is_set() and time.monotonic() < page_deadline:
+        httpd.handle_request()
+    if not page_seen.is_set():
+        httpd.server_close()
+        raise FormUnavailable("브라우저에 학교 연결 화면이 실제로 표시되지 않았어요. 다시 연결해 주세요.")
     try:
         while not finished.is_set() and time.monotonic() < deadline:
             httpd.handle_request()
     finally:
         httpd.server_close()
     if not result:
-        raise FormUnavailable("학교 연결 입력 시간이 지나 다시 시도해 주세요.")
+        raise FormUnavailable("학교 연결 화면은 확인됐지만 입력이 완료되지 않았어요. 다시 연결해 주세요.")
     return result
 
 

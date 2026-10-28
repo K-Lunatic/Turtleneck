@@ -12,6 +12,7 @@ class ConnectionTests(unittest.TestCase):
     def test_connection_action_starts_hidden_local_flow(self):
         self.assertEqual(guidance_request('TLS 연결해줘')['nextCommands'],
                          ['python3 scripts/sync_tls.py --connect'])
+        self.assertIn('실제로 보일 때만', guidance_request('TLS 연결해줘')['answer'])
         with patch.object(sync_tls.subprocess, 'Popen') as launch:
             sync_tls.open_connection_terminal()
         args = launch.call_args.args[0]

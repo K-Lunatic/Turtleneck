@@ -168,7 +168,7 @@ def guidance_request(text: str) -> dict | None:
     if re.search(r'터틀넥.{0,12}(?:시작|설정|연결)|처음\s*설정|(?:학교|TLS).{0,12}(?:에타|에브리타임).{0,12}(?:연결|설정)', text, re.I):
         return {'toolCalls': [], 'needsSetup': True, 'data': {'intent': 'setup', 'performed': False},
                 'nextCommands': ['python3 scripts/setup_turtleneck.py'],
-                'answer': '학교 자료와 에타 시간표·강의평을 한 번에 준비할게요. 로그인은 열린 창에서 직접 해주세요. 이미 연결된 항목은 다시 로그인하지 않아요.'}
+                'answer': '학교 자료와 에타 시간표·강의평 연결 절차를 시작할게요. 브라우저에 로그인 화면이 실제로 보이는지 먼저 확인해 주세요. 보이지 않으면 연결된 것으로 처리하지 않아요.'}
     if re.search(r'개념\s*(?:매칭|연결)|매칭판|짝\s*맞추', text):
         return {'toolCalls': [], 'needsConceptMatch': True,
                 'answer': '저장된 문제은행에서 개념과 설명을 골라 4×4 매칭판을 열어드릴게요. 끝난 뒤 헷갈린 개념은 다음 문제에서 먼저 복습합니다.'}
@@ -202,7 +202,7 @@ def guidance_request(text: str) -> dict | None:
     if re.search(r"새로\s*고침|동기화|(?:TLS|학교|계정).{0,12}(?:연결|로그인)|(?:최신|다시).{0,8}(?:TLS|학사|제출|시청).{0,12}(?:확인|조회)", text, re.I):
         return {"toolCalls": [], "needsSync": True, "data": {"intent": "sync", "performed": False},
                 "nextCommands": ["python3 scripts/sync_tls.py --connect"],
-                "answer": "터틀넥 연결창을 열어드릴게요. 열린 화면에서 학교 계정을 직접 입력하면 됩니다. 비밀번호는 화면과 채팅에 표시되지 않아요."}
+                "answer": "학교 연결 절차를 시작할게요. 브라우저에 로그인 화면이 실제로 보일 때만 학교 계정을 입력해 주세요. 화면이 보이지 않으면 로그인된 것으로 처리하지 않아요."}
     if re.search(r"과제\s*(?:id|아이디)|저장.{0,12}(?:방법|어떻게)|(?:어떻게|방법).{0,12}저장", text, re.I):
         return {"toolCalls": [], "needsInput": True, "data": {"intent": "find-assignment"},
                 "answer": "‘과제 진행 상황 저장해줘’라고 말하면 과제를 찾아드려요. 후보를 고른 뒤 안내된 저장 명령을 한 번 보내면 됩니다. 과제 ID는 필요 없어요."}

@@ -170,6 +170,16 @@ def wait_for_authenticated_page(port: int, deadline: float) -> dict[str, object]
     raise ConnectError("로그인 시간이 끝났습니다. 인증이 완료된 경우 다시 시도해 주세요.")
 
 
+def wait_for_login_page(port: int, deadline: float) -> dict[str, object]:
+    while time.monotonic() < deadline:
+        for target in targets(port):
+            url = str(target.get("url", ""))
+            if urlsplit(url).hostname in {"account.everytime.kr", "everytime.kr"} and target.get("webSocketDebuggerUrl"):
+                return target
+        time.sleep(0.2)
+    raise ConnectError("브라우저에 에브리타임 로그인 화면이 실제로 표시되지 않았어요. 다시 연결해 주세요.")
+
+
 def connect(timeout: int):
     browser = find_chrome()
     port = free_port()
@@ -180,7 +190,8 @@ def connect(timeout: int):
         stderr=subprocess.DEVNULL,
     )
     try:
-        print("공식 에브리타임 로그인 화면에서 아이디·비밀번호와 2차 인증을 직접 완료해 주세요.", flush=True)
+        print("에브리타임 연결 절차를 시작했어요. 브라우저에 공식 로그인 화면이 실제로 보이는지 확인해 주세요.", flush=True)
+        wait_for_login_page(port, time.monotonic() + min(timeout, 15))
         target = wait_for_authenticated_page(port, time.monotonic() + timeout)
         devtools = DevTools(str(target["webSocketDebuggerUrl"]))
         try:

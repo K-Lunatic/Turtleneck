@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 
 from providers.moodle_session import LoginError
 from providers.moodle_session import MoodleSession
-from providers.forms import TLS_CREDENTIALS_FORM, collect_browser
+from providers.forms import FormUnavailable, TLS_CREDENTIALS_FORM, collect_browser
 from scripts import sync_tls
 
 
@@ -52,6 +52,7 @@ class TlsLoginTests(unittest.TestCase):
                     if time.monotonic() > deadline:
                         return
                     time.sleep(0.01)
+                urlopen(opened["url"], timeout=1).read()
                 query = parse_qs(urlsplit(url).query)
                 body = urlencode({
                     "token": query["token"][0],
@@ -71,6 +72,14 @@ class TlsLoginTests(unittest.TestCase):
 
         self.assertEqual(values, {"username": "student", "password": "secret"})
         self.assertTrue(urlsplit(opened["url"]).hostname == "127.0.0.1")
+
+    def test_browser_handoff_without_a_loaded_page_is_not_reported_as_open(self):
+        with patch("providers.forms.webbrowser.open", return_value=True):
+            try:
+                with self.assertRaisesRegex(FormUnavailable, "실제로 표시되지 않았어요"):
+                    collect_browser(TLS_CREDENTIALS_FORM, timeout=0.05)
+            except PermissionError:
+                self.skipTest("이 실행 환경에서는 localhost 소켓을 열 수 없음")
 
     def test_failed_saved_login_reopens_secure_form_and_saves_only_after_success(self):
         class Session:
