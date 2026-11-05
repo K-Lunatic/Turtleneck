@@ -17,6 +17,7 @@ from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
 from server.app import Gateway, ROOT
+from server.plugin import PluginGateway
 
 
 class LocalServer(ThreadingMixIn, WSGIServer):
@@ -36,7 +37,8 @@ def local_config(directory, gpt_id):
         config = json.loads(path.read_text())
     else:
         config = {'client_id': 'university-agent', 'client_secret': secrets.token_urlsafe(48)}
-    config['gpt_id'] = gpt_id
+    if gpt_id:
+        config['gpt_id'] = gpt_id
     # Private local file; do not print it or return it through an Action.
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(descriptor, 'w') as target:
@@ -79,6 +81,18 @@ def write_settings(directory, app):
     return path
 
 
+def write_plugin_settings(directory, app):
+    """Write local-only setup details without OAuth client secrets."""
+    path = directory / 'plugin-settings.html'
+    endpoint = app.base_url + '/mcp'
+    page = f'''<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>터틀넥 MCP 연결</title><style>body{{font:18px system-ui;max-width:850px;margin:40px auto;padding:20px}}code{{overflow-wrap:anywhere;user-select:all}}a{{color:#174f3b}}</style><h1>터틀넥 모바일·웹 MCP 서버</h1><p>HTTPS 연결 주소: <code>{escape(endpoint)}</code></p><p>ChatGPT 웹의 Plugins → + → Add custom MCP server에서 이 주소를 사용하세요. 이 기능은 계정·워크스페이스에 따라 제한될 수 있고, 모바일 사용은 플러그인 배포 상태에 따라 달라집니다.</p><p>OAuth: 자동 검색(서버의 /.well-known 엔드포인트), 사용자별 TLS 로그인은 연결 화면에서만 합니다.</p><p>이 컴퓨터 및 서버를 종료하면 연결이 끊깁니다. 임시 Cloudflare 터널은 재실행마다 주소가 바뀌므로 플러그인 연결도 갱신해야 합니다.</p><p>학교 비밀번호는 채팅에 입력하지 마세요. 외부 서버에 공개하기 전 보안 검토가 필요합니다.</p></html>'''
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, 'w') as stream:
+        stream.write(page)
+    os.chmod(path, 0o600)
+    return path
+
+
 def open_file(path):
     if os.name == 'nt':
         os.startfile(path)  # type: ignore[attr-defined]
@@ -91,14 +105,15 @@ def open_file(path):
 def main():
     parser = argparse.ArgumentParser(description='이 기기에서 터틀넥을 실행하고 ChatGPT HTTPS 연결을 준비합니다.')
     parser.add_argument('--gpt-id', help='저장한 Custom GPT의 g-... ID')
+    parser.add_argument('--mcp', action='store_true', help='ChatGPT Plugins용 OAuth/MCP 서버 실행')
     parser.add_argument('--port', type=int, default=8766)
     parser.add_argument('--public-url', help='직접 준비한 HTTPS 터널 주소; 생략하면 Quick Tunnel 실행')
     parser.add_argument('--no-browser', action='store_true')
     args = parser.parse_args()
     directory = ROOT / '.university-agent/chatgpt'
     saved = json.loads((directory / 'config.json').read_text()) if (directory / 'config.json').exists() else {}
-    gpt_id = args.gpt_id or saved.get('gpt_id') or input('저장한 Custom GPT ID (g-...): ').strip()
-    if not re.fullmatch(r'g-[A-Za-z0-9_-]+', gpt_id):
+    gpt_id = None if args.mcp else (args.gpt_id or saved.get('gpt_id') or input('저장한 Custom GPT ID (g-...): ').strip())
+    if not args.mcp and not re.fullmatch(r'g-[A-Za-z0-9_-]+', gpt_id):
         raise SystemExit('Custom GPT를 저장한 뒤 주소에 표시되는 g-... ID를 입력하세요.')
     bundled = ROOT / '.university-agent/bin/cloudflared'
     if os.name == 'nt':
@@ -107,8 +122,12 @@ def main():
     if not args.public_url and not Path(binary).is_file():
         raise SystemExit('cloudflared가 없습니다. 설치 안내를 확인한 뒤 다시 실행해 주세요.')
     config = local_config(directory, gpt_id)
-    redirects = [f'https://{host}/aip/{gpt_id}/oauth/callback' for host in ('chatgpt.com', 'chat.openai.com')]
-    app = Gateway(args.public_url or 'https://localhost.invalid', config['client_id'], config['client_secret'], redirects, directory / 'data')
+    redirects = [f'https://{host}/aip/{gpt_id or "g-local-internal"}/oauth/callback'
+                 for host in ('chatgpt.com', 'chat.openai.com')]
+    gateway_class = PluginGateway if args.mcp else Gateway
+    app = gateway_class(args.public_url or 'https://localhost.invalid',
+                        config['client_id'], config['client_secret'],
+                        redirects, directory / 'data')
     httpd = make_server('127.0.0.1', args.port, app, server_class=LocalServer, handler_class=QuietHandler)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -117,9 +136,12 @@ def main():
         if not args.public_url:
             print('HTTPS 터널 연결 중…', flush=True)
             tunnel, app.base_url = start_tunnel(binary, httpd.server_port)
-        settings = write_settings(directory, app)
+        settings = write_plugin_settings(directory, app) if args.mcp else write_settings(directory, app)
         print(f'로컬 실행: http://127.0.0.1:{httpd.server_port}/health', flush=True)
-        print(f'ChatGPT 스키마: {app.base_url}/openapi.json', flush=True)
+        if args.mcp:
+            print(f'ChatGPT MCP 연결: {app.base_url}/mcp', flush=True)
+        else:
+            print(f'ChatGPT 스키마: {app.base_url}/openapi.json', flush=True)
         print(f'비공개 설정 페이지: {settings}', flush=True)
         print('이 기기를 켜 두세요. 종료: Ctrl+C', flush=True)
         if not args.no_browser:
