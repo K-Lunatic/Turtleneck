@@ -11,9 +11,16 @@ import os
 import re
 import secrets
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qs
+from datetime import datetime, timezone
+import base64
+import hashlib
+import hmac
+import threading
+import time
+from html import escape
 
-from server.app import Gateway
+from server.app import Gateway, digest
 
 # The ChatGPT plugin OAuth redirect is distinct from legacy Custom GPT Actions.
 CHATGPT_CALLBACK = re.compile(
@@ -88,6 +95,7 @@ class PluginGateway(Gateway):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.plugin_clients = {}
         self.client_file = self.data_dir / "mcp_clients.json"
         if self.client_file.is_file():
             saved = json.loads(self.client_file.read_text())
@@ -143,16 +151,16 @@ class PluginGateway(Gateway):
         if method == "GET" and path == "/.well-known/oauth-authorization-server":
             return self.respond({
                 "issuer": self.base_url,
-                "authorization_endpoint": self.base_url + "/oauth/authorize",
-                "token_endpoint": self.base_url + "/oauth/token",
-                "registration_endpoint": self.base_url + "/oauth/register",
+                "authorization_endpoint": self.base_url + "/mcp/oauth/authorize",
+                "token_endpoint": self.base_url + "/mcp/oauth/token",
+                "registration_endpoint": self.base_url + "/mcp/oauth/register",
                 "response_types_supported": ["code"],
                 "grant_types_supported": ["authorization_code", "refresh_token"],
                 "scopes_supported": [SCOPE],
                 "code_challenge_methods_supported": ["S256"],
                 "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
             })
-        if path == "/oauth/register" and method == "POST":
+        if path == "/mcp/oauth/register" and method == "POST":
             payload = self.json_request(env, 4096)
             redirects = payload.get("redirect_uris")
             if (not isinstance(redirects, list) or not 1 <= len(redirects) <= 4
@@ -173,6 +181,12 @@ class PluginGateway(Gateway):
                                  "token_endpoint_auth_method": "none",
                                  "grant_types": ["authorization_code", "refresh_token"],
                                  "response_types": ["code"]}, 201)
+        if path == "/mcp/oauth/authorize" and method == "GET":
+            return self.mcp_authorize(env)
+        if path == "/mcp/oauth/login" and method == "POST":
+            return self.mcp_login(env)
+        if path == "/mcp/oauth/token" and method == "POST":
+            return self.mcp_token(env)
         if path == "/mcp":
             if method != "POST":
                 return self.respond({"error": "method_not_allowed"}, 405,
@@ -189,6 +203,137 @@ class PluginGateway(Gateway):
                 ])
             return self.mcp_request(env, auth)
         return super().route(env)
+
+
+    def form_request(self, env):
+        size = int(env.get("CONTENT_LENGTH") or "0")
+        if size <= 0 or size > 4096:
+            raise ValueError("Invalid form size")
+        if env.get("CONTENT_TYPE", "").split(";")[0] != "application/x-www-form-urlencoded":
+            raise ValueError("Expected form data")
+        return {k: v[-1] for k, v in parse_qs(env["wsgi.input"].read(size).decode("utf-8"),
+                                              keep_blank_values=True).items()}
+
+    def mcp_authorize(self, env):
+        query = {k: v[-1] for k, v in parse_qs(env.get("QUERY_STRING", ""),
+                                               keep_blank_values=True).items()}
+        client = self.plugin_clients.get(query.get("client_id", ""))
+        redirect = query.get("redirect_uri")
+        challenge = query.get("code_challenge", "")
+        if (not client or redirect not in client["redirect_uris"] or
+                query.get("response_type") != "code" or
+                not 1 <= len(query.get("state", "")) <= 2048 or
+                query.get("scope", SCOPE) != SCOPE or
+                query.get("resource") != self.base_url + "/mcp" or
+                query.get("code_challenge_method") != "S256" or
+                not re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge)):
+            return self.respond({"error": "invalid_request"}, 400)
+        with self.lock:
+            if len(self.flows) > 10000:
+                return self.respond({"error": "busy"}, 429)
+        ticket = self.issue(self.flows, {"type": "mcp", **query}, 600)
+        return 200, self.mcp_login_form(ticket), "text/html", []
+
+    @staticmethod
+    def mcp_login_form(ticket, error=""):
+        # The browser posts school credentials only to the private OAuth login endpoint.
+        return (Gateway.login_form(ticket, error)
+                .replace('action="/oauth/login"', 'action="/mcp/oauth/login"'))
+
+    def mcp_login(self, env):
+        body = self.form_request(env)
+        if env.get("HTTP_ORIGIN") not in (None, self.base_url):
+            return self.respond({"error": "invalid_origin"}, 403)
+        flow = self.take(self.flows, body.get("ticket", ""), consume=True)
+        if not flow or flow.get("type") != "mcp":
+            return self.respond({"error": "expired_login"}, 400)
+        username, password = body.get("username", "").strip(), body.get("password", "")
+        if not username or not password or len(username) > 128 or len(password) > 1024:
+            return self.respond({"error": "invalid_credentials"}, 400)
+        with self.lock:
+            now = time.time()
+            self.attempts = {key: val for key, val in self.attempts.items() if val[1] > now}
+            count, expires = self.attempts.get(digest(username), (0, now + 600))
+            if count >= 10 or len(self.attempts) >= 10000:
+                return self.respond({"error": "too_many_attempts"}, 429)
+            self.attempts[digest(username)] = (count + 1, expires)
+        session = self.session_factory()
+        try:
+            session.login(username, password)
+        except Exception:
+            retry = self.issue(self.flows, flow, 600)
+            return 401, self.mcp_login_form(
+                retry, "학교 로그인 실패 또는 응답 지연. 입력을 확인하세요."), "text/html", []
+        finally:
+            password = None
+            body.clear()
+        with self.lock:
+            old = self.accounts.get(username)
+            if old and old["running"]:
+                account = old
+            else:
+                account = {
+                    "session": session, "running": False,
+                    "syncedAt": old["syncedAt"] if old else None,
+                    "error": None, "stage": None,
+                    "availableSections": old.get("availableSections", []) if old else [],
+                }
+                self.accounts[username] = account
+        self.sync(username)
+        code = self.issue(self.codes, {
+            "user": username, "client_id": flow["client_id"],
+            "redirect_uri": flow["redirect_uri"], "challenge": flow["code_challenge"],
+            "resource": self.base_url + "/mcp",
+        }, 120)
+        location = flow["redirect_uri"] + "?" + urlencode({
+            "code": code, "state": flow["state"]})
+        return 302, "", "text/html", [("Location", location)]
+
+    def mcp_token(self, env):
+        body = self.form_request(env)
+        client_id = body.get("client_id", "")
+        if client_id not in self.plugin_clients:
+            return self.respond({"error": "invalid_client"}, 401)
+        grant = body.get("grant_type")
+        if grant == "authorization_code":
+            # PKCE verifier is checked before the one-time auth code is consumed.
+            code = body.get("code", "")
+            item = self.take(self.codes, code)
+            verifier = body.get("code_verifier", "")
+            if (not item or item.get("client_id") != client_id or
+                    item.get("resource") != self.base_url + "/mcp" or
+                    item.get("redirect_uri") != body.get("redirect_uri") or
+                    not 43 <= len(verifier) <= 128 or
+                    not re.fullmatch(r"[A-Za-z0-9._~-]+", verifier)):
+                return self.respond({"error": "invalid_grant"}, 400)
+            challenge = base64.urlsafe_b64encode(
+                hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+            if not hmac.compare_digest(challenge, item["challenge"]):
+                return self.respond({"error": "invalid_grant"}, 400)
+            # Avoid cross-client code use under concurrent requests.
+            with self.lock:
+                item = self.take(self.codes, code, consume=True)
+            if not item:
+                return self.respond({"error": "invalid_grant"}, 400)
+        elif grant == "refresh_token":
+            item = self.take(self.tokens, body.get("refresh_token", ""))
+            if (not item or item.get("kind") != "refresh" or
+                    item.get("client_id") != client_id or
+                    item.get("resource") != self.base_url + "/mcp"):
+                return self.respond({"error": "invalid_grant"}, 400)
+            with self.lock:
+                item = self.take(self.tokens, body["refresh_token"], consume=True)
+            if not item:
+                return self.respond({"error": "invalid_grant"}, 400)
+        else:
+            return self.respond({"error": "unsupported_grant_type"}, 400)
+        attrs = {"user": item["user"], "client_id": client_id,
+                 "resource": self.base_url + "/mcp"}
+        access = self.issue(self.tokens, {**attrs, "kind": "access"}, 3600)
+        refresh = self.issue(self.tokens, {**attrs, "kind": "refresh"}, 30 * 86400)
+        return self.respond({"access_token": access, "token_type": "Bearer",
+                             "expires_in": 3600, "refresh_token": refresh,
+                             "scope": SCOPE})
 
     def mcp_request(self, env, authorization):
         request = self.json_request(env, 64_000)
