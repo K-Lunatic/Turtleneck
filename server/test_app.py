@@ -5,6 +5,7 @@ import io
 import json
 import re
 import tempfile
+import threading
 import time
 import unittest
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -16,10 +17,13 @@ CALLBACK = 'https://chatgpt.com/aip/g-test/oauth/callback'
 
 
 class FakeSession:
+    instances = []
+
     def login(self, username, password):
         if password != 'fixture-password':
             raise ValueError('secret upstream detail')
         self.username = username
+        self.__class__.instances.append(self)
 
 
 class FakeProvider:
@@ -41,6 +45,7 @@ class FakeProvider:
 
 class GatewayTests(unittest.TestCase):
     def setUp(self):
+        FakeSession.instances.clear()
         self.temp = tempfile.TemporaryDirectory()
         self.app = Gateway('https://example.com', 'client', 'x' * 48, [CALLBACK], self.temp.name, FakeSession)
         self.provider = patch('server.app.MoodleTLSProvider', FakeProvider)
@@ -176,6 +181,41 @@ class GatewayTests(unittest.TestCase):
         ticket = self.authorize()
         self.assertEqual(self.request('/oauth/login', 'POST', {'ticket': ticket, 'username': 'alice', 'password': 'fixture-password'}, extra={'HTTP_ORIGIN': 'https://evil.invalid'})['status'], 403)
         self.assertEqual(self.request('/oauth/token', 'POST', extra={'CONTENT_LENGTH': '999999'})['status'], 413)
+
+    def test_relogin_during_sync_is_applied_after_the_current_run(self):
+        entered = threading.Event()
+        release = threading.Event()
+        runs = []
+        original = FakeProvider.get_courses
+
+        def slow_courses(provider, user):
+            runs.append(provider.user)
+            entered.set()
+            release.wait(2)
+            return original(provider, user)
+
+        with patch.object(FakeProvider, 'get_courses', slow_courses):
+            self.code('alice')
+            self.assertTrue(entered.wait(1))
+            self.code('alice')
+            release.set()
+            for _ in range(400):
+                if len(runs) >= 2 and not self.app.accounts['alice']['running'] and 'pendingSession' not in self.app.accounts['alice']:
+                    break
+                time.sleep(.005)
+        self.assertGreaterEqual(len(runs), 2)
+        self.assertFalse(self.app.accounts['alice']['running'])
+        self.assertNotIn('pendingSession', self.app.accounts['alice'])
+        self.assertIs(FakeSession.instances[-1], self.app.accounts['alice']['session'])
+
+    def test_mobile_study_link_is_claimed_once_and_then_cookie_bound(self):
+        ticket = self.app.issue(self.app.study_links, {'user': 'alice'}, 600)
+        first = self.request('/study/' + ticket)
+        self.assertEqual(first['status'], 200)
+        cookie = first['headers']['Set-Cookie'].split(';', 1)[0]
+        self.assertEqual(self.request('/study/' + ticket)['status'], 404)
+        second = self.request('/study/' + ticket, extra={'HTTP_COOKIE': cookie})
+        self.assertEqual(second['status'], 200)
 
     def test_new_screenshot_assignment_checkpoint_list_load_and_completion(self):
         token = self.connect('alice')['access_token']

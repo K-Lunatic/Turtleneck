@@ -147,6 +147,19 @@ def _read_pack(path: Path) -> tuple[dict, dict]:
     content = json.loads(content_bytes)
     if not isinstance(content, dict) or not all(isinstance(content.get(key), list) for key in ("courses", "resources", "analyses")):
         raise ValueError("학습 팩 내용 형식이 올바르지 않아요.")
+    for record in content["analyses"]:
+        if not isinstance(record, dict) or not isinstance(record.get("recordId"), str) or not record["recordId"] or not isinstance(record.get("resourceId"), str):
+            raise ValueError("학습 팩의 분석 기록 식별자가 올바르지 않아요.")
+    study = content.get("study", {})
+    if not isinstance(study, dict):
+        raise ValueError("학습 기록 형식이 올바르지 않아요.")
+    for table, columns in STUDY_TABLES.items():
+        rows = study.get(table, [])
+        if not isinstance(rows, list):
+            raise ValueError(f"학습 기록 형식이 올바르지 않아요: {table}")
+        for row in rows:
+            if not isinstance(row, dict) or any(column not in row for column in columns):
+                raise ValueError(f"학습 기록 형식이 올바르지 않아요: {table}")
     return manifest, content
 
 

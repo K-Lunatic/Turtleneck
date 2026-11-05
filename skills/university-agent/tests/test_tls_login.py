@@ -1,9 +1,11 @@
 import io
 import sys
+import tempfile
 import threading
 import time
 import unittest
 from contextlib import redirect_stdout
+from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -15,11 +17,37 @@ sys.path.insert(0, str(ROOT))
 
 from providers.moodle_session import LoginError
 from providers.moodle_session import MoodleSession
+from providers import credentials
+from providers import tls_auth
 from providers.forms import FormUnavailable, TLS_CREDENTIALS_FORM, collect_browser
 from scripts import sync_tls
 
 
 class TlsLoginTests(unittest.TestCase):
+    def test_tls_session_cache_stays_out_of_the_marker_file(self):
+        jar = CookieJar()
+        jar.set_cookie(Cookie(version=0, name='MoodleSession', value='fixture-cookie',
+                              port=None, port_specified=False, domain='tls.example',
+                              domain_specified=True, domain_initial_dot=False, path='/',
+                              path_specified=True, secure=True, expires=None, discard=True,
+                              comment=None, comment_url=None, rest={}, rfc2109=False))
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'tls-session.json'
+            keychain = []
+
+            def security(args, **_kwargs):
+                if args[1] == 'add-generic-password':
+                    keychain.append(args[-1])
+                if args[1] == 'find-generic-password':
+                    return SimpleNamespace(stdout=keychain[-1] + '\n')
+                return SimpleNamespace(stdout='')
+
+            with patch.object(credentials, 'SESSION_PATH', marker), patch.object(credentials.subprocess, 'run', side_effect=security):
+                credentials.save_session('student', jar)
+                self.assertNotIn('fixture-cookie', marker.read_text(encoding='utf-8'))
+                restored = credentials.load_session('student')
+            self.assertEqual(next(iter(restored)).value, 'fixture-cookie')
+
     def test_cookie_alone_is_not_reported_as_a_successful_login(self):
         session = MoodleSession('https://tls.example')
         session.cookies = [SimpleNamespace(name='MoodleSession')]
@@ -108,6 +136,28 @@ class TlsLoginTests(unittest.TestCase):
         self.assertEqual(resolve.call_args_list[1].kwargs, {'force_input': True})
         save.assert_called_once_with('student', 'new')
         self.assertIn('(1/3)', output.getvalue())
+
+    def test_valid_saved_session_skips_password_form(self):
+        session = object()
+        with patch.object(sync_tls, 'resume_saved_session', return_value=('student', session)), \
+             patch.object(sync_tls, 'resolve', side_effect=AssertionError('form should not open')):
+            username, resumed = sync_tls._login_with_retries('https://tls.example', 'student')
+        self.assertEqual((username, resumed), ('student', session))
+
+    def test_rejected_saved_session_is_removed_before_password_fallback(self):
+        class Session:
+            def restore_cookies(self, _cookies):
+                pass
+
+            def resume(self):
+                return False
+
+        with patch.object(tls_auth, 'load_username', return_value='student'), \
+             patch.object(tls_auth, 'load_session', return_value=CookieJar()), \
+             patch.object(tls_auth, 'MoodleSession', return_value=Session()), \
+             patch.object(tls_auth, 'clear_session') as clear:
+            self.assertIsNone(tls_auth.resume_saved_session('https://tls.example'))
+        clear.assert_called_once_with('student')
 
 
 if __name__ == '__main__':

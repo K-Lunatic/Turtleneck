@@ -23,9 +23,11 @@ if str(ROOT) not in sys.path:
 
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import LoginError, MoodleSession
-from providers.credentials import CredentialInputRequired, load, resolve, save
+from providers.credentials import CredentialInputRequired, load, resolve, save, save_session
 from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
+from features.autonomous_course_watch import refresh as refresh_autonomous_course
+from providers.tls_auth import resume_saved_session
 
 
 def _cached_resources(db_path: Path, user_id: str, file_root: Path) -> dict[str, dict[str, object]]:
@@ -195,6 +197,10 @@ def open_connection_terminal(command: list[str] | None = None) -> None:
 
 def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False) -> tuple[str, MoodleSession]:
     """Login without ever returning the password to the caller."""
+    resumed = resume_saved_session(base_url, requested_username)
+    if resumed:
+        print("저장된 학교 연결을 재사용했어요.", flush=True)
+        return resumed
     total_attempts = 1 if stored_only else 3
     for attempt in range(1, total_attempts + 1):
         if stored_only:
@@ -218,6 +224,11 @@ def _login_with_retries(base_url: str, requested_username: str | None = None, *,
             continue
         if not stored_only:
             save(username, password)
+        if hasattr(session, "cookies"):
+            try:
+                save_session(username, session.cookies)
+            except (OSError, RuntimeError, ValueError):
+                pass
         return username, session
     raise AssertionError("unreachable")
 
@@ -263,6 +274,34 @@ def main() -> None:
         print("연결됐어요. 이제 필요한 내용만 차근차근 가져올게요.", flush=True)
         provider = MoodleTLSProvider(session)
         provider.progress = lambda message: print(message, flush=True)
+        saved_state = _saved_sync_state(db_path, user_id)
+        autonomous_url = saved_state.get("autonomous_course_watch_url")
+        if autonomous_url:
+            print("선택한 자율강좌의 새 토픽과 활동을 확인하는 중이에요…", flush=True)
+            watch = refresh_autonomous_course(
+                provider, user_id, autonomous_url,
+                {"fingerprint": saved_state.get("autonomous_course_fingerprint")},
+            )
+            if not watch["ok"]:
+                print(watch["reason"], flush=True)
+                with closing(LocalDatabase(db_path)) as database:
+                    database.merge_sync_state(user_id, {
+                        "autonomous_course_checked_at": datetime.now(timezone.utc).isoformat(),
+                        "autonomous_course_check_status": "FAILED",
+                        "autonomous_course_check_error": watch["reason"],
+                    })
+            else:
+                with closing(LocalDatabase(db_path)) as database:
+                    database.merge_sync_state(user_id, {
+                        "autonomous_course_checked_at": datetime.now(timezone.utc).isoformat(),
+                        "autonomous_course_check_status": "CHANGED" if watch["changed"] else "OK",
+                        "autonomous_course_fingerprint": watch["fingerprint"],
+                        "autonomous_course_snapshot": json.dumps(watch["snapshot"], ensure_ascii=False, sort_keys=True),
+                        "autonomous_course_check_error": "",
+                    })
+                print("자율강좌 구조를 확인했어요. " +
+                      ("새로운 변경이 있어 로컬 기록을 갱신했어요." if watch["changed"] else "새로운 변경은 없어요."),
+                      flush=True)
         if args.academic_only:
             print('과목별 과제와 강의 상태만 새로 확인할게요. 파일은 받지 않아요.', flush=True)
             courses, assignments, lectures = provider.get_academic_snapshot(user_id)
@@ -273,7 +312,6 @@ def main() -> None:
             return
         cached_resources = _cached_resources(db_path, user_id, file_root)
         if smart_sync:
-            saved_state = _saved_sync_state(db_path, user_id)
             if saved_state:
                 print("새 자료가 있는지 빠르게 확인하고 있어요…", flush=True)
                 preflight = provider.preflight(user_id)

@@ -443,6 +443,7 @@ def main() -> None:
     backup_restore.add_argument('--execute', action='store_true', help='기존 강좌 내용을 삭제 후 복구')
     autonomous_verify = sub.add_parser('autonomous-course-verify', help='지정한 TLS 자율강좌 주소를 로컬 수강 목록과 대조')
     autonomous_verify.add_argument('--url', required=True)
+    autonomous_verify.add_argument('--remember-watch', action='store_true', help='이 자율강좌를 매일 읽기 전용으로 확인할 대상으로 저장')
     course_update = sub.add_parser('tls-course-update', help='관찰된 TLS 강좌 설정 저장 엔드포인트로 안전한 설정 수정')
     course_update.add_argument('--course-url', required=True)
     course_update.add_argument('--set', dest='settings', action='append', default=[], metavar='FIELD=VALUE')
@@ -664,8 +665,17 @@ def main() -> None:
     elif args.command == 'autonomous-course-verify':
         try:
             data = verify_course_reference(database().get_courses(USER_ID), args.url)
+            if data['verified'] and args.remember_watch:
+                database(write=True).merge_sync_state(USER_ID, {
+                    'autonomous_course_watch_url': args.url,
+                    'autonomous_course_id': data['externalId'],
+                    'autonomous_course_check_status': 'PENDING',
+                })
+                data['watchRemembered'] = True
             result = {'toolCalls': ['verify_autonomous_course'], 'data': data,
-                      'answer': ('주소와 이 기기의 TLS 강좌 정보가 일치했어요. 운영자 권한 확인 전에는 업로드하지 않습니다.'
+                      'answer': ('주소와 이 기기의 TLS 강좌 정보가 일치했어요. 매일 읽기 전용 확인 대상으로 저장했어요. 운영자 권한 확인 전에는 업로드하지 않습니다.'
+                                 if data['verified'] and args.remember_watch else
+                                 '주소와 이 기기의 TLS 강좌 정보가 일치했어요. 운영자 권한 확인 전에는 업로드하지 않습니다.'
                                  if data['verified'] else data['reason'])}
         except AutonomousCoursePolicyError as error:
             result = {'toolCalls': ['verify_autonomous_course'], 'data': None,

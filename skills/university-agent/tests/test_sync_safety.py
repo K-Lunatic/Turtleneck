@@ -260,10 +260,10 @@ class SyncSafetyTests(unittest.TestCase):
             source = Path(directory) / 'permission.json'
             source.write_text('[]', encoding='utf-8')
             with patch.object(sys, 'argv', ['download_permitted.py', '--resource-id', 'r', '--permission-file', str(source)]), \
-                 patch.object(download_permitted, 'load') as load:
+                 patch.object(download_permitted, 'authenticated_session') as auth:
                 with self.assertRaises(SystemExit):
                     download_permitted.main()
-            load.assert_not_called()
+            auth.assert_not_called()
             session, provider, original, permission, _ = self.permitted_fixture()
             path = Path(directory) / 'academic.db'
             with contextlib.closing(LocalDatabase(path)) as database:
@@ -273,8 +273,7 @@ class SyncSafetyTests(unittest.TestCase):
             output = io.StringIO()
             with patch.object(sys, 'argv', ['download_permitted.py', '--resource-id', original['id'], '--permission-file', str(source)]), \
                  patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': 'u'}), \
-                 patch.object(download_permitted, 'load', return_value=('u', 'fixture-secret')), \
-                 patch.object(download_permitted, 'MoodleSession', return_value=session), contextlib.redirect_stdout(output):
+                 patch.object(download_permitted, 'authenticated_session', return_value=('u', session)), contextlib.redirect_stdout(output):
                 download_permitted.main()
             self.assertNotIn('fixture-secret', output.getvalue())
             self.assertNotIn(permission['statement'], output.getvalue())
@@ -282,7 +281,7 @@ class SyncSafetyTests(unittest.TestCase):
                 self.assertEqual(database.get_resources('u')[0]['downloadStatus'], 'DOWNLOADED')
             with patch.object(sys, 'argv', ['download_permitted.py', '--resource-id', original['id'], '--revoke']), \
                  patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': 'u'}), \
-                 patch.object(download_permitted, 'load') as load, contextlib.redirect_stdout(io.StringIO()):
+                 patch.object(download_permitted, 'load_username') as load, contextlib.redirect_stdout(io.StringIO()):
                 download_permitted.main()
             load.assert_not_called()
             with contextlib.closing(LocalDatabase(path, read_only=True)) as database:
@@ -392,6 +391,7 @@ class SyncSafetyTests(unittest.TestCase):
         child = session.fork()
         self.assertIsNot(child.cookies, session.cookies)
         self.assertIsNot(child.opener, session.opener)
+        self.assertIs(child._request_limiter, session._request_limiter)
         headers = Message()
         headers['ETag'] = 'v1'
         def unchanged(request, **kwargs):

@@ -138,6 +138,15 @@ class AcademicAlertTests(unittest.TestCase):
             self.assertEqual(db.get_sync_state("student")["watch_checked_at"], "now")
             db.close()
 
+    def test_watch_lock_skips_overlap_and_releases_own_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / academic_watch.LOCK_NAME
+            owner = academic_watch._acquire_lock(path)
+            self.assertIsNotNone(owner)
+            self.assertIsNone(academic_watch._acquire_lock(path))
+            academic_watch._release_lock(path, owner)
+            self.assertFalse(path.exists())
+
     def test_watch_report_updates_local_state_without_network(self):
         with tempfile.TemporaryDirectory() as folder:
             db_path = Path(folder) / "school.db"

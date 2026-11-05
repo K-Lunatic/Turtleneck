@@ -1,5 +1,5 @@
 """Project-wide offline integration tests. Never access real accounts or Keychain."""
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import ExitStack, redirect_stdout, redirect_stderr
 from email.message import Message
 from io import BytesIO, StringIO
 import json
@@ -511,9 +511,13 @@ class ProjectTests(ProjectTestBase):
         import sync_tls
         import tls_fetch
         for module in (sync_tls, tls_fetch):
-            with self.subTest(script=module.__name__), patch('sys.argv', [module.__name__]), patch.object(module, 'resolve', side_effect=FormUnavailable('local terminal required')), patch.object(module, 'MoodleSession') as session, redirect_stdout(StringIO()):
-                with self.assertRaises(SystemExit): module.main()
-                session.assert_not_called()
+            auth_name = 'resolve' if module is sync_tls else 'authenticated_session'
+            with self.subTest(script=module.__name__), patch('sys.argv', [module.__name__]), redirect_stdout(StringIO()):
+                with ExitStack() as stack:
+                    stack.enter_context(patch.object(module, auth_name, side_effect=FormUnavailable('local terminal required')))
+                    if module is sync_tls:
+                        stack.enter_context(patch.object(module, 'resume_saved_session', return_value=None))
+                    with self.assertRaises(SystemExit): module.main()
 
 
 

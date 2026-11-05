@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import plistlib
 import sqlite3
 import subprocess
 import sys
+import time
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +31,9 @@ MORNING_HOUR = 7
 MORNING_MINUTE = 0
 TASK_NAME = "Turtleneck Academic Watch"
 PLIST_NAME = "com.k-lunatic.turtleneck-watch.plist"
+LOCK_NAME = "academic-watch.lock"
+MIN_SCHEDULE_INTERVAL = 5 * 60 * 60
+SCHEDULE_JITTER_SECONDS = 15 * 60
 
 
 def paths() -> tuple[Path, str]:
@@ -81,7 +86,78 @@ def run_sync(*, academic_only=False) -> tuple[bool, str]:
     return True, ""
 
 
-def run_once(*, sync: bool = True, send_notification: bool = True, force_report: bool = False, daily_report=False) -> int:
+def _lock_path(db_path: Path) -> Path:
+    return db_path.parent / LOCK_NAME
+
+
+def _acquire_lock(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.write(descriptor, str(os.getpid()).encode('ascii'))
+        return descriptor
+    except FileExistsError:
+        try:
+            if time.time() - path.stat().st_mtime > 2 * 60 * 60:
+                path.unlink()
+                descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                os.write(descriptor, str(os.getpid()).encode('ascii'))
+                return descriptor
+        except OSError:
+            pass
+        return None
+
+
+def _release_lock(path: Path, descriptor) -> None:
+    inode = None
+    try:
+        inode = os.fstat(descriptor).st_ino
+        os.close(descriptor)
+    finally:
+        try:
+            # Do not remove a newer process's lock if stale-lock recovery raced us.
+            if inode is not None and os.stat(path).st_ino == inode:
+                path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _recently_checked(db_path: Path, user_id: str) -> bool:
+    try:
+        with closing(LocalDatabase(db_path, read_only=True)) as database:
+            value = database.get_sync_state(user_id).get('watch_checked_at')
+        return bool(value and (datetime.now(timezone.utc) - datetime.fromisoformat(value)).total_seconds() < MIN_SCHEDULE_INTERVAL)
+    except (OSError, sqlite3.Error, ValueError, TypeError):
+        return False
+
+
+def run_once(*, sync: bool = True, send_notification: bool = True, force_report: bool = False,
+             daily_report=False, scheduled: bool = False) -> int:
+    db_path, user_id = paths()
+    if not user_id or not db_path.exists():
+        print("터틀넥 자동 확인을 시작하려면 학교 연결을 먼저 마쳐 주세요.")
+        return 1
+    lock_path = _lock_path(db_path)
+    lock = _acquire_lock(lock_path)
+    if lock is None:
+        print('이미 학교 확인이 진행 중이라 이번 실행은 겹치지 않게 건너뛰었어요.')
+        return 0
+    try:
+        if scheduled and _recently_checked(db_path, user_id):
+            print('최근에 학교를 확인해서 중복 실행을 건너뛰었어요.')
+            return 0
+        if scheduled:
+            # Deterministic per-device spread avoids a morning burst without random retry storms.
+            delay = int.from_bytes(hashlib.sha256(user_id.encode()).digest()[:2], 'big') % SCHEDULE_JITTER_SECONDS
+            if delay:
+                time.sleep(delay)
+        return _run_once(sync=sync, send_notification=send_notification,
+                         force_report=force_report, daily_report=daily_report)
+    finally:
+        _release_lock(lock_path, lock)
+
+
+def _run_once(*, sync: bool = True, send_notification: bool = True, force_report: bool = False, daily_report=False) -> int:
     db_path, user_id = paths()
     if not user_id or not db_path.exists():
         print("터틀넥 자동 확인을 시작하려면 학교 연결을 먼저 마쳐 주세요.")
@@ -149,7 +225,7 @@ def install_schedule() -> str:
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         payload = {
             "Label": "com.k-lunatic.turtleneck-watch",
-            "ProgramArguments": [sys.executable, str(script), "--once"],
+            "ProgramArguments": [sys.executable, str(script), "--once", "--scheduled"],
             "RunAtLoad": True,
             "StartInterval": INTERVAL_SECONDS,
             "StartCalendarInterval": {"Hour": MORNING_HOUR, "Minute": MORNING_MINUTE},
@@ -167,10 +243,10 @@ def install_schedule() -> str:
         subprocess.run(["launchctl", "load", str(path)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         return f"매일 오전 {MORNING_HOUR:02d}:{MORNING_MINUTE:02d}와 6시간 간격으로 자동 확인을 켰어요. ({path})"
     if os.name == "nt":
-        command = subprocess.list2cmdline([sys.executable, str(script), "--once"])
-        subprocess.run(["schtasks", "/Create", "/SC", "DAILY", "/ST", f"{MORNING_HOUR:02d}:{MORNING_MINUTE:02d}", "/TN", TASK_NAME, "/TR", command, "/F"],
+        command = subprocess.list2cmdline([sys.executable, str(script), "--once", "--scheduled"])
+        subprocess.run(["schtasks", "/Create", "/SC", "MINUTE", "/MO", "360", "/ST", f"{MORNING_HOUR:02d}:{MORNING_MINUTE:02d}", "/TN", TASK_NAME, "/TR", command, "/F"],
                        check=True, capture_output=True, text=True)
-        return f"매일 오전 {MORNING_HOUR:02d}:{MORNING_MINUTE:02d} 자동 확인을 켰어요."
+        return f"오전 {MORNING_HOUR:02d}:{MORNING_MINUTE:02d}부터 6시간 간격으로 자동 확인을 켰어요."
     raise RuntimeError("이 운영체제의 예약 작업은 아직 지원하지 않아요.")
 
 
@@ -195,6 +271,7 @@ def main() -> int:
     mode.add_argument("--install", action="store_true", help="운영체제 예약 작업 등록")
     mode.add_argument("--uninstall", action="store_true", help="운영체제 예약 작업 해제")
     parser.add_argument("--show-current", action="store_true", help="변경이 없어도 현재 할 일을 표시")
+    parser.add_argument("--scheduled", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.install:
         try:
@@ -207,7 +284,8 @@ def main() -> int:
         print(uninstall_schedule())
         return 0
     return run_once(sync=not args.report, send_notification=not (args.report or args.daily_report),
-                    force_report=args.report or args.show_current, daily_report=args.daily_report)
+                    force_report=args.report or args.show_current, daily_report=args.daily_report,
+                    scheduled=args.scheduled)
 
 
 if __name__ == "__main__":

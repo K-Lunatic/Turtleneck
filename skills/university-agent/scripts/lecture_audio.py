@@ -26,8 +26,11 @@ def main():
     parser.add_argument('--lecture', default='')
     parser.add_argument('--lecture-id', action='append', default=[])
     parser.add_argument('--all-completed', action='store_true', help='명시적으로 요청한 전체 시청 완료 강의')
+    parser.add_argument('--allow-bulk-traffic', action='store_true', help='학교 전체 트래픽을 사용할 수 있음을 확인하고 전체 추출 허용')
     parser.add_argument('--check', action='store_true', help='완료·제한·제공 형식만 확인하고 음성은 받지 않음')
     args = parser.parse_args()
+    if args.all_completed and not args.check and not args.allow_bulk_traffic:
+        raise SystemExit('전체 강의 음원 추출은 학교 트래픽을 크게 사용할 수 있어요. 확인했다면 --allow-bulk-traffic를 함께 지정해 주세요.')
     path = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent/university.db')).expanduser()
     if not path.is_file():
         raise SystemExit('먼저 학교 계정을 연결하고 강의 목록을 가져와 주세요.')

@@ -16,9 +16,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from features.autonomous_course_policy import course_external_id_from_url, validate_visible_name
-from providers.credentials import CredentialInputRequired, resolve, save
+from providers.credentials import CredentialInputRequired
 from providers.moodle_provider import MoodleTLSProvider
-from providers.moodle_session import LoginError, MoodleSession
+from providers.moodle_session import LoginError
+from providers.tls_auth import authenticated_session
 
 
 class SectionUpdateError(ValueError):
@@ -165,12 +166,9 @@ def update_section_name(course_url: str, section_number: str, name: str,
     name = validate_visible_name(name, field="토픽 이름")
     course_id = course_external_id_from_url(course_url)
     try:
-        username, password = resolve(os.environ.get("TLS_USERNAME"))
+        username, session = authenticated_session()
     except CredentialInputRequired as error:
         raise SectionUpdateError(str(error)) from error
-    session = MoodleSession(os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr"))
-    session.login(username, password)
-    save(username, password)
     provider = MoodleTLSProvider(session)
     course = next((item for item in provider.get_autonomous_courses(username)
                    if str(item.get("externalId")) == course_id), None)

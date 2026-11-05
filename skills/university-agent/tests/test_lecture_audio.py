@@ -133,17 +133,21 @@ class LectureAudioTests(unittest.TestCase):
         plan = MoodleTLSProvider(session).get_lecture_media('u', LECTURE, [])
         self.assertEqual(plan['format'], 'mov')
 
-    def test_hls_prefers_explicit_audio_and_then_lowest_bandwidth(self):
-        for audio in (False, True):
-            session = Session()
-            master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=900\nhigh.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=100\nlow.m3u8\n'
-            if audio: master += '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio.m3u8"\n'
-            selected = SOURCE.rsplit('/', 1)[0] + ('/audio.m3u8' if audio else '/low.m3u8')
-            session.files[SOURCE] = master.encode()
-            session.files[selected] = PLAYLIST.encode()
-            plan = media_plan(session, SOURCE)
-            self.assertEqual(session.calls, [SOURCE, selected])
-            self.assertEqual(len(plan['chunks']), 2)
+    def test_hls_prefers_explicit_audio_and_rejects_video_fallback(self):
+        session = Session()
+        master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=900\nhigh.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=100\nlow.m3u8\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio.m3u8"\n'
+        selected = SOURCE.rsplit('/', 1)[0] + '/audio.m3u8'
+        session.files[SOURCE] = master.encode()
+        session.files[selected] = PLAYLIST.encode()
+        plan = media_plan(session, SOURCE)
+        self.assertEqual(session.calls, [SOURCE, selected])
+        self.assertEqual(len(plan['chunks']), 2)
+
+        session = Session()
+        session.files[SOURCE] = master.replace('#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio.m3u8"\n', '').encode()
+        with self.assertRaises(DownloadRestricted):
+            media_plan(session, SOURCE)
+        self.assertEqual(session.calls, [SOURCE])
 
     def test_encryption_keys_unknown_formats_live_and_foreign_segments_fail_before_bytes(self):
         cases = [PLAYLIST.replace('#EXTINF:10,', '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:10,', 1),
@@ -311,6 +315,12 @@ class LectureAudioTests(unittest.TestCase):
                 with self.assertRaises(ValueError): db.save_lecture_audio('other', saved)
                 db.upsert_tls_snapshot('u', [COURSE], [], [{**LECTURE, 'completed': False}], 'u', None)
                 self.assertEqual(db.get_lecture_audio('u'), [])
+
+    def test_bulk_audio_requires_explicit_traffic_confirmation(self):
+        with patch.object(sys, 'argv', ['lecture_audio.py', '--all-completed']), \
+             patch.object(audio_script, '_login_with_retries', side_effect=AssertionError('bulk request must stop before login')):
+            with self.assertRaises(SystemExit):
+                audio_script.main()
 
 
 if __name__ == '__main__':

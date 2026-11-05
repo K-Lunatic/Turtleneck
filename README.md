@@ -16,6 +16,13 @@
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows-28654D?style=flat-square" alt="macOS와 Windows">
   <img src="https://img.shields.io/badge/local%20first-28654D?style=flat-square" alt="기기 우선 저장">
   <img src="https://img.shields.io/badge/Turtleneck-local%20study-BC8B36?style=flat-square" alt="터틀넥 로컬 학습">
+  <a href="https://hub.xerj.org/contributors/K-Lunatic"><img src="https://img.shields.io/badge/XERJ-Corpus%20Hub-6E56CF?style=flat-square" alt="XERJ Corpus Hub"></a>
+</p>
+
+<p align="center">
+  <a href="README.en.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  한국어
 </p>
 
 <p align="center">
@@ -48,7 +55,9 @@
 
 ### 1. 설치
 
-로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 직접 스크립트를 실행할 때는 Python 3.10 이상을 사용하지만, 아래의 macOS·Windows 실행기를 더블클릭하면 Python이 있으면 재사용하고 없으면 사용자 컴퓨터에 필요한 실행 환경을 자동으로 준비합니다.
+로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 macOS·Windows 컴퓨터에서는 GitHub Releases의 서명된 `turtleneck-macos-arm64` 또는 `turtleneck-windows-x64` 무설치 번들을 사용할 수 있습니다. 원격 설치 스크립트를 자동 실행하지 않아 첫 설치 과정도 사용자가 확인할 수 있습니다.
+
+무설치 번들은 압축을 푼 뒤 macOS의 `turtleneck` 또는 Windows의 `turtleneck.exe`를 실행합니다. 플러그인 자체는 사용하는 Codex·Claude Code의 설치 명령으로 등록하고, 번들은 로컬 실행기와 Python 런타임을 제공하는 방식입니다. 배포 절차는 [릴리스 정책](RELEASE.md), 변경 내역은 [변경 기록](CHANGELOG.md)에서 확인할 수 있습니다.
 
 **Codex:**
 
@@ -62,6 +71,10 @@ codex plugin add university-agent@turtleneck
 ```text
 $turtleneck
 ```
+
+처음 호출할 때 설치 폴더를 다시 복사하거나 `setup` 명령을 따로 입력할 필요가 없습니다. 터틀넥이
+이 컴퓨터의 준비 상태만 먼저 읽고, 연결되지 않은 항목이 있을 때만 한 번 쓰는 로컬 연결 화면을 열어요.
+이미 준비된 학교 자료·에타 캐시는 그대로 재사용합니다.
 
 **Claude Code:** 공개 저장소에서 아래 두 명령으로 설치합니다.
 
@@ -80,7 +93,7 @@ claude plugin install university-agent@turtleneck
 
 **Gemini:** 저장소 폴더를 연결하거나 GitHub 주소를 전달해 `skills/university-agent`를 `turtleneck` 스킬로 등록합니다. 자세한 로컬 샌드박스·네트워크 승인 규칙은 [Gemini 실행 지침](skills/university-agent/references/gemini.md)을 참고하세요.
 
-로컬 시험 서버나 Actions 연결을 실행할 때는 `University Agent.command`(macOS) 또는 `University Agent.bat`(Windows)를 더블클릭하세요. 실행 전 터틀넥은 신뢰한 `turtleneck` 버전을 확인하고, 설치본이 더 오래된 경우에만 자동으로 교체합니다. 개발 중인 Git 저장소는 자동으로 덮어쓰지 않습니다.
+로컬 시험 서버나 Actions 연결을 실행할 때는 `University Agent.command`(macOS) 또는 `University Agent.bat`(Windows)를 더블클릭하세요. Python이 없으면 공식 설치 안내가 표시됩니다. 실행 전 터틀넥은 신뢰한 `turtleneck` 버전을 확인하지만 자동으로 덮어쓰지 않으며, 사용자가 확인한 뒤 `--apply`를 선택해야 업데이트합니다. 개발 중인 Git 저장소는 자동으로 덮어쓰지 않습니다.
 
 ### 공개 저장소 사용 범위
 
@@ -88,9 +101,36 @@ claude plugin install university-agent@turtleneck
 
 보안 문제는 공개 이슈가 아니라 [보안 안내](SECURITY.md)에 따라 비공개로 알려 주세요.
 
+### XERJ Corpus Hub 선정
+
+터틀넥은 [XERJ Corpus Hub](https://hub.xerj.org/contributors/K-Lunatic)에 공개 코퍼스로 선정되었습니다. 실제 구현을 참고할 수 있도록 `feat: add lecture media and activity support` 커밋([`49615b7`](https://github.com/K-Lunatic/Turtleneck/commit/49615b7700f66ccfeef1546c181845528943eacf))이 MIT 라이선스와 함께 고정되어 있으며, [K-Lunatic 기여자 페이지](https://hub.xerj.org/contributors/K-Lunatic)에서 확인할 수 있습니다.
+
+### 자율강좌는 매일 어떻게 갱신되나요?
+
+자율강좌 주소를 한 번 확인하고 `--remember-watch`를 선택하면, 매일 학교 동기화 때 해당 강좌의 운영 권한과 화면에 보이는 토픽·활동 구조를 다시 확인합니다. 새 토픽이나 활동이 보이면 변경 사실과 최신 구조를 이 컴퓨터에 저장하고, 확인에 실패하면 이전 기록을 최신 정보처럼 보여주지 않습니다. 이 자동 확인은 읽기 전용이며 TLS에 자료를 올리거나 기존 내용을 지우지 않습니다. 복구·업로드·강좌 수정은 별도 명령과 사용자 확인이 필요합니다.
+
+학교 전체가 공유하는 순간 대역폭이 약 1GB/s라는 전제에서도 이를 학생별 허용량으로 계산하지 않습니다. 메타데이터 확인은 비교적 작지만 원본 자료·HLS 음성/영상 조각·재시도·자율강좌 업로드가 모두 순간 대역폭을 사용합니다. 특히 전체 강의 음원 추출은 자동·일괄 실행하지 않고, 필요한 전사 구간을 우선 받으며 검증된 로컬 복사본을 재사용합니다. 학교가 말하는 `1G`가 실제로는 1Gbps(약 125MB/s)를 뜻하는지 먼저 확인해야 하며, 정확한 회선 정책과 피크 사용량이 확인되기 전에는 전체 강의 추출과 자율강좌 쓰기 기능을 학교 전체 배포 대상으로 보지 않습니다.
+
+```bash
+python3 scripts/run_agent.py autonomous-course-verify \
+  --url 'https://tls.kku.ac.kr/course/view.php?id=<내 자율강좌 ID>' \
+  --remember-watch
+```
+
+### 다른 코스모스·Moodle 학교에서도 쓸 수 있나요?
+
+표준 Moodle 화면을 쓰는 학교라면 먼저 로그인 후 `/my/` 또는 `/course/index.php`에서 내 강좌를 찾고,
+`/course/view.php?id=...`의 주차·토픽·활동 목록을 공통 형식으로 읽습니다. `quiz`, `assign`, `resource`,
+`h5pactivity`처럼 처음 보는 활동도 버리지 않고 유형과 원래 위치를 그대로 보관합니다.
+
+다만 SSO, 동영상 뷰어, 파일 다운로드, 출결·제출 상태, 자율강좌 관리 화면은 학교마다 달라요. 현재는
+건국대 TLS에서 실제로 확인한 경로만 학교 전용 기능으로 활성화하고, 다른 학교에 `/local/ubion`이나
+`/local/ubeclass` 같은 주소를 추측해서 요청하지 않습니다. 따라서 다른 학교에서는 공통 강좌·활동 지도부터
+사용할 수 있고, 세부 기능은 해당 학교 화면을 확인한 뒤 별도 프로필로 추가해야 합니다.
+
 ### 2. 처음 한 번 연결
 
-처음 호출하면 이 컴퓨터의 브라우저에 한 번만 쓰는 터틀넥 연결 화면이 열립니다. TLS 아이디와 비밀번호를 그 화면에 입력하면 학교에서 확인한 뒤 macOS Keychain 또는 Windows 보호 저장소에만 저장합니다. 에브리타임을 함께 쓰려면 이어지는 공식 로그인 화면에서 로그인과 2차 인증을 직접 마칩니다.
+처음 호출하면 이 컴퓨터의 브라우저에 한 번만 쓰는 터틀넥 연결 화면이 열립니다. TLS 아이디와 비밀번호를 그 화면에 입력하면 학교 로그인을 확인한 뒤 macOS Keychain 또는 Windows 보호 저장소에만 저장합니다. 아이디나 비밀번호가 틀리면 실패했다고 숨기지 않고 입력 화면을 다시 열어요. 에브리타임을 함께 쓰려면 이어지는 공식 로그인 화면에서 로그인과 2차 인증을 직접 마칩니다.
 
 비밀번호를 채팅이나 터미널에 입력하지 마세요. 이미 연결한 계정과 캐시는 다음 실행에서 재사용합니다.
 
@@ -306,7 +346,7 @@ python3 scripts/run_agent.py tls-backup-restore \
 | 파일 분석·문항·답안·시험 기록 | `~/.university-agent/study-sessions.db` |
 | 내려받은 강의 원본 | `~/.university-agent/files/` |
 | TLS 비밀번호 | macOS Keychain 또는 Windows DPAPI |
-| TLS 쿠키 | 메모리에서만 사용 |
+| TLS 쿠키 | OS 보호 세션 저장소와 요청 중 메모리 |
 
 비밀번호는 SQLite·JSON 응답·로그에 넣지 않습니다. 다만 무제한 로컬 명령 실행 권한을 가진 AI 프로세스와 OS 보호 저장소가 완전히 격리된다고 보장하지는 않습니다. 출제와 채점에 쓰는 자료 본문·답안은 현재 대화의 AI에 전달됩니다.
 
@@ -318,6 +358,8 @@ python3 scripts/run_agent.py tls-backup-restore \
 <summary><strong>학사 자동 확인</strong></summary>
 
 학교 연결을 마치면 macOS 또는 Windows의 예약 작업으로 매일 오전 7시(컴퓨터 현지 시간)에 TLS의 과제·강의·공지 상태를 새로 확인합니다. 노트북이 예약 시각에 잠들어 있던 경우를 위해 6시간 간격 보완 실행도 둡니다. 새 과제, 마감 임박 과제, 아직 끝내지 않은 영상, 새 공지가 있을 때만 터틀넥이 과목명·기한·확인된 내용·바로 가기 링크를 알려줍니다.
+
+한 계정의 자료 수집은 최대 2개 읽기 작업까지만 병렬로 진행하고, 분리된 작업도 같은 학교 세션의 요청 간격 제한을 공유합니다. 따라서 여러 과목을 한꺼번에 확인해도 일반적인 다중 탭 접근보다 큰 요청 폭주를 만들지 않습니다. 학교 응답 지연·일시 제한·세션 만료가 발생하면 실패로 표시하고 이전 데이터를 최신 상태처럼 보고하지 않습니다.
 
 채팅의 할 일·일일 보고는 과제와 강의만 먼저 확인합니다. 파일은 해당 자료를 요청할 때 받으며,
 최신 확인에 실패하면 이전 기록으로 추정하지 않습니다. 전체 과목별 보고 실행:
@@ -343,9 +385,9 @@ python3 scripts/setup_turtleneck.py --watch-uninstall
 <details>
 <summary><strong>버전 업데이트와 실행 환경</strong></summary>
 
-터틀넥은 신뢰한 저장소의 패키지 버전을 주기적으로 확인합니다. 설치본이 더 오래된 경우 `--auto`가 새 패키지를 받아 자동으로 적용합니다. 네트워크가 끊기면 현재 버전을 유지하고, Git으로 직접 관리하는 개발 저장소는 자동으로 덮어쓰지 않습니다. 수동 적용은 `python3 scripts/update_turtleneck.py --apply`로 실행합니다.
+터틀넥을 사용할 때마다 신뢰한 저장소의 패키지 버전을 확인합니다(실제 네트워크 확인은 하루 한 번). 설치본이 더 오래된 경우 `--auto`는 새 버전이 있다는 사실만 알려줍니다. 네트워크가 끊기면 현재 버전을 유지하고, Git으로 직접 관리하는 개발 저장소는 자동으로 덮어쓰지 않습니다. 수동 적용은 확인 후 `python3 scripts/update_turtleneck.py --apply`로 실행합니다.
 
-Python이 없는 일반 사용자는 실행기를 더블클릭하면 됩니다. 실행기는 기존 Python을 먼저 사용하고, 없을 때는 공식 `uv` 실행기를 통해 관리형 Python을 준비합니다. 사용자 비밀번호와 학교 DB는 실행 환경 설치 위치와 분리되어 있습니다.
+Python이 없는 일반 사용자는 [Python 공식 설치 안내](https://www.python.org/downloads/)에서 Python 3.10 이상을 설치한 뒤 실행기를 다시 열면 됩니다. 사용자 비밀번호와 학교 DB는 실행 환경 설치 위치와 분리되어 있습니다.
 
 </details>
 

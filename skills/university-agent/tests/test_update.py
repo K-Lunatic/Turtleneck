@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 import sys
 from contextlib import redirect_stdout
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -31,6 +32,22 @@ class UpdateTests(unittest.TestCase):
                 result = update_turtleneck.check(force=True)
             self.assertEqual(result["status"], "UPDATE_AVAILABLE")
             self.assertTrue(cache.is_file())
+
+    def test_daily_cache_avoids_rechecking_the_network(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "plugin.json").write_text(json.dumps({"version": "0.4.2"}), encoding="utf-8")
+            cache = root / "update.json"
+            cache.write_text(json.dumps({
+                "checkedAt": datetime.now(timezone.utc).isoformat(),
+                "remoteVersion": "0.5.0",
+            }), encoding="utf-8")
+            with patch.object(update_turtleneck, "package_root", return_value=root), \
+                 patch.object(update_turtleneck, "_cache_path", return_value=cache), \
+                 patch.object(update_turtleneck, "_fetch", side_effect=AssertionError("daily cache should be reused")):
+                result = update_turtleneck.check()
+            self.assertEqual(result["status"], "UPDATE_AVAILABLE")
+            self.assertEqual(update_turtleneck.CHECK_INTERVAL_SECONDS, 24 * 60 * 60)
 
     def test_apply_skips_git_checkout(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -74,9 +91,15 @@ class UpdateTests(unittest.TestCase):
                     update_turtleneck._extract_archive(bundle, Path(folder))
             self.assertFalse((Path(folder).parent / 'outside.txt').exists())
 
-    def test_auto_applies_and_plain_invocation_only_checks(self):
-        with patch.object(update_turtleneck, 'apply_update', return_value={'status': 'CURRENT', 'message': '최신'}) as apply_update:
+    def test_auto_only_checks_and_apply_is_explicit(self):
+        with patch.object(update_turtleneck, 'check', return_value={'status': 'CURRENT', 'message': '최신'}) as check, \
+             patch.object(update_turtleneck, 'apply_update') as apply_update:
             with patch.object(sys, 'argv', ['update_turtleneck.py', '--auto']), redirect_stdout(io.StringIO()):
+                self.assertEqual(update_turtleneck.main(), 0)
+            check.assert_called_once_with(force=False)
+            apply_update.assert_not_called()
+        with patch.object(update_turtleneck, 'apply_update', return_value={'status': 'CURRENT', 'message': '최신'}) as apply_update:
+            with patch.object(sys, 'argv', ['update_turtleneck.py', '--apply']), redirect_stdout(io.StringIO()):
                 self.assertEqual(update_turtleneck.main(), 0)
             apply_update.assert_called_once_with(force=False)
         with patch.object(update_turtleneck, 'check', return_value={'status': 'CURRENT', 'message': '최신'}) as check:

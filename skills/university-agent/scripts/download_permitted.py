@@ -13,9 +13,10 @@ from urllib.error import URLError
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from providers.credentials import CONFIG_PATH, load
+from providers.credentials import CONFIG_PATH, load_username
 from providers.moodle_provider import MoodleTLSProvider, validate_permission
-from providers.moodle_session import DownloadRestricted, LoginError, MoodleSession
+from providers.moodle_session import DownloadRestricted, LoginError
+from providers.tls_auth import authenticated_session
 from storage.local_db import LocalDatabase
 from sync_tls import store_resource
 
@@ -42,7 +43,7 @@ def main():
             if args.revoke:
                 username = os.environ.get('UNIVERSITY_AGENT_USER_ID') or json.loads(CONFIG_PATH.read_text(encoding='utf-8'))['username']
             else:
-                username, password = load()
+                username = load_username()
         except (OSError, KeyError, ValueError, subprocess.CalledProcessError) as error:
             raise SystemExit('학교 연결이 먼저 필요해요. 비밀번호는 대화에 보내지 말고 연결창에서 입력해 주세요.') from error
         user = os.environ.get('UNIVERSITY_AGENT_USER_ID', username)
@@ -60,8 +61,7 @@ def main():
                 print('이 자료에 대한 허락 기록을 해제했어요. 저장했던 원본은 지우지 않았어요.', flush=True)
                 return
             print(f"{original['title']}의 수업 자료 주소를 확인하고 있어요…", flush=True)
-            session = MoodleSession()
-            session.login(username, password)
+            username, session = authenticated_session()
             provider = MoodleTLSProvider(session, lambda message: print(message, flush=True))
             item = provider.download_permitted_resource(user, original, permission, args.viewer_url)
             print('자료를 받았어요. 원래 파일 이름으로 보관할게요…', flush=True)

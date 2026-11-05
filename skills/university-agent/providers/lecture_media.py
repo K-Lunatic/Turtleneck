@@ -81,7 +81,7 @@ def media_plan(session, source, *, video=False):
                 # Prefer the playlist explicitly marked as the default audio track.
                 selected = sorted(audio, key=lambda item: (not item[0], not item[1], item[2]))[0][2]
             else:
-                selected = min(variants)[1]
+                raise DownloadRestricted('음성 전용 스트림이 없어 학교 트래픽 보호를 위해 가져오지 않았어요.')
             current = urljoin(base, selected)
             continue
         if '#EXT-X-ENDLIST' not in lines:
@@ -153,7 +153,7 @@ def download_media(session, plan, target, progress=None):
                 if attempt == _CHUNK_ATTEMPTS:
                     raise
             time.sleep(0.5 * attempt)
-    with target.open('wb') as stream, ThreadPoolExecutor(max_workers=4) as pool:
+    with target.open('wb') as stream, ThreadPoolExecutor(max_workers=2) as pool:
         for start in range(0, len(chunks), 4):
             for data in pool.map(fetch, chunks[start:start + 4]):
                 total += len(data)

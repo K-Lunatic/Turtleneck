@@ -8,12 +8,14 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 import sys
 import threading
 import time
 import tempfile
 from email.parser import BytesParser
 from email.policy import default as email_default
+from http.cookies import CookieError, SimpleCookie
 from datetime import datetime, timezone
 from html import escape
 from http import HTTPStatus
@@ -87,6 +89,7 @@ class Gateway:
 
     def sync_worker(self, user, account):
         db = None
+        rerun = False
         try:
             provider = MoodleTLSProvider(account['session'])
             records = {'courses': provider.get_courses(user)}
@@ -114,6 +117,14 @@ class Gateway:
             with self.lock:
                 account['running'] = False
                 account['stage'] = None
+                pending = account.pop('pendingSession', None)
+                if pending is not None:
+                    account['session'] = pending
+                    account['error'] = None
+                    account['availableSections'] = []
+                    rerun = True
+            if rerun:
+                self.sync(user)
 
     def __call__(self, env, start_response):
         headers = [('Cache-Control', 'no-store'), ('Referrer-Policy', 'no-referrer'),
@@ -125,6 +136,9 @@ class Gateway:
             status, content, kind, extra = 400, {'error': 'invalid_request'}, 'application/json', []
         except Exception:
             status, content, kind, extra = 500, {'error': 'internal_error'}, 'application/json', []
+        study_cookie = env.get('_turtleneck_study_cookie')
+        if study_cookie:
+            extra = [*extra, ('Set-Cookie', study_cookie)]
         payload = json.dumps(content, ensure_ascii=False).encode() if kind == 'application/json' else content if isinstance(content, bytes) else content.encode()
         start_response(f'{status} {HTTPStatus(status).phrase}', headers + [('Content-Type', kind + '; charset=utf-8'), ('Content-Length', str(len(payload)))] + extra)
         return [payload]
@@ -160,7 +174,7 @@ class Gateway:
         if path == '/health' and method == 'GET':
             return reply({'status': 'ok'})
         if path == '/privacy' and method == 'GET':
-            return 200, '<h1>University Agent 개인정보 안내</h1><p>TLS 아이디·비밀번호는 로그인 확인을 위해 학교 TLS로 전송됩니다. 비밀번호는 저장하지 않습니다. 로그인 쿠키는 서버 메모리에만 보관합니다. 과목·과제·강의 진도·공지와 사용자가 저장한 과제 진행 기록은 사용자별 서버 DB에 저장되며, 요청한 데이터가 ChatGPT로 전달됩니다. 과제 완료 시 해당 진행 기록은 삭제됩니다. 연결 해제는 토큰을 폐기합니다. 다른 저장 데이터 삭제는 서비스 운영자에게 요청하세요.</p>', 'text/html', []
+            return 200, '<h1>University Agent 개인정보 안내</h1><p>이 게이트웨이는 한 사용자의 컴퓨터에서만 실행하는 보조 경로입니다. TLS 아이디·비밀번호는 로그인 확인을 위해 학교 TLS로 전송되고 비밀번호는 저장하지 않습니다. 로그인 쿠키·OAuth 토큰은 실행 중 메모리에만 보관합니다. 과목·과제·강의 진도·공지와 사용자가 저장한 과제 진행 기록은 이 컴퓨터의 사용자별 로컬 DB에 저장되며, 요청한 내용은 현재 ChatGPT 대화와 게이트웨이 운영에 사용됩니다. 학습 팩 링크는 처음 연 기기에만 연결되고 10분 뒤 만료됩니다. 연결 해제는 토큰·세션을 폐기하지만 로컬 DB와 원본 파일은 지우지 않으므로 사용자가 직접 삭제해야 합니다. 학교 전체 공개 서비스로 운영하지 마세요.</p>', 'text/html', []
         if path == '/openapi.json' and method == 'GET':
             schema = json.loads((ROOT / 'server/openapi.json').read_text())
             schema['servers'] = [{'url': self.base_url}]
@@ -207,8 +221,9 @@ class Gateway:
             with self.lock:
                 old = self.accounts.get(username)
                 if old and old['running']:
-                    # Keep the session used by an in-flight sync; replace it after it finishes on next login.
+                    # Finish the current read, then rerun once with the fresh session.
                     account = old
+                    account['pendingSession'] = session
                 else:
                     account = {'session': session, 'running': False, 'syncedAt': old['syncedAt'] if old else None, 'error': None, 'stage': None, 'availableSections': old.get('availableSections', []) if old else []}
                     self.accounts[username] = account
@@ -264,8 +279,8 @@ class Gateway:
                 self.accounts.pop(user, None)
             return reply({'status': 'disconnected'})
         if path == '/v1/study-pack/link' and method == 'POST':
-            ticket = self.issue(self.study_links, {'user': user}, 1800)
-            return reply({'url': self.base_url + '/study/' + ticket, 'expiresIn': 1800,
+            ticket = self.issue(self.study_links, {'user': user}, 600)
+            return reply({'url': self.base_url + '/study/' + ticket, 'expiresIn': 600,
                           'message': '모바일에서 이 링크를 열고 .tpack 파일을 선택하세요.'})
         if path == '/v1/study/analysis' and method == 'GET':
             return reply({'data': study_bridge.analysis_catalog(self.data_dir, self.db_path, user)})
@@ -420,7 +435,7 @@ class Gateway:
         return 'mobile-' + digest(ticket)[:32]
 
     def mobile_study_route(self, env, ticket, tail):
-        item = self.take(self.study_links, ticket)
+        item = self._study_access(env, ticket)
         if not item:
             return 404, '이 학습 팩 연결은 만료됐어요. ChatGPT에서 새 링크를 받아 주세요.', 'text/html', []
         user, method = item['user'], env['REQUEST_METHOD']
@@ -429,7 +444,7 @@ class Gateway:
             if method == 'GET':
                 try:
                     exams = study_bridge.history(self.data_dir, self.db_path, user, self._mobile_conversation(ticket)).get('exams', [])
-                except (OSError, ValueError):
+                except (OSError, sqlite3.Error, ValueError):
                     exams = []
                 return 200, self.mobile_portal(ticket, exams), 'text/html', []
             if method != 'POST':
@@ -474,6 +489,33 @@ class Gateway:
         if tail == 'exam' or tail.startswith('exam/'):
             return self.mobile_exam_route(env, ticket, tail[5:])
         return 404, '화면을 찾을 수 없어요.', 'text/plain', []
+
+    def _study_access(self, env, ticket):
+        """Claim a study link once, then require its device-local cookie."""
+        key = digest(ticket)
+        with self.lock:
+            item = self.study_links.get(key)
+            if not item or item['expires'] <= time.time():
+                self.study_links.pop(key, None)
+                return None
+            cookie = SimpleCookie()
+            try:
+                cookie.load(env.get('HTTP_COOKIE', ''))
+            except CookieError:
+                return None
+            presented = cookie.get('turtleneck_study')
+            if item.get('sessionHash'):
+                if not presented or not hmac.compare_digest(digest(presented.value), item['sessionHash']):
+                    return None
+                return item.copy()
+            session_value = secrets.token_urlsafe(32)
+            item['sessionHash'] = digest(session_value)
+            env['_turtleneck_study_cookie'] = (
+                f'turtleneck_study={session_value}; Max-Age=600; Path=/study/{ticket}; '
+                'HttpOnly; Secure; SameSite=Strict'
+            )
+            item['expires'] = min(item['expires'], time.time() + 600)
+            return item.copy()
 
     @staticmethod
     def mobile_portal(ticket, exams):

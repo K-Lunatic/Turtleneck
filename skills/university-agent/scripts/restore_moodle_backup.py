@@ -18,9 +18,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from features.autonomous_course_policy import AutonomousCoursePolicyError, course_external_id_from_url
-from providers.credentials import CredentialInputRequired, resolve, save
+from providers.credentials import CredentialInputRequired
 from providers.moodle_provider import MoodleTLSProvider
-from providers.moodle_session import LoginError, MoodleSession
+from providers.moodle_session import LoginError
+from providers.tls_auth import authenticated_session
 from scripts.tls_backup_download import _course_context_id
 from scripts.validate_moodle_backup import validate_backup
 
@@ -239,13 +240,14 @@ def restore_backup(backup: Path, course_url: str, *, apply: bool = False,
     except AutonomousCoursePolicyError as error:
         raise MoodleBackupRestoreError(str(error)) from error
     report = validate_backup(backup)
+    # Reject non-empty backups before login or repository upload; an invalid
+    # restore must not leave a large draft file in Moodle storage.
+    if report.get("activityCount") != 0 or report.get("hasFiles"):
+        raise MoodleBackupRestoreError("파일이나 기존 활동이 들어 있는 백업은 자율강좌 빈 구조 복구에 사용할 수 없어요.")
     try:
-        username, password = resolve(os.environ.get("TLS_USERNAME"))
+        username, session = authenticated_session()
     except CredentialInputRequired as error:
         raise MoodleBackupRestoreError(str(error)) from error
-    session = MoodleSession(os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr"))
-    session.login(username, password)
-    save(username, password)
     courses = MoodleTLSProvider(session).get_autonomous_courses(username)
     target = next((course for course in courses if str(course.get("externalId")) == course_id), None)
     if not target or target.get("role") not in {"운영자", "교수"}:
@@ -282,8 +284,6 @@ def restore_backup(backup: Path, course_url: str, *, apply: bool = False,
     review_fields = _wizard_fields(review_form)
     if review_fields.get("setting_root_activities") != "0":
         raise MoodleBackupRestoreError("복구 검토 단계에서 활동 포함이 해제되지 않아 중단했어요.")
-    if report.get("activityCount") != 0 or report.get("hasFiles"):
-        raise MoodleBackupRestoreError("비어 있지 않은 백업은 이 전체 교체 흐름에 사용할 수 없어요.")
     ready = {**plan, "upload": upload, "status": "ready_to_restore", "wizard": "review"}
     if not execute:
         return ready

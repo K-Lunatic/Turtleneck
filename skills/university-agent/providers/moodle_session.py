@@ -6,6 +6,8 @@ import json
 import re
 import ssl
 import sys
+import threading
+import time
 import zlib
 from copy import copy
 from urllib.error import HTTPError
@@ -23,6 +25,22 @@ class LoginError(RuntimeError):
 
 class DownloadRestricted(RuntimeError):
     pass
+
+
+class _RequestLimiter:
+    """Keep parallel reads bounded per logged-in account."""
+    def __init__(self, gap: float = 0.08):
+        self.gap = gap
+        self.next_at = 0.0
+        self.lock = threading.Lock()
+
+    def wait(self) -> None:
+        with self.lock:
+            now = time.monotonic()
+            delay = max(0.0, self.next_at - now)
+            self.next_at = max(now, self.next_at) + self.gap
+        if delay:
+            time.sleep(delay)
 
 
 def _default_ssl_context() -> ssl.SSLContext:
@@ -95,14 +113,38 @@ class MoodleSession:
     def __init__(self, base_url: str = "https://tls.kku.ac.kr"):
         self.base_url = base_url.rstrip("/")
         self.cookies = CookieJar()
-        self.opener = build_opener(HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(), HTTPSHandler(context=_default_ssl_context()))
+        self._request_limiter = _RequestLimiter()
+        self._build_opener()
         self.logged_in = False
+
+    def _build_opener(self) -> None:
+        self.opener = build_opener(HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(), HTTPSHandler(context=_default_ssl_context()))
+
+    def restore_cookies(self, cookies: CookieJar) -> None:
+        self.cookies = cookies
+        self._build_opener()
+
+    def resume(self) -> bool:
+        """Verify a protected cookie jar without sending credentials."""
+        if not any(cookie.name and cookie.value for cookie in self.cookies):
+            return False
+        self.logged_in = True
+        try:
+            self._request("/")
+        except LoginError:
+            self.logged_in = False
+            return False
+        except Exception:
+            self.logged_in = False
+            raise
+        return True
 
     def fork(self):
         """Independent cookie jar/opener per read worker; login remains single-threaded."""
         child = MoodleSession(self.base_url)
         for cookie in self.cookies:
             child.cookies.set_cookie(copy(cookie))
+        child._request_limiter = self._request_limiter
         child.logged_in = self.logged_in
         return child
 
@@ -138,6 +180,7 @@ class MoodleSession:
             headers.update({"Content-Type": "application/x-www-form-urlencoded", "Origin": self.base_url, "Referer": referer or url})
         request = Request(url, data=data, headers=headers, method="POST" if data is not None else "GET")
         request.allowed_origin = allowed_origin
+        self._request_limiter.wait()
         response = self.opener.open(request, timeout=30)
         try:
             check_download_origin(response.geturl(), allowed_origin)
@@ -213,6 +256,7 @@ class MoodleSession:
         }
         request = Request(url, data=payload, headers=headers, method="POST")
         request.allowed_origin = allowed_origin
+        self._request_limiter.wait()
         response = self.opener.open(request, timeout=30)
         try:
             check_download_origin(response.geturl(), allowed_origin)
@@ -256,6 +300,7 @@ class MoodleSession:
         try:
             request = Request(url, headers={"User-Agent": "UniversityAgent/0.1", "Accept-Encoding": "identity" if max_bytes is not None else "gzip, deflate", **(conditional or {})})
             request.allowed_origin = allowed_origin
+            self._request_limiter.wait()
             response = self.opener.open(request, timeout=30)
         except HTTPError as error:
             if error.code != 304:

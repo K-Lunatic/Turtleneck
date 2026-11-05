@@ -16,9 +16,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from features.autonomous_course_policy import course_external_id_from_url
-from providers.credentials import CredentialInputRequired, resolve, save
+from providers.credentials import CredentialInputRequired
 from providers.moodle_provider import MoodleTLSProvider
-from providers.moodle_session import LoginError, MoodleSession
+from providers.moodle_session import LoginError
+from providers.tls_auth import authenticated_session
 
 
 class CourseUpdateError(ValueError):
@@ -86,12 +87,9 @@ def update_course_settings(course_url: str, updates: dict[str, str]) -> dict[str
     _validate_updates(updates)
     course_id = course_external_id_from_url(course_url)
     try:
-        username, password = resolve(os.environ.get("TLS_USERNAME"))
+        username, session = authenticated_session()
     except CredentialInputRequired as error:
         raise CourseUpdateError(str(error)) from error
-    session = MoodleSession(os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr"))
-    session.login(username, password)
-    save(username, password)
     course = next((item for item in MoodleTLSProvider(session).get_autonomous_courses(username)
                    if str(item.get("externalId")) == course_id), None)
     if not course or course.get("role") not in {"운영자", "교수"}:

@@ -465,6 +465,7 @@ def parse_autonomous_courses(html: str) -> list[dict[str, Any]]:
 
 class MoodleTLSProvider:
     RESOURCE_RESPONSE_VERSION = '2'
+    MAX_READ_WORKERS = 2
 
     def __init__(self, session: MoodleSession, progress=None):
         self.session = session
@@ -478,7 +479,7 @@ class MoodleTLSProvider:
         courses = self.get_courses(user)
         if len(courses) < 2 or not hasattr(self.session, 'fork'):
             return None
-        # ponytail: at most four independent read sessions, not an unbounded request fan-out.
+        # Keep background reads below a normal multi-tab browsing burst.
         def collect(course):
             provider = MoodleTLSProvider(self.session.fork(), self.progress)
             provider._courses = [course]
@@ -486,7 +487,7 @@ class MoodleTLSProvider:
             provider._activity_links = self._activity_links.copy()
             items = getattr(provider, method)(user, **kwargs)
             return items, provider._course_pages, provider._activity_links
-        with ThreadPoolExecutor(max_workers=4) as pool:
+        with ThreadPoolExecutor(max_workers=min(self.MAX_READ_WORKERS, len(courses))) as pool:
             result = []
             for items, pages, links in pool.map(collect, courses):
                 self._course_pages.update(pages)
@@ -503,15 +504,22 @@ class MoodleTLSProvider:
     def get_courses(self, _user_id: str) -> list[dict[str, Any]]:
         if self._courses is not None:
             return [dict(course) for course in self._courses]
-        links = self._links(self.session.get("/local/ubion/user/"))
         result: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for href, title in links:
-            match = re.search(r"/course/view\.php\?id=(\d+)", href)
-            if not match or match.group(1) in seen:
-                continue
-            seen.add(match.group(1))
-            result.append({"id": f"tls-course-{match.group(1)}", "externalId": match.group(1), "name": title or f"TLS course {match.group(1)}", "source": "tls"})
+        host = urlsplit(getattr(self.session, "base_url", "https://tls.kku.ac.kr")).hostname
+        source = "tls" if host == "tls.kku.ac.kr" else "moodle"
+        id_prefix = "tls" if source == "tls" else "moodle"
+        paths = ("/local/ubion/user/", "/my/", "/course/index.php") if host == "tls.kku.ac.kr" else ("/my/", "/course/index.php")
+        for path in paths:
+            links = self._links(self.session.get(path))
+            seen: set[str] = set()
+            for href, title in links:
+                match = re.search(r"/course/view\.php\?id=(\d+)", href)
+                if not match or match.group(1) in seen:
+                    continue
+                seen.add(match.group(1))
+                result.append({"id": f"{id_prefix}-course-{match.group(1)}", "externalId": match.group(1), "name": title or f"Moodle course {match.group(1)}", "source": source})
+            if result:
+                break
         self._courses = result
         return [dict(course) for course in result]
 
@@ -545,7 +553,7 @@ class MoodleTLSProvider:
                         "type": activity["type"],
                         "title": activity["name"],
                         "url": urljoin(base_url.rstrip('/') + '/', activity["url"]),
-                        "source": "tls",
+                        "source": course.get("source", "tls"),
                     })
         return result
 
@@ -721,7 +729,7 @@ class MoodleTLSProvider:
                 child._courses = [course]
                 return course["id"], child._activity_fingerprint(child._course_page(course))
 
-            with ThreadPoolExecutor(max_workers=min(4, len(selected))) as pool:
+            with ThreadPoolExecutor(max_workers=min(self.MAX_READ_WORKERS, len(selected))) as pool:
                 fingerprints = dict(pool.map(collect, selected))
         return {"courseIds": [course["id"] for course in courses], "fingerprints": fingerprints}
 
@@ -909,7 +917,7 @@ class MoodleTLSProvider:
 
         # One flat pool also overlaps downloads within a single course.
         if len(jobs) > 1 and hasattr(self.session, 'fork'):
-            with ThreadPoolExecutor(max_workers=4) as pool:
+            with ThreadPoolExecutor(max_workers=min(self.MAX_READ_WORKERS, len(jobs))) as pool:
                 return [item for item in pool.map(collect, jobs) if item is not None]
         return [item for job in jobs if (item := collect(job)) is not None]
 

@@ -81,6 +81,46 @@ class AutonomousCourseTests(unittest.TestCase):
                                            'https://moodle.example.edu')
         self.assertEqual(blueprint["sections"][1]["activities"][0]["type"], "quiz")
 
+    def test_provider_discovers_courses_from_standard_moodle_dashboard(self):
+        class StandardSession(FakeSession):
+            base_url = "https://moodle.example.edu"
+
+            def get(self, path):
+                self.paths.append(path)
+                return '<a href="/course/view.php?id=42">운영체제</a>' if path == "/my/" else ""
+
+        session = StandardSession("")
+        courses = MoodleTLSProvider(session).get_courses("user")
+        self.assertEqual(courses[0]["id"], "moodle-course-42")
+        self.assertEqual(courses[0]["externalId"], "42")
+        self.assertEqual(courses[0]["source"], "moodle")
+        self.assertEqual(session.paths, ["/my/"])
+
+    def test_provider_keeps_tls_source_for_existing_kku_flow(self):
+        class KkuSession(FakeSession):
+            base_url = "https://tls.kku.ac.kr"
+
+            def get(self, path):
+                self.paths.append(path)
+                return '<a href="/course/view.php?id=65513">자율강좌</a>' if path == "/local/ubion/user/" else ""
+
+        session = KkuSession("")
+        courses = MoodleTLSProvider(session).get_courses("user")
+        self.assertEqual(courses[0]["source"], "tls")
+
+    def test_activity_catalog_keeps_standard_moodle_source(self):
+        class StandardSession(FakeSession):
+            base_url = "https://moodle.example.edu"
+
+            def get(self, path):
+                self.paths.append(path)
+                if path == "/my/":
+                    return '<a href="/course/view.php?id=42">운영체제</a>'
+                return COURSE_PAGE.replace('/mod/', 'https://moodle.example.edu/mod/')
+
+        activities = MoodleTLSProvider(StandardSession("")).get_activity_catalog("user")
+        self.assertEqual(activities[0]["source"], "moodle")
+
     def test_section_summary_is_kept_for_schedule_lookup(self):
         html = '''
         <ul><li id="section-1" class="section" aria-label="자료구조">

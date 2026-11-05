@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from providers.credentials import CredentialInputRequired, resolve, save
-from providers.moodle_session import LoginError, MoodleSession, check_download_origin
+from providers.credentials import CredentialInputRequired
+from providers.moodle_session import LoginError, check_download_origin
+from providers.tls_auth import authenticated_session
 
 
 class _CourseContextParser(HTMLParser):
@@ -115,13 +116,10 @@ def main() -> None:
     if not re.fullmatch(r"[1-9][0-9]*", args.course_id):
         raise SystemExit("course id는 숫자여야 합니다.")
     try:
-        username, password = resolve(os.environ.get("TLS_USERNAME"))
+        username, session = authenticated_session()
     except CredentialInputRequired as error:
         raise SystemExit(str(error)) from error
-    session = MoodleSession(os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr"))
     try:
-        session.login(username, password)
-        save(username, password)
         url, filename = _visible_backup(session, args.course_id)
         payload, response = session.get_bytes(url, allowed_origin="tls.kku.ac.kr")
     except SocketTimeout as error:
