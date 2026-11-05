@@ -68,7 +68,11 @@ On first use, a local connection form opens. Enter TLS and Everytime credentials
 
 ## Local-first and privacy
 
-This project is designed for local desktop use on macOS and Windows. It does not provide device-to-device synchronization. The optional ChatGPT Actions gateway is a one-computer helper, not a school-wide service. Account passwords, session cookies, OAuth secrets, personal course IDs, original files, databases, and learning packs are excluded from the repository. Use it only with accounts and materials you are authorized to access, and respect school and Everytime policies.
+This project runs primarily on a local macOS or Windows desktop. Mobile is also a supported optional path through the ChatGPT Actions gateway running on the user's computer; it is not a standalone mobile app and does not provide device-to-device database synchronization. The gateway is a one-computer helper, not a school-wide service. Account passwords, session cookies, OAuth secrets, personal course IDs, original files, databases, and learning packs are excluded from the repository. Use it only with accounts and materials you are authorized to access, and respect school and Everytime policies.
+
+### Mobile Actions
+
+Mobile Actions supports course, assignment, lecture, notice and todo lookup, sync status, connection removal, assignment progress, and `.tpack`-based web exams. The desktop gateway and its HTTPS tunnel must remain online. Mobile does not expose original-file downloads, course-material body reading, Everytime, or local Codex study sessions, and it never receives passwords, cookies, or original files. Configure the Custom GPT OAuth/Actions connection once and verify the round trip with the target account before relying on it.
 
 See [SECURITY.md](SECURITY.md) for private security reports.
 
