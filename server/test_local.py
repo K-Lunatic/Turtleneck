@@ -1,4 +1,5 @@
 import io
+import os
 import tempfile
 import threading
 import unittest
@@ -21,9 +22,10 @@ class LocalTests(unittest.TestCase):
             self.assertEqual(again['gpt_id'], 'g-other')
             app = Gateway('https://example.com', config['client_id'], config['client_secret'], ['https://chatgpt.com/aip/g-test/oauth/callback'], directory / 'data')
             settings = write_settings(directory, app)
-            self.assertEqual(settings.stat().st_mode & 0o777, 0o600)
-            self.assertEqual((directory / 'config.json').stat().st_mode & 0o777, 0o600)
-            self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+            if os.name != 'nt':
+                self.assertEqual(settings.stat().st_mode & 0o777, 0o600)
+                self.assertEqual((directory / 'config.json').stat().st_mode & 0o777, 0o600)
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
             self.assertIn(config['client_secret'], settings.read_text())
 
     def test_tunnel_url_and_failure_cleanup(self):
