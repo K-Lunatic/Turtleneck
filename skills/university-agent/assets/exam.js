@@ -231,12 +231,19 @@ function answerInput(q, index) {
   input.addEventListener('input', () => setDraft(q, input.value));
   return input;
 }
-function result(q, feedback) {
-  const box = node('div', undefined, 'result'), list = node('dl');
-  const label = OUTCOME[feedback.outcome] || '결과를 확인했어요';
-  box.append(node('p', feedback.outcome === 'pending' ? label : label + ' ' + feedback.score + '/' + feedback.points + '점', 'outcome'));
+function myAnswer(list, q) {
   if (q.responseFormat !== 'choice' && q.responseFormat !== 'multi_choice') define(list, '내 답', answered(q) ? displayAnswer(q, drafts[q.id]) : '답을 쓰지 않았어요.', q.responseFormat === 'code' && answered(q) ? 'code' : '');
   else if (!chosen(q)) define(list, '내 답', '답을 고르지 않았어요.');
+}
+function result(q, feedback) {
+  // Correct answers fold away so the paper reads as a wrong-answer review; the red ○ still marks them.
+  const correct = feedback.outcome === 'correct', box = node(correct ? 'details' : 'div', undefined, 'result'), list = node('dl');
+  const label = OUTCOME[feedback.outcome] || '결과를 확인했어요';
+  const outcome = node(correct ? 'summary' : 'p', undefined, 'outcome ' + feedback.outcome);
+  outcome.append(feedback.outcome === 'pending' ? label : label + ' ' + feedback.score + '/' + feedback.points + '점');
+  if (correct) outcome.append(' ', node('span', '해설 보기', 'more'));
+  box.append(outcome);
+  myAnswer(list, q);
   define(list, '정답', feedback.answer, q.responseFormat === 'code' ? 'code' : '');
   define(list, '해설', feedback.explanation);
   box.append(list);
@@ -272,8 +279,9 @@ function questionItem(q, index, feedback) {
   if (answerable) body.append(answerButton(q));
   if (feedback) body.append(result(q, feedback));
   else if (exam.status !== 'question' || exam.readOnly) {
-    if (q.responseFormat !== 'choice' && q.responseFormat !== 'multi_choice') { const list = node('dl'); define(list, '내 답', answered(q) ? displayAnswer(q, drafts[q.id]) : '답을 쓰지 않았어요.', q.responseFormat === 'code' && answered(q) ? 'code' : ''); body.append(list); }
-    body.append(node('p', exam.readOnly ? '당시 저장된 답안이에요.' : '채점을 기다리고 있어요.', 'pending'));
+    // The notice above the paper already says the exam is grading or archived; say it once, not per question.
+    const list = node('dl'); myAnswer(list, q);
+    if (list.childElementCount) body.append(list);
   }
   item.append(num, body);
   return item;

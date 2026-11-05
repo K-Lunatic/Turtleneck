@@ -111,7 +111,6 @@ label.option:hover { background: #eff5f1; }
 textarea.code { display: block; width: 100%; min-height: 168px; margin-top: 14px; padding: 14px 16px; border: 1.5px solid var(--ink); border-radius: 2px; background: #fff; resize: vertical; }
 .short:focus-visible, .essay:focus-visible { outline: 0; box-shadow: 0 2px 0 var(--omr); }
 ::placeholder { color: #98a39d; }
-.pending { margin-top: 12px; color: var(--soft); font-size: 14px; }
 .question-submit { margin-top: 14px; }
 
 /* Ordering blocks */
@@ -137,6 +136,13 @@ textarea.code { display: block; width: 100%; min-height: 168px; margin-top: 14px
 
 .result { margin-top: 16px; }
 .outcome { font-weight: 700; font-size: 14px; color: var(--red); }
+/* Red pencil is for what needs another look; a correct answer keeps only its red ○ on the number. */
+.outcome.correct { color: var(--ink); }
+summary.outcome { display: flex; align-items: baseline; gap: 10px; width: max-content; list-style: none; cursor: pointer; }
+summary.outcome::-webkit-details-marker { display: none; }
+.more { color: var(--soft); font-weight: 400; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+summary.outcome:hover .more { color: var(--ink); }
+details[open] .more { display: none; }
 dl { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 6px 0; margin-top: 10px; }
 dt { padding-top: 5px; color: var(--soft); font-weight: 700; font-size: 13px; }
 dd { font: 16px/1.75 var(--myeongjo); white-space: pre-wrap; }
