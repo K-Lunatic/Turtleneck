@@ -1,0 +1,546 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-05T11:27:28+00:00",
+  "title": "Design System: 터틀넥 · Turtleneck",
+  "extensions": {
+    "colorMeta": {
+      "shelf": {
+        "role": "primary",
+        "displayName": "서가 안내판 초록",
+        "canonical": "#1d4d3a",
+        "cssVar": "--shelf",
+        "tonalRamp": [
+          "#091711",
+          "#0e261d",
+          "#143629",
+          "#1a4534",
+          "#4a7161",
+          "#839d93",
+          "#bbcac4",
+          "#e8edeb"
+        ]
+      },
+      "shelf-deep": {
+        "role": "primary",
+        "displayName": "깊은 서가 초록",
+        "canonical": "#143a2b",
+        "cssVar": "--shelf-deep",
+        "tonalRamp": [
+          "#06110d",
+          "#0a1d16",
+          "#0e291e",
+          "#123427",
+          "#436155",
+          "#7e938a",
+          "#b8c4bf",
+          "#e8ebea"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "서가 바탕",
+        "canonical": "#e4ece7",
+        "cssVar": "--ground",
+        "tonalRamp": [
+          "#444745",
+          "#727674",
+          "#a0a5a2",
+          "#cdd4d0",
+          "#e9f0ec",
+          "#f0f5f2",
+          "#f7f9f8",
+          "#fcfdfd"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "라벨지",
+        "canonical": "#fbfcfa",
+        "cssVar": "--paper",
+        "tonalRamp": [
+          "#4b4c4b",
+          "#7e7e7d",
+          "#b0b0af",
+          "#e2e3e1",
+          "#fcfdfb",
+          "#fdfdfc",
+          "#fefefe",
+          "#fffffe"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "스티커 흰색",
+        "canonical": "#ffffff",
+        "cssVar": "--white",
+        "tonalRamp": [
+          "#4c4c4c",
+          "#808080",
+          "#b2b2b2",
+          "#e6e6e6",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff",
+          "#ffffff"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "먹 초록",
+        "canonical": "#14271f",
+        "cssVar": "--ink",
+        "tonalRamp": [
+          "#060c09",
+          "#0a1410",
+          "#0e1b16",
+          "#12231c",
+          "#43524c",
+          "#7e8884",
+          "#b8bebc",
+          "#e8e9e9"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "보조 먹",
+        "canonical": "#3f5a4c",
+        "cssVar": "--ink-2",
+        "tonalRamp": [
+          "#131b17",
+          "#202d26",
+          "#2c3f35",
+          "#395144",
+          "#657b70",
+          "#95a49d",
+          "#c5cec9",
+          "#eceeed"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "연한 먹",
+        "canonical": "#5a7366",
+        "cssVar": "--ink-3",
+        "tonalRamp": [
+          "#1b221f",
+          "#2d3a33",
+          "#3f5047",
+          "#51685c",
+          "#7b8f85",
+          "#a4b2ab",
+          "#ced5d1",
+          "#eef1f0"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "선",
+        "canonical": "#c3d4ca",
+        "cssVar": "--line",
+        "tonalRamp": [
+          "#3a403d",
+          "#626a65",
+          "#88948d",
+          "#b0bfb6",
+          "#cfddd5",
+          "#dee7e2",
+          "#edf2ef",
+          "#f9fbfa"
+        ]
+      },
+      "line-soft": {
+        "role": "neutral",
+        "displayName": "연한 선",
+        "canonical": "#dbe6df",
+        "cssVar": "--line-soft",
+        "tonalRamp": [
+          "#424543",
+          "#6e7370",
+          "#99a19c",
+          "#c5cfc9",
+          "#e2ebe5",
+          "#ebf1ed",
+          "#f4f8f5",
+          "#fbfcfc"
+        ]
+      },
+      "tint": {
+        "role": "neutral",
+        "displayName": "틴트",
+        "canonical": "#eef4f0",
+        "cssVar": "--tint",
+        "tonalRamp": [
+          "#474948",
+          "#777a78",
+          "#a7aba8",
+          "#d6dcd8",
+          "#f1f6f3",
+          "#f6f9f7",
+          "#fafcfa",
+          "#fdfefe"
+        ]
+      },
+      "tint-strong": {
+        "role": "neutral",
+        "displayName": "진한 틴트",
+        "canonical": "#d5e6db",
+        "cssVar": "--tint-strong",
+        "tonalRamp": [
+          "#404542",
+          "#6a736e",
+          "#95a199",
+          "#c0cfc5",
+          "#ddebe2",
+          "#e8f1eb",
+          "#f2f8f4",
+          "#fbfcfb"
+        ]
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "포커스 초록",
+        "canonical": "#2f7a56",
+        "cssVar": "--focus",
+        "tonalRamp": [
+          "#0e251a",
+          "#183d2b",
+          "#21553c",
+          "#2a6e4d",
+          "#599578",
+          "#8db6a2",
+          "#c1d7cc",
+          "#eaf2ee"
+        ]
+      },
+      "errata": {
+        "role": "tertiary",
+        "displayName": "정오표 빨강",
+        "canonical": "#b83d24",
+        "cssVar": "--errata",
+        "tonalRamp": [
+          "#37120b",
+          "#5c1e12",
+          "#812b19",
+          "#a63720",
+          "#c66450",
+          "#d89487",
+          "#eac5bd",
+          "#f8ece9"
+        ]
+      },
+      "errata-tint": {
+        "role": "tertiary",
+        "displayName": "정오표 틴트",
+        "canonical": "#f8e7e2",
+        "cssVar": "--errata-tint",
+        "tonalRamp": [
+          "#4a4544",
+          "#7c7471",
+          "#aea29e",
+          "#dfd0cb",
+          "#f9ece8",
+          "#fbf2ef",
+          "#fdf8f6",
+          "#fefdfc"
+        ]
+      },
+      "band-1": {
+        "role": "secondary",
+        "displayName": "띠 1",
+        "canonical": "#2f7a56",
+        "cssVar": "--band-1",
+        "tonalRamp": [
+          "#0e251a",
+          "#183d2b",
+          "#21553c",
+          "#2a6e4d",
+          "#599578",
+          "#8db6a2",
+          "#c1d7cc",
+          "#eaf2ee"
+        ]
+      },
+      "band-2": {
+        "role": "secondary",
+        "displayName": "띠 2",
+        "canonical": "#7fb592",
+        "cssVar": "--band-2",
+        "tonalRamp": [
+          "#26362c",
+          "#405a49",
+          "#597f66",
+          "#72a383",
+          "#99c4a8",
+          "#b9d6c3",
+          "#d9e9de",
+          "#f2f8f4"
+        ]
+      },
+      "band-3": {
+        "role": "secondary",
+        "displayName": "띠 3",
+        "canonical": "#1d4d3a",
+        "cssVar": "--band-3",
+        "tonalRamp": [
+          "#091711",
+          "#0e261d",
+          "#143629",
+          "#1a4534",
+          "#4a7161",
+          "#839d93",
+          "#bbcac4",
+          "#e8edeb"
+        ]
+      },
+      "band-4": {
+        "role": "secondary",
+        "displayName": "띠 4",
+        "canonical": "#a9cfb3",
+        "cssVar": "--band-4",
+        "tonalRamp": [
+          "#333e36",
+          "#54685a",
+          "#76917d",
+          "#98baa1",
+          "#bad9c2",
+          "#d0e5d5",
+          "#e5f1e8",
+          "#f6faf7"
+        ]
+      },
+      "band-5": {
+        "role": "secondary",
+        "displayName": "띠 5",
+        "canonical": "#4f9a6e",
+        "cssVar": "--band-5",
+        "tonalRamp": [
+          "#182e21",
+          "#284d37",
+          "#376c4d",
+          "#478b63",
+          "#72ae8b",
+          "#9ec7af",
+          "#cae1d4",
+          "#edf5f0"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "score": {
+        "displayName": "점수",
+        "purpose": "채점 후 오른쪽 위 점수. 880px 이하 34px."
+      },
+      "headline": {
+        "displayName": "페이지 제목",
+        "purpose": "시험지·세트·매칭 제목. 880px 이하 22px."
+      },
+      "question-number": {
+        "displayName": "문항 번호",
+        "purpose": "결과에 따라 shelf 또는 errata로 물든다."
+      },
+      "question": {
+        "displayName": "문제",
+        "purpose": "문제 본문, 최대 68ch."
+      },
+      "body": {
+        "displayName": "본문",
+        "purpose": "기본 본문. word-break: keep-all."
+      },
+      "label": {
+        "displayName": "라벨",
+        "purpose": "출처 라벨 이름 줄, 결과 글자, 정의 목록 머리."
+      },
+      "meta": {
+        "displayName": "메타",
+        "purpose": "라벨 위치, 시간, 진행, 도움말. ink-2."
+      },
+      "code": {
+        "displayName": "코드",
+        "purpose": "코드 블록과 코드 입력에만."
+      }
+    },
+    "shadows": [
+      {
+        "name": "input-focus-ring",
+        "value": "0 0 0 3px var(--tint-strong)",
+        "purpose": "입력 포커스 링. 테두리는 shelf."
+      },
+      {
+        "name": "tile-selected-ring",
+        "value": "0 0 0 2px var(--shelf)",
+        "purpose": "고르는 중인 매칭 타일."
+      }
+    ],
+    "motion": [
+      {
+        "name": "progress-fill",
+        "value": "width .3s cubic-bezier(.2, .7, .2, 1)",
+        "purpose": "레일 진행 막대 채움."
+      },
+      {
+        "name": "tile-state",
+        "value": "border-color .15s, background .15s",
+        "purpose": "매칭 타일 상태 전환. prefers-reduced-motion에서 끈다."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "half-window",
+        "value": "880px",
+        "purpose": "채팅 옆 절반 창. 레일이 위쪽 칩 줄로 접힌다."
+      }
+    ],
+    "bandScale": {
+      "rail": "64px",
+      "sets": "160px",
+      "timeTrack": "160px"
+    }
+  },
+  "components": [
+    {
+      "name": "출처 라벨",
+      "kind": "custom",
+      "refersTo": "source-label",
+      "description": "청구기호 스티커: 흰 바탕, ink-3 실선, 위 4px 자료 띠, 이름 위·위치 아래, 각진 모서리.",
+      "html": "<span class=\"ds-label\" aria-label=\"출처 3주차 탐색, 슬라이드 12\"><span class=\"ds-label-name\">3주차 탐색</span><span class=\"ds-label-loc\">슬라이드 12</span></span> <span class=\"ds-label ds-b4 ds-small\"><span class=\"ds-label-name\">2주차 정렬</span><span class=\"ds-label-loc\">줄 40–52</span></span>",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-label{--band:var(--band-1);display:inline-grid;min-width:96px;max-width:260px;padding:9px 12px 8px;border:1px solid var(--ink-3);border-top:4px solid var(--band);background:var(--white);line-height:1.35}.ds-b4{--band:var(--band-4)}.ds-small{min-width:0;padding:6px 10px 5px;border-top-width:3px}.ds-label-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ds-label-loc{color:var(--ink-2);font-size:12px;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "주 버튼",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "채운 초록. 시험 시작·최종 제출처럼 되돌릴 수 없거나 화면을 대표하는 행동에만.",
+      "html": "<button class=\"ds-btn ds-primary\" type=\"button\">답안 제출하기</button> <button class=\"ds-btn ds-primary ds-armed\" type=\"button\">한 번 더 눌러 제출</button>",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-btn{min-height:40px;padding:0 16px;border:1px solid var(--shelf);border-radius:6px;background:var(--white);color:var(--shelf);font:700 14px var(--sans);cursor:pointer}.ds-btn:hover{background:var(--tint)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-primary{min-height:46px;background:var(--shelf);color:var(--white);font-size:15px}.ds-primary:hover{background:var(--shelf-deep)}.ds-armed,.ds-armed:hover{background:var(--errata);border-color:var(--errata)}"
+    },
+    {
+      "name": "보조 버튼",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "테두리 초록. 문항마다 반복되는 행동.",
+      "html": "<button class=\"ds-btn\" type=\"button\">답 제출하고 정답 보기</button>",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-btn{min-height:40px;padding:0 16px;border:1px solid var(--shelf);border-radius:6px;background:var(--white);color:var(--shelf);font:700 14px var(--sans);cursor:pointer}.ds-btn:hover{background:var(--tint)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "선택지와 태그",
+      "kind": "chip",
+      "refersTo": "option-tag-answer",
+      "description": "채점 후 선택지 행. 내 답·정답은 항상 글자 태그로.",
+      "html": "<div class=\"ds-opt ds-answer\"><span class=\"ds-bubble ds-mine\">1</span><span class=\"ds-text\">정렬된 배열에서 탐색</span><span class=\"ds-tag ds-tag-mine\">내 답</span><span class=\"ds-tag ds-tag-answer\">정답</span></div><div class=\"ds-opt\"><span class=\"ds-bubble\">2</span><span class=\"ds-text\">정렬 없이 탐색</span></div>",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-opt{display:flex;align-items:flex-start;gap:12px;padding:8px 12px;border:1px solid transparent;border-radius:6px;max-width:560px}.ds-opt:hover{background:var(--tint)}.ds-answer,.ds-answer:hover{border-color:var(--shelf);background:var(--tint-strong)}.ds-answer .ds-text{font-weight:700}.ds-bubble{flex:none;display:grid;place-items:center;width:26px;height:26px;border:1.5px solid var(--ink-3);border-radius:50%;font-size:13px;font-weight:700}.ds-mine{border-color:var(--ink);background:var(--ink);color:var(--white)}.ds-text{font-size:16px}.ds-tag{flex:none;padding:1px 8px;border-radius:4px;font-size:12px;font-weight:700}.ds-tag-mine{margin-left:auto;border:1px solid var(--ink-3)}.ds-tag-answer{margin-left:6px;background:var(--shelf);color:var(--white)}"
+    },
+    {
+      "name": "레일 행",
+      "kind": "nav",
+      "refersTo": "rail-row-current",
+      "description": "문항 장부: 번호·유형·시간, 상태와 배점 비례 띠(최대 64px).",
+      "html": "<ol class=\"ds-rail\"><li class=\"ds-row ds-current\"><a href=\"#\" class=\"ds-link\"><span class=\"ds-num\">1</span><span class=\"ds-type\">객관식</span><span class=\"ds-time\">00:01</span><span class=\"ds-state ds-ok\">맞았어요</span><span class=\"ds-band\" style=\"--len:1\"></span></a></li><li class=\"ds-row\"><a href=\"#\" class=\"ds-link\"><span class=\"ds-num\">2</span><span class=\"ds-type\">용어 단답형</span><span class=\"ds-time\">00:03</span><span class=\"ds-state ds-bad\">틀렸어요</span><span class=\"ds-band\" style=\"--len:.5;--band:var(--band-4)\"></span></a></li></ol>",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-rail{width:280px;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}.ds-row{border-bottom:1px solid var(--line)}.ds-link{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:2px 8px;padding:10px 12px 12px 8px;color:inherit;text-decoration:none}.ds-link:hover{background:var(--tint)}.ds-link:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-current .ds-link{background:var(--tint-strong)}.ds-num{grid-row:span 2;font-weight:700;font-variant-numeric:tabular-nums}.ds-type{font-size:14px;font-weight:600}.ds-time{color:var(--ink-2);font-size:13px;font-variant-numeric:tabular-nums;text-align:right}.ds-state{font-size:12px;font-weight:700}.ds-ok{color:var(--shelf)}.ds-bad{color:var(--errata)}.ds-band{grid-column:2/-1;height:3px;width:calc(var(--len)*64px);min-width:8px;margin-top:4px;border-radius:2px;background:var(--band,var(--band-1))}"
+    },
+    {
+      "name": "매칭 타일",
+      "kind": "card",
+      "refersTo": "match-tile",
+      "description": "위 띠 스티커 타일. 연결 전에는 출처 라벨 없음, 연결 후에만 라벨.",
+      "html": "<button class=\"ds-tile ds-concept\" type=\"button\">이진 탐색</button> <button class=\"ds-tile ds-selected\" type=\"button\">범위를 절반씩 줄인다</button> <button class=\"ds-tile ds-concept ds-matched\" type=\"button\" disabled>선형 검색<span class=\"ds-done\">연결됨</span></button>",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-tile{display:block;width:280px;min-height:72px;margin-bottom:8px;padding:14px 16px 12px;border:1px solid var(--line);border-top:4px solid var(--band-4);background:var(--white);color:var(--ink);text-align:left;font:15px/1.55 var(--sans);cursor:pointer;transition:border-color .15s,background .15s}.ds-concept{font-weight:700;border-top-color:var(--band-1)}.ds-tile:hover:not(:disabled){border-color:var(--shelf);background:var(--tint)}.ds-tile:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-selected{border-color:var(--shelf);background:var(--tint-strong);box-shadow:0 0 0 2px var(--shelf)}.ds-matched{border-color:var(--line-soft);border-top-color:var(--shelf);background:var(--tint);color:var(--ink-2);cursor:default}.ds-done{display:block;margin-top:6px;color:var(--shelf);font-size:12px}"
+    },
+    {
+      "name": "답 입력",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "흰 바탕 line 테두리, 포커스 시 shelf 테두리 + tint-strong 링.",
+      "html": "<input class=\"ds-input\" placeholder=\"답을 입력하세요\" aria-label=\"1번 답안\">",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-input{width:min(100%,420px);padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--white);color:var(--ink);font:16px var(--sans)}.ds-input:hover{border-color:var(--ink-3)}.ds-input:focus-visible{outline:0;border-color:var(--shelf);box-shadow:0 0 0 3px var(--tint-strong)}.ds-input::placeholder{color:var(--ink-3)}"
+    },
+    {
+      "name": "셸 바",
+      "kind": "nav",
+      "refersTo": "shell-bar",
+      "description": "서가 끝 안내판: 마스코트, 제목, 고정폭 시간, 저장 상태.",
+      "html": "<header class=\"ds-bar\"><span class=\"ds-brand\"><span class=\"ds-mascot\"></span>터틀넥</span><span class=\"ds-title\">3주차 탐색 연습 시험</span><span class=\"ds-status\">푼 시간 <strong>00:13</strong></span><button class=\"ds-bar-btn\" type=\"button\">지난 시험</button></header>",
+      "css": ":host{--shelf:#1d4d3a;--shelf-deep:#143a2b;--ground:#e4ece7;--paper:#fbfcfa;--white:#fff;--ink:#14271f;--ink-2:#3f5a4c;--ink-3:#5a7366;--line:#c3d4ca;--line-soft:#dbe6df;--tint:#eef4f0;--tint-strong:#d5e6db;--focus:#2f7a56;--errata:#b83d24;--errata-tint:#f8e7e2;--band-1:#2f7a56;--band-2:#7fb592;--band-3:#1d4d3a;--band-4:#a9cfb3;--band-5:#4f9a6e;--sans:\"Apple SD Gothic Neo\",\"Malgun Gothic\",\"맑은 고딕\",\"Noto Sans KR\",system-ui,sans-serif;font-family:var(--sans);color:var(--ink)} .ds-bar{display:flex;align-items:center;gap:16px;min-height:56px;padding:8px 24px;background:var(--shelf);color:var(--white)}.ds-brand{display:flex;align-items:center;gap:10px;padding-right:16px;border-right:1px solid rgba(255,255,255,.28);font-weight:700;font-size:16px}.ds-mascot{width:32px;height:32px;border-radius:50%;background:var(--white)}.ds-title{font-weight:600}.ds-status{margin-left:auto;font-size:13px;color:#d6e8dd}.ds-status strong{margin-left:4px;color:var(--white);font-size:17px;font-variant-numeric:tabular-nums}.ds-bar-btn{min-height:32px;padding:0 12px;border:1px solid rgba(255,255,255,.5);border-radius:6px;background:transparent;color:var(--white);font:600 13px var(--sans);cursor:pointer}.ds-bar-btn:hover{background:var(--shelf-deep)}.ds-bar-btn:focus-visible{outline:2px solid var(--white);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "서가 라벨 (The Shelf Label)",
+    "overview": "도서관 서가에서 책등의 청구기호 스티커와 서가 끝 안내판이 자료의 자리를 알려주듯, 이 화면의 모든 문제·세트·개념에는 출처 라벨이 붙는다. \"읽은 자료에서만 나왔다\"는 제품 원칙이 장식이 아니라 화면의 정리 체계가 된다. 상단은 짙은 서가 안내판 초록 바, 바탕은 옅은 초록 회색, 작업면은 흰 라벨지 색이다. 시험지·OMR 은유와 둥근 퀴즈 카드는 이 세계의 기본값이 아니다.\n\n밀도는 차분하고 높다. 왼쪽 280px 레일에 문항 행이 장부처럼 쌓이고, 가운데 작업면에서는 큰 번호와 라벨, 문제, 입력이 위에서 아래로 한 줄기로 흐른다. 숫자는 모두 고정폭이라 시간·배점·점수가 세로로 맞는다. 깊이는 그림자가 아니라 초록 틴트 면과 가는 선으로 만든다.\n\n색은 초록 한 가족이다. 보조 글자와 선까지 초록 틴트를 띠고, 빨강은 틀림과 오류에만 나온다. 다섯 단계 초록 띠가 자료마다 하나씩 붙어 라벨·레일·세트 행에서 같은 자료를 같은 색으로 묶는다.",
+    "keyCharacteristics": [
+      "출처 라벨: 흰 스티커, `--ink-3` 실선, 위쪽 4px 색 띠, 자료 이름 위·위치 아래, 각진 모서리",
+      "초록 한 가족, 중립 회색 없음, 빨강은 정오표(errata) 전용",
+      "시스템 고딕 단일 서체, 모든 숫자 고정폭, 모노는 코드에만",
+      "분량에 비례하는 띠(레일 최대 64px, 세트 최대 160px)",
+      "그림자 없는 평면, 틴트 면과 가는 선으로 층을 나눈다",
+      "880px 이하에서 레일이 위쪽 칩 줄로 접힌다"
+    ],
+    "rules": [
+      {
+        "name": "The No-Grey Rule",
+        "body": "중립 회색은 없다. 보조 글자·선·비활성 상태까지 모두 초록 틴트 토큰(`ink-2`, `ink-3`, `line`, `line-soft`)에서 고른다. 새 회색 hex를 만들지 않는다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Errata-Only Rule",
+        "body": "`errata` 빨강은 틀림, 일부 맞음, 오류, 그리고 되돌릴 수 없는 제출의 확인 단계에만 쓴다. 강조·경고·장식 용도로 쓰지 않는다.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Source, One Band Rule",
+        "body": "한 자료의 띠 색은 그 화면 안에서 라벨·레일·세트 어디서든 같다. 띠 색으로 상태나 중요도를 표현하지 않는다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Numerals Rule",
+        "body": "시간·배점·점수·문항 번호·진행 수치·라벨 위치는 모두 `font-variant-numeric: tabular-nums`로 쓴다. 숫자가 바뀌어도 열이 흔들리지 않는다.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono-Is-Code Rule",
+        "body": "고정폭 서체는 코드 블록과 코드 입력에만 쓴다. 숫자나 라벨에 모노를 쓰지 않는다. 코드 블록의 언어 이름도 고딕이다.",
+        "section": "typography"
+      },
+      {
+        "name": "The Proportional Band Rule",
+        "body": "띠의 길이는 분량에 비례하고, 고정된 최대 폭에 맞춘다. 레일 배점 띠는 가장 큰 배점을 64px(높이 3px, 최소 8px), 세트 분량 띠는 가장 많은 문항 수를 160px(높이 4px, 최소 12px)로 둔다. 문항 시간 막대는 160px 트랙 안에서 가장 오래 걸린 문항을 100%로 둔다. 띠를 컨테이너 폭에 늘리지 않는다.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Sticker Rule",
+        "body": "라벨과 타일은 종이에 붙은 스티커처럼 납작하다. 떠 보이게 하는 흐린 그림자나 단단한 오프셋 그림자를 쓰지 않는다.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No-Leak Label Rule",
+        "body": "아직 연결하지 않은 매칭 타일에는 출처 라벨을 절대 붙이지 않는다. 출처가 같으면 짝이 드러나기 때문이다. 라벨은 연결된 타일과 결과 목록에서만 나타나며, 서버가 연결 전에는 출처를 보내지 않는다.",
+        "section": "components"
+      },
+      {
+        "name": "The Filled-Means-Final Rule",
+        "body": "채운 주 버튼은 한 화면에 하나, 되돌릴 수 없거나 화면을 대표하는 행동에만 쓴다. 문항마다 반복되는 행동은 테두리 보조 버튼이다.",
+        "section": "components"
+      },
+      {
+        "name": "The Say-It-In-Words Rule",
+        "body": "내 답·정답·맞음·틀림은 색만으로 말하지 않는다. \"내 답\", \"정답\", \"맞았어요\", \"틀렸어요\" 같은 글자가 항상 함께 붙는다.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do 새 화면의 문제·자료·개념에는 출처 라벨(흰 스티커, `ink-3` 1px, 위 4px 띠, 이름 위·위치 아래, 각진 모서리)을 붙인다.",
+      "Do 보조 글자와 선은 `ink-2`, `ink-3`, `line`, `line-soft`에서 고른다.",
+      "Do 시간·배점·점수·진행 수치에는 고정폭 숫자를 쓴다.",
+      "Do 분량을 보여주는 띠는 고정 최대 폭(레일 64px, 세트 160px)에 비례로 맞춘다.",
+      "Do 상태 면은 hover `tint`, 선택·현재 `tint-strong`으로 나눈다.",
+      "Do 880px 이하에서는 사이드 레일을 위쪽 칩 줄로 접는다."
+    ],
+    "donts": [
+      "Don't 중립 회색(#888, #ccc 같은 무채색)을 쓰지 않는다.",
+      "Don't `errata` 빨강을 틀림·오류·되돌릴 수 없는 제출 확인 밖에서 쓰지 않는다.",
+      "Don't 웹폰트나 외부 CDN을 쓰지 않는다. 시스템 고딕 하나, 코드만 시스템 모노.",
+      "Don't 문항마다 반복되는 행동을 채운 주 버튼으로 만들지 않는다.",
+      "Don't 연결 전 매칭 타일에 출처 라벨을 붙이지 않는다.",
+      "Don't 라벨이나 타일을 둥근 카드로 만들거나 그림자로 띄우지 않는다.",
+      "Don't 정답·내 답을 색만으로 구분하지 않는다."
+    ]
+  }
+}
