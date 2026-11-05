@@ -14,9 +14,17 @@ async function api(data) {
   if (!response.ok) throw new Error(result.error || '매칭판 연결을 확인해주세요.');
   return result;
 }
+function sourceLabel(sources) {
+  const label = document.createElement('span'), name = document.createElement('span'), loc = document.createElement('span');
+  label.className = 'label small'; name.className = 'label-name'; loc.className = 'label-loc';
+  name.textContent = sources[0].name; loc.textContent = sources[0].location + (sources.length > 1 ? ' 외 ' + (sources.length - 1) + '곳' : '');
+  label.append(name, loc); return label;
+}
 function tile(side, item) {
   const button = document.createElement('button');
   button.type = 'button'; button.className = 'match-tile'; button.textContent = item.text;
+  // Matched concepts reveal where they came from; before that the source would give the pair away.
+  if (item.sources?.length) button.append(sourceLabel(item.sources));
   button.dataset.id = item.id; button.dataset.side = side;
   button.disabled = item.matched || locked;
   if (item.matched) button.classList.add('matched');
@@ -58,7 +66,10 @@ function render(data) {
   $('result').hidden = false; $('score').textContent = '정확도 ' + data.score + '% · 틀린 연결 ' + data.wrong + '회';
   $('review-list').replaceChildren(...(data.review || []).map(item => {
     const li = document.createElement('li'); li.append(document.createElement('strong'), document.createElement('span'));
-    li.firstChild.textContent = item.concept; li.lastChild.textContent = item.explanation || '다시 확인해 보세요.'; return li;
+    li.firstChild.textContent = item.concept; li.lastChild.textContent = item.explanation || '다시 확인해 보세요.';
+    const refs = [...new Map((item.evidence || []).map(e => [e.name + '\u0000' + e.location, e])).values()];
+    if (refs.length) li.append(sourceLabel(refs));
+    return li;
   }));
 }
 (async () => { try { render(await api()); } catch (e) { $('title').textContent = '매칭판을 열지 못했어요'; error(e.message); } })();

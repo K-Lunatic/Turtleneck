@@ -715,7 +715,9 @@ class StudySession:
                   'round': 1, 'totalRounds': 1, 'total': match['count'],
                   'matched': len(matched), 'attempts': match['attempts'], 'wrong': match['wrong'],
                   'reshuffled': match.get('reshuffled', False),
-                  'leftTiles': [{'id': pid, 'text': pairs[pid]['left'], 'matched': pairs[pid]['id'] in matched}
+                  # A source on an unmatched tile would give the pairing away, so it appears only once matched.
+                  'leftTiles': [{'id': pid, 'text': pairs[pid]['left'], 'matched': pairs[pid]['id'] in matched,
+                                 **({'sources': StudySession._public_sources(pairs[pid])} if pairs[pid]['id'] in matched else {})}
                                 for pid in match['leftOrder']],
                   'rightTiles': [{'id': pid, 'text': right_pairs[pid]['right'], 'matched': right_pairs[pid]['id'] in matched}
                                  for pid in match['rightOrder']]}
@@ -815,7 +817,10 @@ class StudySession:
         result = {'status': 'set_selector', 'collectionId': payload['collectionId'], 'title': payload['title'],
                 'totalSets': len(payload['sets']), 'completedSets': len(completed),
                 'sets': [{'setId': item['setId'], 'index': item['index'], 'questionCount': item['questionCount'],
-                          'completed': item['setId'] in completed} for item in payload['sets']],
+                          'completed': item['setId'] in completed,
+                          # Which files a set draws on; locations and quotes stay with the questions.
+                          'sources': list(dict.fromkeys(src['name'] for q in item.get('questions', []) for src in StudySession._public_sources(q)))}
+                         for item in payload['sets']],
                 'answer': '풀고 싶은 문제 세트를 골라 주세요.'}
         if payload.get('reviewPlan'):
             result['reviewPlan'] = payload['reviewPlan']

@@ -21,8 +21,10 @@ function setButton(item, collectionId, maxCount) {
   heading.textContent = item.index + '세트';
   // Band length is the set's share of the largest set, so uneven splits are visible at a glance.
   const strip = span('', 'set-band band-' + ((item.index - 1) % 5 + 1));
-  strip.style.setProperty('--len', item.questionCount / Math.max(maxCount, 1) * 100 + '%');
-  button.append(heading, span(item.questionCount + '문항', 'set-meta'), strip, span(item.completed ? '다시 풀기' : '아직 풀지 않음', 'set-state'));
+  strip.style.setProperty('--len', String(item.questionCount / Math.max(maxCount, 1)));
+  const sources = item.sources || [], label = span('', 'label small band-' + ((item.index - 1) % 5 + 1));
+  if (sources.length) label.append(span(sources[0], 'label-name'), span(sources.length > 1 ? '외 ' + (sources.length - 1) + '개 자료' : item.questionCount + '문항', 'label-loc'));
+  button.append(heading, sources.length ? label : span(item.questionCount + '문항', 'set-meta'), strip, span(item.completed ? '다시 풀기' : '아직 풀지 않음', 'set-state'));
   button.addEventListener('click', async () => {
     document.querySelectorAll('.set-choice').forEach(choice => { choice.disabled = true; });
     error(''); $('phase').textContent = '세트를 열고 있어요';

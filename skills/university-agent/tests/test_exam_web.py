@@ -361,6 +361,7 @@ class ExamWebTests(ProjectTestBase):
         self.assertEqual(selector['status'], 'set_selector')
         self.assertEqual(selector['totalSets'], 3)
         self.assertEqual(selector['sets'][0]['questionCount'], 2)
+        self.assertEqual(selector['sets'][0]['sources'], ['3주차 탐색'])
         chosen = s.call({'action': 'set_select', 'collectionId': selector['collectionId'], 'setId': 'set-2'})
         self.assertTrue(chosen['needsWeb'])
         self.assertEqual(chosen['total'], 2)
@@ -397,6 +398,8 @@ class ExamWebTests(ProjectTestBase):
         self.assertEqual(started['status'], 'matching')
         self.assertEqual(len(started['leftTiles']), 6)
         self.assertEqual(len(started['rightTiles']), 6)
+        # Sources would reveal the pairing, so unmatched tiles carry none.
+        self.assertFalse(any('sources' in tile for tile in started['leftTiles'] + started['rightTiles']))
         self.assertNotEqual([item['id'] for item in started['leftTiles']], [item['id'] for item in started['rightTiles']])
         board = started
         with closing(sqlite3.connect(s.path)) as db, db:

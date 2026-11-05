@@ -72,7 +72,7 @@ a { color: var(--shelf); text-underline-offset: 3px; }
 .rail-type { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-time { color: var(--ink-2); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
 .rail-state { color: var(--ink-2); font-size: 12px; }
-.rail-band { grid-column: 2 / -1; height: 3px; width: var(--len, 100%); min-width: 12px; margin-top: 4px; border-radius: 2px; background: var(--band, var(--band-1)); }
+.rail-band { grid-column: 2 / -1; height: 3px; width: calc(var(--len, 1) * 64px); min-width: 8px; margin-top: 4px; border-radius: 2px; background: var(--band, var(--band-1)); }
 .rail-row.is-answered .rail-state { color: var(--shelf); font-weight: 600; }
 .rail-row.is-correct .rail-state { color: var(--shelf); font-weight: 700; }
 .rail-row.is-partial .rail-state, .rail-row.is-incorrect .rail-state { color: var(--errata); font-weight: 700; }
@@ -106,7 +106,7 @@ a { color: var(--shelf); text-underline-offset: 3px; }
 .set-return { display: inline-block; margin-top: 12px; font-size: 14px; font-weight: 700; }
 
 /* Source label: white sticker, hairline border, colour band on top, name over exact location */
-.label { display: inline-grid; align-content: start; min-width: 96px; max-width: 260px; padding: 9px 12px 8px; border: 1px solid var(--line); border-top: 4px solid var(--band, var(--band-1)); background: var(--white); line-height: 1.35; }
+.label { display: inline-grid; align-content: start; min-width: 96px; max-width: 260px; padding: 9px 12px 8px; border: 1px solid var(--ink-3); border-top: 4px solid var(--band, var(--band-1)); background: var(--white); line-height: 1.35; }
 .label-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
 .label-loc { color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 .label.small { min-width: 0; padding: 6px 10px 5px; border-top-width: 3px; }
@@ -240,12 +240,12 @@ dd { font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
 .page-head h1 { font-size: 26px; line-height: 1.35; letter-spacing: -0.02em; font-weight: 800; }
 .page-progress { color: var(--shelf); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .set-list { margin-top: 24px; border-top: 1px solid var(--line); }
-.set-choice { display: grid; grid-template-columns: 88px 72px minmax(0, 1fr) 120px; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
+.set-choice { display: grid; grid-template-columns: 88px minmax(120px, 200px) minmax(0, 1fr) 120px; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; }
 .set-choice:hover:not(:disabled) { background: var(--tint); }
 .set-choice:disabled { opacity: .6; }
 .set-choice strong { font-size: 17px; }
 .set-meta { color: var(--ink-2); font-size: 14px; font-variant-numeric: tabular-nums; text-align: right; }
-.set-band { height: 8px; width: var(--len, 100%); min-width: 12px; border-radius: 2px; background: var(--band, var(--band-1)); }
+.set-band { height: 4px; width: calc(var(--len, 1) * 160px); min-width: 12px; border-radius: 2px; background: var(--band, var(--band-1)); }
 .set-state { color: var(--ink-2); font-size: 13px; text-align: right; }
 .set-choice.done .set-state { color: var(--shelf); font-weight: 700; }
 .match-board { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 24px; }
@@ -258,6 +258,8 @@ dd { font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
 .match-tile.selected { border-color: var(--shelf); background: var(--tint-strong); box-shadow: 0 0 0 2px var(--shelf); }
 .match-tile.matched { border-color: var(--line-soft); border-top-color: var(--shelf); background: var(--tint); color: var(--ink-2); }
 .match-tile.matched::after { content: "연결됨"; display: block; margin-top: 6px; color: var(--shelf); font-size: 12px; font-weight: 700; }
+.match-tile .label { display: grid; width: max-content; margin-top: 8px; font-weight: 400; }
+.match-result li .label { justify-self: start; margin-top: 4px; }
 .match-tile:disabled { cursor: default; }
 .match-result { margin-top: 32px; padding: 20px 24px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); }
 .match-result h2 { font-size: 16px; }

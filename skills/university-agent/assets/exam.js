@@ -311,7 +311,7 @@ function navRow(q, index, feedback) {
   link.addEventListener('click', () => focusQuestion(q));
   // Band length is the question's share of the points, so the rail shows where the weight sits.
   const maxPoints = Math.max(...exam.questions.map(item => Number(item.points) || 0), 1), seconds = Number(exam.questionTimes?.[q.id]);
-  const strip = node('span', undefined, 'rail-band ' + band(q.sources?.[0]?.name)); strip.style.setProperty('--len', (Number(q.points) || 0) / maxPoints * 100 + '%');
+  const strip = node('span', undefined, 'rail-band ' + band(q.sources?.[0]?.name)); strip.style.setProperty('--len', String((Number(q.points) || 0) / maxPoints));
   link.append(node('span', String(index + 1), 'rail-num'), node('span', q.typeLabel || '객관식', 'rail-type'),
     node('span', Number.isFinite(seconds) ? formatDuration(seconds) : '', 'rail-time'),
     node('span', feedback ? STATE[state] : state === 'answered' ? '답함' : '비어 있음', 'rail-state'), strip);
@@ -330,7 +330,7 @@ async function submitQuestion(q, button) {
   finally { submitting = false; document.body.classList.remove('busy'); }
 }
 function answerButton(q) {
-  const button = node('button', '답 제출하고 정답 보기', 'button primary question-submit'); button.type = 'button';
+  const button = node('button', '답 제출하고 정답 보기', 'button question-submit'); button.type = 'button';
   button.addEventListener('click', () => submitQuestion(q, button)); return button;
 }
 function render(data) {
@@ -350,7 +350,11 @@ function render(data) {
   $('time-panel').hidden = ready;
   $('questions').replaceChildren(...data.questions.map((q, i) => questionItem(q, i, feedback[q.id])));
   $('nav').replaceChildren(...data.questions.map((q, i) => navRow(q, i, feedback[q.id])));
-  $('submit-area').hidden = ready || data.status !== 'question' || data.readOnly || data.immediateFeedback !== false;
+  // Immediate-feedback exams have no final submit; the rail still ends on its own closing line below empty space.
+  const immediate = data.immediateFeedback !== false;
+  $('submit-area').hidden = ready || data.status !== 'question' || data.readOnly;
+  $('submit').hidden = immediate;
+  $('submit-help').textContent = immediate ? '문항마다 답을 제출하면 바로 정답과 해설을 볼 수 있어요.' : '제출하면 답안을 고칠 수 없어요.';
   if (data.status !== 'question') $('saved').textContent = '';
   resetConfirm(); progress();
   $('notice').hidden = data.status === 'question';
