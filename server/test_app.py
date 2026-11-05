@@ -52,7 +52,8 @@ class GatewayTests(unittest.TestCase):
         self.provider.start()
 
     def tearDown(self):
-        for _ in range(200):
+        # Windows keeps SQLite file handles exclusive until the worker really exits.
+        for _ in range(2000):
             if not any(item['running'] for item in self.app.accounts.values()):
                 break
             time.sleep(.005)
