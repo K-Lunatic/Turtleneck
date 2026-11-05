@@ -43,7 +43,7 @@ def main():
             if args.revoke:
                 username = os.environ.get('UNIVERSITY_AGENT_USER_ID') or json.loads(CONFIG_PATH.read_text(encoding='utf-8'))['username']
             else:
-                username = load_username()
+                username = os.environ.get('UNIVERSITY_AGENT_USER_ID') or load_username()
         except (OSError, KeyError, ValueError, subprocess.CalledProcessError) as error:
             raise SystemExit('학교 연결이 먼저 필요해요. 비밀번호는 대화에 보내지 말고 연결창에서 입력해 주세요.') from error
         user = os.environ.get('UNIVERSITY_AGENT_USER_ID', username)

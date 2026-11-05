@@ -1,10 +1,14 @@
 """Shared deadline interpretation; date-only deadlines keep their precision."""
 from __future__ import annotations
 
-from datetime import datetime, time
-from zoneinfo import ZoneInfo
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-SEOUL = ZoneInfo("Asia/Seoul")
+try:
+    SEOUL = ZoneInfo("Asia/Seoul")
+except ZoneInfoNotFoundError:
+    # Windows Python may not ship the IANA database; Seoul has no DST.
+    SEOUL = timezone(timedelta(hours=9), "Asia/Seoul")
 
 
 def deadline(value: str | None) -> datetime | None:
