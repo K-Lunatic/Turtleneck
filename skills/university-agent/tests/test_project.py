@@ -490,7 +490,8 @@ class ProjectTests(ProjectTestBase):
         config = Path(self.temp.name) / 'account.json'
         with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials.subprocess, 'run') as keychain:
             credentials.save('fixture-user', 'fixture-password')
-            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+            if os.name != 'nt':
+                self.assertEqual(config.stat().st_mode & 0o777, 0o600)
             self.assertNotIn('fixture-password', config.read_text())
             keychain.return_value = SimpleNamespace(stdout='fixture-password\n')
             self.assertEqual(credentials.load(), ('fixture-user', 'fixture-password'))

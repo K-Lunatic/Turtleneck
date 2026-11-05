@@ -5,6 +5,10 @@ on:
     branches: [turtleneck, dev]
   pull_request:
 
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
+
 jobs:
   test:
     strategy:
