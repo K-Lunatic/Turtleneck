@@ -42,7 +42,19 @@
 | 자료는 있는데 공부가 막막할 때 | 핵심 개념을 먼저 정리하고 자료 근거 기반 문제 생성 |
 | 문제를 풀고 실력이 남지 않을 때 | 웹 시험지, 자동 저장, AI 채점, 지난 풀이와 약한 문항 기록 |
 
-> 로컬 **Codex·Claude Code·Gemini의 macOS·Windows**를 대상으로 합니다. 일반 웹 채팅·클라우드 환경은 지원하지 않습니다. 모바일 기기와 자동 동기화하지 않고, 사용하는 컴퓨터 안에 자료를 보관합니다.
+> 기본 기능은 로컬 **Codex·Claude Code·Gemini의 macOS·Windows**를 대상으로 합니다. 자료는 자동으로 휴대폰과 동기화되지 않습니다. 개발용 **ChatGPT 원격 MCP 브리지**는 별도 실행·HTTPS 공개 주소·OAuth 연결이 필요하며, ChatGPT 모바일 사용은 플러그인 접근 권한과 배포 상태에 따라 별도 검증해야 합니다.
+
+## 모바일 ChatGPT 연결 개발
+
+개발용 서버가 **ChatGPT Plugins의 원격 MCP**를 지원합니다.
+기존 Codex·Claude Code 설치와는 별도이며, 컴퓨터에서
+`python3 -m server.local --mcp`를 실행하면 인증된 `/mcp` 엔드포인트를 제공합니다.
+과목·과제·강의·공지 조회, 동기화, 과제 진행 기록을 지원합니다.
+
+**유의:** 개인 ChatGPT 계정의 맞춤 MCP 서버 등록에는 제한이 있을 수 있고,
+GitHub 저장소나 PC 스킬을 설치하는 것만으로 아이폰 ChatGPT에 연결되는 것은 아닙니다.
+원격 MCP를 ChatGPT 플러그인으로 등록/배포한 뒤 모바일에서 동작하는지 검증해야 합니다.
+자세한 내용은 [모바일 MCP 서버 가이드](server/README.md)를 확인하세요.
 
 ## 빠른 시작
 
@@ -369,7 +381,7 @@ list
 <details>
 <summary><strong>ChatGPT 웹·모바일 Actions 경로</strong></summary>
 
-이 저장소에는 선택적 ChatGPT Actions 게이트웨이도 포함되어 있습니다. 중심 범위는 로컬 Codex·Claude Code이며, 모바일·Actions 경로는 잠정 보류된 보조 구현입니다. 이를 사용하려면 컴퓨터에서 게이트웨이·HTTPS 터널·Custom GPT OAuth/Actions를 별도로 설정해야 합니다.
+이 저장소에는 기존 Custom GPT Actions 게이트웨이도 포함되어 있습니다. 중심 범위는 로컬 Codex·Claude Code이며, 모바일·Actions 경로는 잠정 보류된 보조 구현입니다. 신규 원격 MCP 경로는 별도 모드로 제공되며 모바일 동작을 보증하지 않습니다. 이를 사용하려면 컴퓨터에서 게이트웨이·HTTPS 터널·Custom GPT OAuth/Actions를 별도로 설정해야 합니다.
 
 Actions는 학교 정보·과제 진행 기록과 학습 팩 기반 학습 화면을 다룹니다. 모바일 학습 팩은 원본 강의 파일·비밀번호·쿠키를 포함하지 않으며, 분석 데이터와 저장된 문제만 가져옵니다. 실제 GPT 연결과 모바일 왕복은 별도 설정과 검증이 필요합니다.
 
