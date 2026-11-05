@@ -68,7 +68,11 @@ claude plugin install university-agent@turtleneck
 
 ## 本地优先与隐私
 
-本项目面向 macOS 和 Windows 桌面本地使用，不提供设备之间的自动同步。可选的 ChatGPT Actions 网关只是单台电脑的辅助功能，不是面向全校的公共服务。账号密码、会话 Cookie、OAuth 密钥、个人课程 ID、原始文件、数据库和学习包不会提交到仓库。请仅使用自己有权访问的账号和资料，并遵守学校及 Everytime 的使用政策。
+本项目主要在 macOS 和 Windows 桌面本地运行。移动端也通过运行在用户电脑上的 ChatGPT Actions 网关作为正式的可选路径支持；它不是独立的移动应用，也不提供设备之间的数据库自动同步。网关只是单台电脑的辅助功能，不是面向全校的公共服务。账号密码、会话 Cookie、OAuth 密钥、个人课程 ID、原始文件、数据库和学习包不会提交到仓库。请仅使用自己有权访问的账号和资料，并遵守学校及 Everytime 的使用政策。
+
+### 移动端 Actions
+
+移动端 Actions 支持课程、作业、讲座、通知和待办查询，同步状态、断开连接、作业进度，以及基于 `.tpack` 的网页试卷。桌面网关和 HTTPS 隧道必须保持运行。移动端不提供原始文件下载、课程资料正文读取、Everytime 或本地 Codex 学习会话，也不会接收密码、Cookie 或原始文件。配置 Custom GPT 的 OAuth/Actions 后，需要使用目标账号实际确认一次往返连接，再依赖移动端功能。
 
 安全问题请按照 [SECURITY.md](SECURITY.md) 进行私下报告，不要发布到公开 Issue。
 
