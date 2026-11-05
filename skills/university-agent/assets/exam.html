@@ -2,32 +2,43 @@
 <html lang="ko">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>터틀넥 연습 시험</title><link rel="icon" href="./icon.png"><link rel="stylesheet" href="./exam.css"><script src="./exam.js" defer></script></head>
 <body>
-<header class="topbar"><a class="brand" href="#"><img src="/icon.png" alt="" width="36" height="36">터틀넥 연습 시험</a><div class="topbar-actions"><button id="history-toggle" class="history-toggle" type="button">지난 시험</button><span id="phase" class="phase">시험지 준비 중</span></div></header>
+<header class="shell-bar">
+  <a class="brand" href="#"><img src="/icon.png" alt="" width="32" height="32"><span>터틀넥</span></a>
+  <p id="bar-title" class="bar-title">연습 시험</p>
+  <div class="bar-status">
+    <section id="time-panel" class="time-panel" aria-label="시험 시간" hidden><p class="clock">푼 시간 <strong id="elapsed-time">00:00</strong></p><p id="limit-clock" class="clock limit-clock" hidden><span id="limit-label">남은 시간</span> <strong id="remaining-time">00:00</strong></p></section>
+    <p id="saved" class="saved" role="status" aria-live="polite"></p>
+    <span id="phase" class="phase">시험지 준비 중</span>
+    <button id="history-toggle" class="bar-button" type="button">지난 시험</button>
+  </div>
+</header>
 <div id="exam" class="exam">
+  <aside class="rail" aria-label="문항 목록">
+    <div class="rail-head">
+      <h2>문항</h2>
+      <p id="progress" class="progress"></p>
+      <div class="progress-track" aria-hidden="true"><span id="progress-fill" class="progress-fill"></span></div>
+    </div>
+    <ol id="nav" class="rail-rows"></ol>
+    <div id="submit-area" class="submit-area">
+      <p id="confirm-text" class="confirm-text" role="alert" hidden></p>
+      <button id="submit" class="button primary" type="button">답안 제출하기</button>
+      <button id="cancel" class="button" type="button" hidden>계속 풀기</button>
+      <p class="submit-help">제출하면 답안을 고칠 수 없어요.</p>
+    </div>
+    <p id="error" class="error" role="alert" hidden></p>
+  </aside>
   <main class="paper">
     <div class="paper-head">
-      <div><h1 id="title">시험지를 가져오고 있어요</h1><p id="total" class="subtitle"></p></div>
-      <div id="score" class="score" hidden>
-        <p class="score-number"><span id="score-got"></span><span id="score-total" class="score-total"></span></p>
-        <svg viewBox="0 0 120 14" aria-hidden="true"><path pathLength="1" d="M4 4 C 32 1, 78 6, 116 3"/><path pathLength="1" d="M8 10 C 40 7, 82 12, 112 9"/></svg>
-      </div>
+      <div class="paper-title"><h1 id="title">시험지를 가져오고 있어요</h1><p id="total" class="subtitle"></p></div>
+      <p id="score" class="score" hidden><span class="score-label">점수</span><span class="score-number"><span id="score-got"></span><span id="score-total" class="score-total"></span></span></p>
     </div>
     <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
     <a id="sets-link" class="set-return" href="/" hidden>문제 세트 목록으로 돌아가기</a>
     <section id="review" class="review" aria-labelledby="review-title" hidden><h2 id="review-title">다시 볼 개념</h2><ul id="review-list"></ul></section>
     <section id="start-panel" class="start-panel" hidden aria-labelledby="start-title"><h2 id="start-title">준비됐나요?</h2><p>시작 버튼을 누르면 문제와 선택지가 공개되고 풀이 시간이 시작돼요.</p><button id="start" class="button primary" type="button">시험 시작하기</button></section>
-    <section id="history-panel" class="history-panel" hidden aria-labelledby="history-title"><div class="history-head"><h2 id="history-title">지난 시험</h2><button id="history-close" class="history-close" type="button">닫기</button></div><p class="history-help">이전에 풀었던 시험은 그대로 보관돼요. 다시 풀면 새 풀이 기록이 만들어져요.</p><ul id="history-list" class="history-list"></ul><p id="history-error" class="error" role="alert" hidden></p></section>
+    <section id="history-panel" class="history-panel" hidden aria-labelledby="history-title"><div class="history-head"><h2 id="history-title">지난 시험</h2><button id="history-close" class="button quiet" type="button">닫기</button></div><p class="history-help">이전에 풀었던 시험은 그대로 보관돼요. 다시 풀면 새 풀이 기록이 만들어져요.</p><ul id="history-list" class="history-list"></ul><p id="history-error" class="error" role="alert" hidden></p></section>
     <ol id="questions" class="questions"></ol>
   </main>
-  <aside class="omr" aria-label="답안지">
-    <div class="omr-head"><h2>답안지</h2><p id="progress" class="progress"></p><section id="time-panel" class="time-panel" aria-label="시험 시간" hidden><div class="clock"><span>푼 시간</span><strong id="elapsed-time">00:00</strong></div><div id="limit-clock" class="clock limit-clock" hidden><span id="limit-label">남은 시간</span><strong id="remaining-time">00:00</strong></div></section><p id="saved" class="saved" role="status" aria-live="polite"></p></div>
-    <ol id="nav" class="omr-rows"></ol>
-    <div id="submit-area" class="submit-area">
-      <p id="confirm-text" class="confirm-text" role="alert" hidden></p>
-      <button id="submit" class="button primary" type="button">답안 제출하기</button>
-      <button id="cancel" class="button" type="button" hidden>계속 풀기</button>
-    </div>
-    <p id="error" class="error" role="alert" hidden></p>
-  </aside>
 </div>
 </body></html>

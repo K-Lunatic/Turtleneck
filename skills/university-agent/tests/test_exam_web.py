@@ -138,6 +138,9 @@ class ExamWebTests(ProjectTestBase):
         serialized = json.dumps(public, ensure_ascii=False)
         for secret in ('acceptedAnswers', 'rubric', 'keywords', 'evidence', 'hostOnly', 'explanation'):
             self.assertNotIn(secret, serialized)
+        # Source file + location are public; the quoted text is not.
+        self.assertEqual(public['questions'][0]['sources'], [{'name': '3주차 탐색', 'location': public['questions'][0]['sources'][0]['location']}])
+        self.assertNotIn('quote', serialized)
         answers = {q['id']: '1' if q['type'] == 'mcq' else '정렬된 배열에서 탐색' for q in public['questions']}
         draft = s.call({'action': 'draft', 'examId': public['examId'], 'revision': 0, 'answers': answers})
         self.assertEqual(self.session('exam').call({'action': 'web_status'})['drafts'], answers)

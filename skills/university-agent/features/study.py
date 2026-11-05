@@ -970,6 +970,12 @@ class StudySession:
                 self._resolve_exam_image(image)
 
     @staticmethod
+    def _public_sources(question):
+        # Where a question came from (file + location) is shown before grading; the quote stays host-only.
+        seen = dict.fromkeys((e['name'], e['location']) for e in question.get('evidence') or [] if isinstance(e, dict) and e.get('name'))
+        return [{'name': name, 'location': location} for name, location in seen]
+
+    @staticmethod
     def _public_images(question):
         images = []
         for index, image in enumerate(question.get('images') or []):
@@ -1440,7 +1446,7 @@ class StudySession:
         started = state.get('webStarted', True)
         result = {'status': state['phase'] if started else 'ready', 'examId': state['examId'], 'title': ' / '.join(dict.fromkeys(s['name'] for s in state['sources'])),
                   'webStarted': started, 'questionCount': len(state['questions']),
-                  'questions': [{**{k: q[k] for k in ('id', 'type', 'typeLabel', 'responseFormat', 'question', 'options', 'code', 'language', 'points')}, 'blocks': q.get('blocks', []), 'images': self._public_images(q)} for q in state['questions']] if started else [],
+                  'questions': [{**{k: q[k] for k in ('id', 'type', 'typeLabel', 'responseFormat', 'question', 'options', 'code', 'language', 'points')}, 'blocks': q.get('blocks', []), 'images': self._public_images(q), 'sources': self._public_sources(q)} for q in state['questions']] if started else [],
                   'drafts': state.get('drafts', {}) if started else {}, 'confusedIds': state.get('confusedIds', []),
                   'totalPoints': 100}
         result.update(self._web_clock(state))

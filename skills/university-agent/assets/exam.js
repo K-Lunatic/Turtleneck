@@ -13,13 +13,10 @@ try {
 } catch (_) { /* Keep the fragment for refresh when tab storage is unavailable. */ }
 const SVG = 'http://www.w3.org/2000/svg';
 const OUTCOME = {correct: '맞았어요', partial: '일부만 맞았어요', incorrect: '틀렸어요', pending: '채점 대기 중'};
-// Red-pencil marks drawn over the question number: circle, triangle, slash.
-const MARK = {
-  correct: 'M33 7 C18 4 6 15 6 30 C6 46 19 55 33 54 C47 53 56 42 55 28 C54 14 43 5 27 9',
-  partial: 'M30 7 L53 50 L7 49 L31 6',
-  incorrect: 'M49 6 C38 22 24 40 9 55',
-};
-const GLYPH = {correct: '○', partial: '△', incorrect: '／'};
+const STATE = {correct: '맞았어요', partial: '일부 맞음', incorrect: '틀렸어요', pending: '채점 중'};
+// Each source file keeps one band colour across labels, rail rows and evidence, like a shelf's colour sticker.
+let sourceOrder = [];
+const band = name => 'band-' + (Math.max(0, sourceOrder.indexOf(name)) % 5 + 1);
 let exam, drafts = {}, revision = 0, timer, clockTimer, clockBaseElapsed = null, clockSyncedAt = 0, focusRequest = Promise.resolve(), focusedQuestionId = '', saving = Promise.resolve(), submitting = false, dirty = false, editVersion = 0, starting = false;
 function node(tag, text, className) {
   const el = document.createElement(tag);
@@ -35,9 +32,19 @@ async function api(path, data) {
   if (!response.ok) throw new Error(result.error || '시험지 연결을 확인해주세요.');
   return result;
 }
+// Call-number style label: source name on top, exact location under it.
+function sourceLabel(sources, className) {
+  if (!Array.isArray(sources) || !sources.length) return null;
+  const first = sources[0], label = node('span', undefined, 'label ' + band(first.name) + (className ? ' ' + className : ''));
+  label.append(node('span', first.name, 'label-name'), node('span', first.location + (sources.length > 1 ? ' 외 ' + (sources.length - 1) + '곳' : ''), 'label-loc'));
+  label.setAttribute('aria-label', '출처 ' + first.name + ', ' + first.location);
+  return label;
+}
 function focusQuestion(q) {
   if (exam.readOnly || exam.status !== 'question' || focusedQuestionId === q.id) return;
   focusedQuestionId = q.id;
+  document.querySelectorAll('.rail-row.current').forEach(row => row.classList.remove('current'));
+  $('row-' + q.id)?.classList.add('current');
   focusRequest = focusRequest.catch(() => {}).then(() => api('/api/focus', {examId: exam.examId, questionId: q.id})).catch(e => error(e.message));
 }
 function orderingValue(q) {
@@ -79,6 +86,7 @@ function chosen(q) {
 }
 function progress() {
   const count = Number.isInteger(exam.answeredCount) ? exam.answeredCount : exam.questions.filter(answered).length;
+  $('progress-fill').style.setProperty('--fill', (exam.questions.length ? count / exam.questions.length * 100 : 0) + '%');
   if (exam.readOnly) { $('progress').textContent = '지난 시험과 당시 답안을 보고 있어요'; return; }
   $('progress').textContent = exam.webStarted === false ? exam.questionCount + '문항을 준비했어요'
     : exam.status === 'question' ? exam.questions.length + '문항 중 ' + count + '문항의 정답을 확인했어요'
@@ -128,18 +136,10 @@ function setDraft(q, value) {
   focusQuestion(q);
   drafts[q.id] = value;
   editVersion++;
-  $('row-' + q.id).replaceWith(omrRow(q, exam.questions.indexOf(q)));
+  $('row-' + q.id).replaceWith(navRow(q, exam.questions.indexOf(q)));
   progress(); resetConfirm(); clearTimeout(timer);
   dirty = true; $('saved').textContent = '답안 변경됨';
   timer = setTimeout(saveDraft, 500);
-}
-function mark(outcome, order) {
-  const svg = document.createElementNS(SVG, 'svg'), path = document.createElementNS(SVG, 'path');
-  svg.setAttribute('viewBox', '0 0 60 60'); svg.setAttribute('aria-hidden', 'true'); svg.classList.add('mark');
-  svg.style.setProperty('--i', order);
-  path.setAttribute('d', MARK[outcome]); path.setAttribute('pathLength', '1');
-  svg.append(path);
-  return svg;
 }
 function confusionIcon() {
   const svg = document.createElementNS(SVG, 'svg');
@@ -179,11 +179,13 @@ function options(q, feedback) {
         values.sort((a, b) => a - b); setDraft(q, JSON.stringify(values));
       });
       row.append(input);
-    } else {
-      if ((q.responseFormat === 'multi_choice' ? multiChoiceValue(q).includes(n + 1) : chosen(q) === n + 1)) row.classList.add('is-mine');
-      if (feedback && option === feedback.answer) row.classList.add('is-answer');
     }
     row.append(node('span', String(n + 1), 'bubble'), node('span', option, 'option-text'));
+    if (!answering) {
+      // Words, not only fill and colour, say which option was mine and which was right.
+      if ((q.responseFormat === 'multi_choice' ? multiChoiceValue(q).includes(n + 1) : chosen(q) === n + 1)) { row.classList.add('is-mine'); row.append(node('span', '내 답', 'option-tag mine')); }
+      if (feedback && option === feedback.answer) { row.classList.add('is-answer'); row.append(node('span', '정답', 'option-tag answer')); }
+    }
     const item = node('li'); item.append(row); list.append(item);
   });
   return list;
@@ -256,21 +258,36 @@ function result(q, feedback) {
     box.append(criteria);
   }
   feedback.evidence.forEach(ref => {
-    const figure = node('figure', undefined, 'evidence'), quote = node('blockquote');
+    const figure = node('figure', undefined, 'evidence'), quote = node('blockquote'), caption = node('figcaption');
     quote.append(node('span', ref.quote));
-    figure.append(quote, node('figcaption', ref.name + ', ' + ref.location)); box.append(figure);
+    caption.append(sourceLabel([ref]));
+    figure.append(caption, quote); box.append(figure);
   });
   return box;
 }
+// Time bars share one scale per exam, so their lengths compare exactly.
+function timeBar(q) {
+  const times = Object.values(exam.questionTimes || {}).map(Number).filter(Number.isFinite), seconds = Number(exam.questionTimes?.[q.id]);
+  if (!Number.isFinite(seconds)) return null;
+  const bar = node('span', undefined, 'time-bar'), track = node('span', undefined, 'time-track');
+  track.style.setProperty('--len', seconds / Math.max(...times, 1) * 100 + '%');
+  bar.append(node('span', '풀이 ' + formatDuration(seconds), 'time-text'), track);
+  return bar;
+}
 function questionItem(q, index, feedback) {
-  const item = node('li', undefined, 'question'), num = node('div', String(index + 1), 'num'), body = node('div', undefined, 'body'), text = node('p', undefined, 'q-text');
+  const item = node('li', undefined, 'question' + (feedback ? ' is-' + feedback.outcome : '')), body = node('div', undefined, 'body'), text = node('p', q.question, 'q-text');
   item.id = 'q-' + index;
   item.addEventListener('pointerdown', () => focusQuestion(q)); item.addEventListener('focusin', () => focusQuestion(q));
-  if (feedback && MARK[feedback.outcome]) num.append(mark(feedback.outcome, index));
-  if (q.responseFormat !== 'choice' && q.responseFormat !== 'multi_choice') text.append(node('span', '[' + q.typeLabel + ']', 'kind'), ' ');
-  text.append(q.question, ' ', node('span', '[' + q.points + '점]', 'points'));
-  if (Number.isFinite(Number(exam.questionTimes?.[q.id]))) text.append(' ', node('span', '[풀이 ' + formatDuration(exam.questionTimes[q.id]) + ']', 'question-time'));
-  const head = node('div', undefined, 'question-head'); head.append(text, confusionButton(q)); body.append(head);
+  const head = node('div', undefined, 'question-head'), meta = node('div', undefined, 'q-meta');
+  meta.append(node('span', q.typeLabel || '객관식', 'kind'), node('span', q.points + '점', 'points'));
+  const label = sourceLabel(q.sources);
+  head.append(node('span', String(index + 1), 'num'));
+  if (label) head.append(label);
+  head.append(meta);
+  const side = node('div', undefined, 'q-side'), bar = timeBar(q);
+  if (bar) side.append(bar);
+  side.append(confusionButton(q)); head.append(side);
+  body.append(head, text);
   const imageBox = node('div', undefined, 'question-images'); body.append(imageBox); loadQuestionImages(q, imageBox);
   if (q.code) { const pre = node('pre', q.code); if (q.language) pre.dataset.language = q.language; body.append(pre); }
   const answerable = exam.status === 'question' && !exam.readOnly && !feedback;
@@ -283,33 +300,22 @@ function questionItem(q, index, feedback) {
     const list = node('dl'); myAnswer(list, q);
     if (list.childElementCount) body.append(list);
   }
-  item.append(num, body);
+  item.append(body);
   return item;
 }
-function omrRow(q, index, feedback) {
-  const row = node('li', undefined, 'omr-row'), link = node('a', String(index + 1), 'omr-num'), answering = exam.status === 'question' && !exam.readOnly;
+function navRow(q, index, feedback) {
+  const state = feedback ? (feedback.outcome in STATE ? feedback.outcome : 'pending') : answered(q) ? 'answered' : 'blank';
+  const row = node('li', undefined, 'rail-row is-' + state + (focusedQuestionId === q.id ? ' current' : '')), link = node('a', undefined, 'rail-link');
   row.id = 'row-' + q.id;
-  link.href = '#q-' + index; link.id = 'jump-' + index; link.setAttribute('aria-label', (index + 1) + '번 문항으로 이동');
+  link.href = '#q-' + index; link.id = 'jump-' + index;
   link.addEventListener('click', () => focusQuestion(q));
+  // Band length is the question's share of the points, so the rail shows where the weight sits.
+  const maxPoints = Math.max(...exam.questions.map(item => Number(item.points) || 0), 1), seconds = Number(exam.questionTimes?.[q.id]);
+  const strip = node('span', undefined, 'rail-band ' + band(q.sources?.[0]?.name)); strip.style.setProperty('--len', (Number(q.points) || 0) / maxPoints * 100 + '%');
+  link.append(node('span', String(index + 1), 'rail-num'), node('span', q.typeLabel || '객관식', 'rail-type'),
+    node('span', Number.isFinite(seconds) ? formatDuration(seconds) : '', 'rail-time'),
+    node('span', feedback ? STATE[state] : state === 'answered' ? '답함' : '비어 있음', 'rail-state'), strip);
   row.append(link);
-  if (q.responseFormat === 'choice' || q.responseFormat === 'multi_choice') {
-    // The paper's radio buttons are the accessible control; these bubbles mirror them.
-    const bubbles = node('div', undefined, 'bubbles'); bubbles.setAttribute('aria-hidden', 'true');
-    q.options.forEach((_, n) => {
-      const bubble = node(answering ? 'button' : 'span', String(n + 1), 'omr-bubble' + ((q.responseFormat === 'multi_choice' ? multiChoiceValue(q).includes(n + 1) : chosen(q) === n + 1) ? ' filled' : ''));
-      if (answering) {
-        bubble.type = 'button'; bubble.tabIndex = -1;
-        bubble.addEventListener('click', () => {
-          setDraft(q, String(n + 1));
-          const radio = document.querySelector('input[name="answer-' + CSS.escape(q.id) + '"][value="' + (n + 1) + '"]');
-          if (radio) radio.checked = true;
-        });
-      }
-      bubbles.append(bubble);
-    });
-    row.append(bubbles);
-  } else row.append(node('span', q.typeLabel, 'omr-bar' + (answered(q) ? ' filled' : '')));
-  if (feedback) row.append(node('span', GLYPH[feedback.outcome] || '?', 'omr-result'));
   return row;
 }
 async function submitQuestion(q, button) {
@@ -331,7 +337,8 @@ function render(data) {
   exam = data; exam.confusedIds = data.confusedIds || []; revision = data.revision;
   drafts = Object.fromEntries(data.questions.map(q => [q.id, data.drafts[q.id] || '']));
   const finished = data.status === 'finished', feedback = Object.fromEntries((data.feedback || []).map(item => [item.questionId, item]));
-  $('title').textContent = data.title; document.title = data.title + ' 연습 시험';
+  $('title').textContent = data.title; $('bar-title').textContent = data.title + ' 연습 시험'; document.title = data.title + ' 연습 시험';
+  sourceOrder = [...new Set(data.questions.flatMap(q => (q.sources || []).map(s => s.name)))];
   $('total').textContent = '수업자료에서 만든 연습 시험 ' + (data.questionCount || data.questions.length) + '문항, 100점 만점이에요. 실제 학교 시험이나 예상 기출이 아니에요.';
   const ready = data.webStarted === false;
   $('phase').textContent = ready ? '시작 전' : ({question: '시험 진행 중', grading: '채점 기다리는 중', finished: '채점 완료'}[data.status] || data.status);
@@ -342,7 +349,7 @@ function render(data) {
   $('nav').hidden = ready;
   $('time-panel').hidden = ready;
   $('questions').replaceChildren(...data.questions.map((q, i) => questionItem(q, i, feedback[q.id])));
-  $('nav').replaceChildren(...data.questions.map((q, i) => omrRow(q, i, feedback[q.id])));
+  $('nav').replaceChildren(...data.questions.map((q, i) => navRow(q, i, feedback[q.id])));
   $('submit-area').hidden = ready || data.status !== 'question' || data.readOnly || data.immediateFeedback !== false;
   if (data.status !== 'question') $('saved').textContent = '';
   resetConfirm(); progress();
@@ -356,15 +363,15 @@ function render(data) {
   if (finished || provisional) {
     const counts = data.summary.counts;
     $('notice').textContent = (provisional ? '현재 자동 채점된 결과예요. ' + (data.pendingCount || 0) + '개 문항은 추가 채점 중이에요. ' : '') + '맞은 문항 ' + counts.correct + '개, 일부만 맞은 문항 ' + counts.partial + '개, 틀린 문항 ' + counts.incorrect + '개예요. 기준별 평가와 수업자료 근거를 함께 확인해보세요.';
-    $('score-got').textContent = data.summary.score; $('score-total').textContent = '/100';
-    $('score').setAttribute('aria-label', '100점 만점에 ' + data.summary.score + '점');
-    $('score').style.setProperty('--i', data.questions.length);
+    $('score-got').textContent = data.summary.score; $('score-total').textContent = ' / 100';
     const seen = new Set(), items = [];
     data.summary.review.forEach(entry => {
       if (seen.has(entry.concept)) return;
       seen.add(entry.concept);
-      const item = node('li');
-      item.append(node('strong', entry.concept), node('span', [...new Set(entry.sources.map(s => s.name + ', ' + s.location))].join(' / ')));
+      const item = node('li'), labels = node('span', undefined, 'review-sources');
+      const unique = [...new Map(entry.sources.map(s => [s.name + '\u0000' + s.location, s])).values()];
+      labels.append(...unique.map(s => sourceLabel([s], 'small')));
+      item.append(node('strong', entry.concept), labels);
       items.push(item);
     });
     $('review-list').replaceChildren(...items); $('review').hidden = !items.length;
