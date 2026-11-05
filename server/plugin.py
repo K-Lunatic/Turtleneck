@@ -27,7 +27,7 @@ CHATGPT_CALLBACK = re.compile(
     r"https://chatgpt\.com/(?:connector/oauth/[A-Za-z0-9_-]+|connector_platform_oauth_redirect)"
 )
 MCP_VERSION = "2025-06-18"
-SCOPE = "academic:read"
+SCOPE = "academic:read academic:write"
 JSON = "application/json"
 
 PAGING = {
@@ -145,7 +145,7 @@ class PluginGateway(Gateway):
             return self.respond({
                 "resource": self.base_url + "/mcp",
                 "authorization_servers": [self.base_url],
-                "scopes_supported": [SCOPE],
+                "scopes_supported": SCOPE.split(),
                 "bearer_methods_supported": ["header"],
             })
         if method == "GET" and path == "/.well-known/oauth-authorization-server":
@@ -156,7 +156,7 @@ class PluginGateway(Gateway):
                 "registration_endpoint": self.base_url + "/mcp/oauth/register",
                 "response_types_supported": ["code"],
                 "grant_types_supported": ["authorization_code", "refresh_token"],
-                "scopes_supported": [SCOPE],
+                "scopes_supported": SCOPE.split(),
                 "code_challenge_methods_supported": ["S256"],
                 "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
             })
