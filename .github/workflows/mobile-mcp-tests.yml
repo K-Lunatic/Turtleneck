@@ -1,0 +1,27 @@
+name: Mobile ChatGPT MCP tests
+
+on:
+  push:
+    branches:
+      - feat/chatgpt-mobile-mcp
+  pull_request:
+    branches:
+      - turtleneck
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check Python syntax
+        run: python -m compileall -q server
+      - name: Run gateway tests
+        run: python -m unittest server.test_app server.test_local server.test_plugin -v
