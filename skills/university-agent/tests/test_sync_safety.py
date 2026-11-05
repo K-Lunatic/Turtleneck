@@ -204,39 +204,38 @@ class SyncSafetyTests(unittest.TestCase):
         session, provider, original, permission, viewer = self.permitted_fixture()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'private.db'
-            db = LocalDatabase(path)
-            self.addCleanup(db.close)
-            course = provider.get_courses('u')[0]
-            for user in ('u', 'other'):
-                db.upsert_tls_snapshot(user, [course], [], [], user, None, resources=[original])
-            saved = sync_tls.store_resource(path.parent / 'files', provider.download_permitted_resource('u', original, permission))
-            db.save_permitted_resource('u', original, saved, permission)
-            allowed = db.get_resources('u')[0]
-            self.assertEqual(allowed['downloadStatus'], 'DOWNLOADED')
-            self.assertEqual(allowed['restrictionStatus'], 'PROHIBITED')
-            self.assertEqual(db.get_resources('other')[0]['downloadStatus'], 'PROHIBITED')
-            self.assertEqual(db.get_resources('u', include_permissions=False)[0]['downloadStatus'], 'PROHIBITED')
-            self.assertEqual(sync_tls._cached_resources(path, 'u', path.parent / 'files'), {})
-            result = original_files([course], [allowed], files_root=path.parent / 'files')
-            self.assertEqual(Path(result['data']['files'][0]['path']).read_bytes(), b'%PDF-permitted-fixture')
-            with patch('features.study_materials._read_sections', return_value=[{'location': 'PDF p.1', 'text': '연습 본문'}]):
-                result = study_materials([course], [allowed], files_root=path.parent / 'files')
-                self.assertTrue(result['data']['materials'][0]['sections'])
-            db.upsert_tls_snapshot('u', [course], [], [], 'u', None, resources=[original])
-            self.assertEqual(db.get_resources('u')[0]['localPath'], saved['localPath'])
-            for changed in ({'title': '다른 자료'}, {'remotePath': '/mod/resource/view.php?id=7'},
-                            {'downloadReason': 'TLS 서버가 파일 다운로드를 거부했습니다.'}):
-                db.upsert_tls_snapshot('u', [course], [], [], 'u', None, resources=[{**original, **changed}])
+            with contextlib.closing(LocalDatabase(path)) as db:
+                course = provider.get_courses('u')[0]
+                for user in ('u', 'other'):
+                    db.upsert_tls_snapshot(user, [course], [], [], user, None, resources=[original])
+                saved = sync_tls.store_resource(path.parent / 'files', provider.download_permitted_resource('u', original, permission))
+                db.save_permitted_resource('u', original, saved, permission)
+                allowed = db.get_resources('u')[0]
+                self.assertEqual(allowed['downloadStatus'], 'DOWNLOADED')
+                self.assertEqual(allowed['restrictionStatus'], 'PROHIBITED')
+                self.assertEqual(db.get_resources('other')[0]['downloadStatus'], 'PROHIBITED')
+                self.assertEqual(db.get_resources('u', include_permissions=False)[0]['downloadStatus'], 'PROHIBITED')
+                self.assertEqual(sync_tls._cached_resources(path, 'u', path.parent / 'files'), {})
+                result = original_files([course], [allowed], files_root=path.parent / 'files')
+                self.assertEqual(Path(result['data']['files'][0]['path']).read_bytes(), b'%PDF-permitted-fixture')
+                with patch('features.study_materials._read_sections', return_value=[{'location': 'PDF p.1', 'text': '연습 본문'}]):
+                    result = study_materials([course], [allowed], files_root=path.parent / 'files')
+                    self.assertTrue(result['data']['materials'][0]['sections'])
+                db.upsert_tls_snapshot('u', [course], [], [], 'u', None, resources=[original])
+                self.assertEqual(db.get_resources('u')[0]['localPath'], saved['localPath'])
+                for changed in ({'title': '다른 자료'}, {'remotePath': '/mod/resource/view.php?id=7'},
+                                {'downloadReason': 'TLS 서버가 파일 다운로드를 거부했습니다.'}):
+                    db.upsert_tls_snapshot('u', [course], [], [], 'u', None, resources=[{**original, **changed}])
+                    self.assertEqual(db.get_resources('u')[0]['downloadStatus'], 'PROHIBITED')
+                db.upsert_tls_snapshot('u', [{**course, 'semester': '다음 학기'}], [], [], 'u', None, resources=[original])
                 self.assertEqual(db.get_resources('u')[0]['downloadStatus'], 'PROHIBITED')
-            db.upsert_tls_snapshot('u', [{**course, 'semester': '다음 학기'}], [], [], 'u', None, resources=[original])
-            self.assertEqual(db.get_resources('u')[0]['downloadStatus'], 'PROHIBITED')
-            db.upsert_tls_snapshot('u', [course], [], [], 'u', None, resources=[original])
-            db.revoke_resource_permission('u', original['id'])
-            with patch('features.study_materials._read_sections', side_effect=AssertionError('must not read')):
-                result = study_materials([course], db.get_resources('u'), files_root=path.parent / 'files')
-            self.assertFalse(result['data']['materials'][0]['sections'])
-            self.assertTrue(Path(saved['localPath']).is_file())
-            self.assertIsNotNone(db.connection.execute('SELECT revoked_at FROM permitted_resources').fetchone()[0])
+                db.upsert_tls_snapshot('u', [course], [], [], 'u', None, resources=[original])
+                db.revoke_resource_permission('u', original['id'])
+                with patch('features.study_materials._read_sections', side_effect=AssertionError('must not read')):
+                    result = study_materials([course], db.get_resources('u'), files_root=path.parent / 'files')
+                self.assertFalse(result['data']['materials'][0]['sections'])
+                self.assertTrue(Path(saved['localPath']).is_file())
+                self.assertIsNotNone(db.connection.execute('SELECT revoked_at FROM permitted_resources').fetchone()[0])
 
     def test_school_only_redirect_is_rejected_before_following(self):
         request = Request('https://tls.kku.ac.kr/local/ubdoc/download.php?id=1')
