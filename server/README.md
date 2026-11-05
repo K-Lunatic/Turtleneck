@@ -1,5 +1,56 @@
 # 이 컴퓨터에서 ChatGPT 웹·모바일 연결
 
+## 새 방식: ChatGPT Plugins / 원격 MCP (개발용)
+
+이 브랜치에는 기존 Custom GPT Actions와 별개로 **MCP 도구 서버**가 추가되었습니다.
+TLS 로그인, OAuth(PKCE), 과목·과제·강의·공지·할 일 조회, 동기화 상태,
+과제 진행 기록의 저장·불러오기를 제공합니다. TLS 비밀번호를 채팅에 보내지 않습니다.
+
+### 컴퓨터에서 MCP 실행
+
+Python 3.10 이상과 `cloudflared`를 준비한 뒤 저장소 루트에서 실행합니다.
+
+```sh
+python3 -m server.local --mcp
+```
+
+기존 `University Agent.command` 실행은 **Custom GPT Actions 모드**를 유지하므로,
+MCP 연결 시에는 위 명령을 사용합니다. 실행 중 로컬 설정 화면이 열리고,
+`https://<터널 주소>/mcp`가 표시됩니다. 고정된 HTTPS 공개 도메인을 사용할 때는
+`python3 -m server.local --mcp --public-url https://your-domain.example`을 실행하고
+HTTPS 역방향 프록시를 로컬 `127.0.0.1:8766`에 연결합니다.
+Cloudflare Quick Tunnel은 개발·시험용으로만 사용하세요.
+
+### ChatGPT 연결 및 모바일 제약
+
+ChatGPT **웹**에서 Plugins → + → Add custom MCP server → Server URL에
+`https://<터널 주소>/mcp`를 지정합니다(계정·워크스페이스의 등록 권한 필요).
+서버는 보호 리소스 메타데이터, OAuth 서버 메타데이터 및 동적 클라이언트 등록을 제공합니다.
+OAuth 연결 화면에서 **TLS 계정**으로 로그인합니다.
+
+**중요:** 현재 개인 Plus 계정에 사용자 정의 MCP 연결 등록 권한이 있다고 가정해서는
+안 됩니다. 새 커스텀 연결 기능에는 워크스페이스 제약이 있으며, 앱/플러그인의
+**아이폰 지원은 등록·게시·플랫폼 지원 여부에 따라 별도 검증**해야 합니다.
+GitHub에 서버 코드를 추가하는 것만으로 모바일 ChatGPT에 터틀넥이 설치되지 않습니다.
+모바일 사용은 플러그인 게시 및 사용자별 연결을 실제로 확인한 뒤 지원한다고 표시합니다.
+
+OAuth 권한에는 `academic:read`, `academic:write`가 포함됩니다.
+쓰기 기능은 **로컬 진행 기록 저장**과 **학사 데이터 동기화**에 한정됩니다.
+학교 TLS 과제 제출, 임의 수정, 비밀번호 저장은 지원하지 않습니다.
+
+### 오프라인 회귀 테스트
+
+```sh
+python3 -m unittest server.test_app server.test_local server.test_plugin -v
+```
+
+MCP 메타데이터, Client 등록 제한, PKCE, 코드/리프레시 토큰 재사용 방지,
+계정별 TLS 조회 분리 등을 가짜 로그인 자료만으로 검사합니다.
+인터넷 공개 운영·ChatGPT 실제 인증 왕복은 별도의 운영 검증이 필요합니다.
+
+---
+
+
 별도 호스팅 서버·도메인·Docker 없이 이 컴퓨터에서 실행합니다. ChatGPT가 컴퓨터에 도달하도록 HTTPS 터널을 사용합니다. 휴대폰 사용자는 Custom GPT의 로그인 화면에서 TLS에 로그인하며 Python이나 터미널을 사용하지 않습니다. 데이터 조회·동기화를 처리하므로 컴퓨터와 실행 프로세스가 켜져 있어야 합니다.
 
 현재 연결 방식은 **Custom GPT Actions**입니다. 로컬 플러그인만 설치하면 일반 ChatGPT 대화에 자동 연결되는 방식은 아닙니다. 실제 GPT ID와 Actions 설정을 마쳐야 조회할 수 있습니다. ChatGPT 앱 디렉터리/MCP 등록은 포함하지 않습니다.
