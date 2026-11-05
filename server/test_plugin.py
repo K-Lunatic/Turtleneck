@@ -66,7 +66,7 @@ class PluginGatewayTests(unittest.TestCase):
     def authorization(self, client):
         response = self.request("/mcp/oauth/authorize", query={
             "client_id": client, "redirect_uri": CALLBACK,
-            "response_type": "code", "scope": "academic:read",
+            "response_type": "code", "scope": "academic:read academic:write",
             "state": "state-123", "code_challenge": CHALLENGE,
             "code_challenge_method": "S256", "resource": "https://tls.example.test/mcp",
         })
