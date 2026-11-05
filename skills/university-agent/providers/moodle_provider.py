@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlsplit
 from urllib.error import HTTPError, URLError
 from concurrent.futures import ThreadPoolExecutor
 
-from providers.moodle_session import MoodleSession, LoginError, DownloadRestricted, check_download_url, check_download_origin
+from providers.moodle_session import MoodleSession, LoginError, DownloadRestricted, RequestBackoff, check_download_url, check_download_origin
 
 
 class ResourceUnavailable(ValueError):
@@ -727,11 +727,23 @@ class MoodleTLSProvider:
             def collect(course):
                 child = MoodleTLSProvider(self.session.fork(), self.progress)
                 child._courses = [course]
-                return course["id"], child._activity_fingerprint(child._course_page(course))
+                page = child._course_page(course)
+                return course, page, child._activity_fingerprint(page)
 
             with ThreadPoolExecutor(max_workers=min(self.MAX_READ_WORKERS, len(selected))) as pool:
-                fingerprints = dict(pool.map(collect, selected))
+                fingerprints = {}
+                for course, page, fingerprint in pool.map(collect, selected):
+                    self._course_pages[str(course['externalId'])] = page
+                    fingerprints[course['id']] = fingerprint
         return {"courseIds": [course["id"] for course in courses], "fingerprints": fingerprints}
+
+    def for_courses(self, user_id: str, course_ids: set[str]):
+        """Scope detail reads while retaining this sync's already fetched pages."""
+        child = MoodleTLSProvider(self.session, self.progress)
+        child._courses = [course for course in self.get_courses(user_id) if course['id'] in course_ids]
+        child._course_pages = self._course_pages.copy()
+        child._activity_links = self._activity_links.copy()
+        return child
 
     def activity_fingerprints(self, user_id: str) -> dict[str, str]:
         """Return fingerprints for course pages already fetched during a full sync."""
@@ -939,8 +951,10 @@ class MoodleTLSProvider:
             return {**record, **_resource_http_error(error)}
         except ResourceUnavailable as error:
             return {**record, 'downloadReason': str(error)}
+        except RequestBackoff:
+            raise
         except (URLError, TimeoutError):
-            return {**record, 'downloadReason': '학교와 연결이 끊기거나 응답이 늦어 이 자료를 확인하지 못했어요.'}
+            return {**record, '_checkFailed': True, 'downloadReason': '학교와 연결이 끊기거나 응답이 늦어 이 자료를 확인하지 못했어요.'}
         cached = (existing_resources or {}).get(resource_id)
         reusable = bool(cached and cached.get("localPath") and Path(cached["localPath"]).is_file()
             and cached.get("remotePath") == href and cached.get("mimeType") not in {"text/html", "application/xhtml+xml"})
@@ -963,8 +977,10 @@ class MoodleTLSProvider:
             return {**record, 'downloadStatus': 'PROHIBITED', 'downloadReason': str(error)}
         except HTTPError as error:
             return {**record, **_resource_http_error(error)}
+        except RequestBackoff:
+            raise
         except (URLError, TimeoutError):
-            return {**record, 'downloadReason': '자료를 받는 중 연결이 끊기거나 응답이 늦었어요. 잠시 후 다시 확인해 주세요.'}
+            return {**record, '_checkFailed': True, 'downloadReason': '자료를 받는 중 연결이 끊기거나 응답이 늦었어요. 잠시 후 다시 확인해 주세요.'}
         if content is None and reusable:
             return reused
         if not content:

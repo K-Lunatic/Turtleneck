@@ -1,0 +1,550 @@
+{
+  "measurement": "offline HTTP replay, not live TLS traffic",
+  "fixture": {
+    "courses": 8,
+    "assignments_per_course": 2,
+    "lectures_per_course": 2,
+    "boards_per_course": 1,
+    "articles_per_course": 2,
+    "resources_per_course": 2
+  },
+  "notes": [
+    "Shared urllib instrumentation includes redirects, HTTP errors and raw consumed body bytes.",
+    "Fixture timing has no network latency or rate limiter; do not use it as a live speed estimate.",
+    "Login/session verification is excluded; no real accounts are accessed.",
+    "Smart sync intentionally does not detect status-only changes; academic refresh does.",
+    "Every scenario asserts equal stored results for all three implementations."
+  ],
+  "baseline_sha256": {
+    "moodle_provider": "830d1002d03aa6299271ec9c49b95fa42eb37c88cd5abdb2efc059d8b4a0bc16",
+    "sync_tls": "7ef07e51021c2674d1fa5debc935917ee56097168c88b748c2b9db4ebf5513e7"
+  },
+  "results": [
+    {
+      "scenario": "unchanged",
+      "before": {
+        "requests": 9,
+        "requests_by_kind": {
+          "page": 9
+        },
+        "response_body_bytes": 5312,
+        "response_body_bytes_by_kind": {
+          "page": 5312
+        },
+        "statuses": {
+          "200": 9
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 9,
+        "elapsed_seconds": 0.203
+      },
+      "after_stage1": {
+        "requests": 9,
+        "requests_by_kind": {
+          "page": 9
+        },
+        "response_body_bytes": 5312,
+        "response_body_bytes_by_kind": {
+          "page": 5312
+        },
+        "statuses": {
+          "200": 9
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 9,
+        "elapsed_seconds": 0.188
+      },
+      "after": {
+        "requests": 9,
+        "requests_by_kind": {
+          "page": 9
+        },
+        "response_body_bytes": 5312,
+        "response_body_bytes_by_kind": {
+          "page": 5312
+        },
+        "statuses": {
+          "200": 9
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 9,
+        "elapsed_seconds": 0.203
+      },
+      "same_result": true,
+      "requests_reduction_percent": 0.0,
+      "body_bytes_reduction_percent": 0.0
+    },
+    {
+      "scenario": "one_course_changed",
+      "before": {
+        "requests": 105,
+        "requests_by_kind": {
+          "page": 89,
+          "post": 16
+        },
+        "response_body_bytes": 17604,
+        "response_body_bytes_by_kind": {
+          "page": 16964,
+          "post": 640
+        },
+        "statuses": {
+          "200": 105
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 103,
+        "elapsed_seconds": 1.078
+      },
+      "after_stage1": {
+        "requests": 97,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16
+        },
+        "response_body_bytes": 12714,
+        "response_body_bytes_by_kind": {
+          "page": 12074,
+          "post": 640
+        },
+        "statuses": {
+          "200": 97
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 94,
+        "elapsed_seconds": 1.094
+      },
+      "after": {
+        "requests": 20,
+        "requests_by_kind": {
+          "page": 18,
+          "post": 2
+        },
+        "response_body_bytes": 6246,
+        "response_body_bytes_by_kind": {
+          "page": 6166,
+          "post": 80
+        },
+        "statuses": {
+          "200": 20
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 20,
+        "elapsed_seconds": 0.281
+      },
+      "same_result": true,
+      "requests_reduction_percent": 80.95,
+      "body_bytes_reduction_percent": 64.52
+    },
+    {
+      "scenario": "three_courses_changed",
+      "before": {
+        "requests": 105,
+        "requests_by_kind": {
+          "page": 89,
+          "post": 16
+        },
+        "response_body_bytes": 17644,
+        "response_body_bytes_by_kind": {
+          "page": 17004,
+          "post": 640
+        },
+        "statuses": {
+          "200": 105
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 102,
+        "elapsed_seconds": 1.094
+      },
+      "after_stage1": {
+        "requests": 97,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16
+        },
+        "response_body_bytes": 12734,
+        "response_body_bytes_by_kind": {
+          "page": 12094,
+          "post": 640
+        },
+        "statuses": {
+          "200": 97
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 96,
+        "elapsed_seconds": 1.109
+      },
+      "after": {
+        "requests": 42,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 6
+        },
+        "response_body_bytes": 8114,
+        "response_body_bytes_by_kind": {
+          "page": 7874,
+          "post": 240
+        },
+        "statuses": {
+          "200": 42
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 42,
+        "elapsed_seconds": 0.563
+      },
+      "same_result": true,
+      "requests_reduction_percent": 60.0,
+      "body_bytes_reduction_percent": 54.01
+    },
+    {
+      "scenario": "all_courses_changed",
+      "before": {
+        "requests": 105,
+        "requests_by_kind": {
+          "page": 89,
+          "post": 16
+        },
+        "response_body_bytes": 17744,
+        "response_body_bytes_by_kind": {
+          "page": 17104,
+          "post": 640
+        },
+        "statuses": {
+          "200": 105
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 103,
+        "elapsed_seconds": 1.093
+      },
+      "after_stage1": {
+        "requests": 97,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16
+        },
+        "response_body_bytes": 12784,
+        "response_body_bytes_by_kind": {
+          "page": 12144,
+          "post": 640
+        },
+        "statuses": {
+          "200": 97
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 96,
+        "elapsed_seconds": 1.063
+      },
+      "after": {
+        "requests": 97,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16
+        },
+        "response_body_bytes": 12784,
+        "response_body_bytes_by_kind": {
+          "page": 12144,
+          "post": 640
+        },
+        "statuses": {
+          "200": 97
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 94,
+        "elapsed_seconds": 1.094
+      },
+      "same_result": true,
+      "requests_reduction_percent": 7.62,
+      "body_bytes_reduction_percent": 27.95
+    },
+    {
+      "scenario": "status_only_smart_sync",
+      "before": {
+        "requests": 9,
+        "requests_by_kind": {
+          "page": 9
+        },
+        "response_body_bytes": 5312,
+        "response_body_bytes_by_kind": {
+          "page": 5312
+        },
+        "statuses": {
+          "200": 9
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 9,
+        "elapsed_seconds": 0.187
+      },
+      "after_stage1": {
+        "requests": 9,
+        "requests_by_kind": {
+          "page": 9
+        },
+        "response_body_bytes": 5312,
+        "response_body_bytes_by_kind": {
+          "page": 5312
+        },
+        "statuses": {
+          "200": 9
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 9,
+        "elapsed_seconds": 0.203
+      },
+      "after": {
+        "requests": 9,
+        "requests_by_kind": {
+          "page": 9
+        },
+        "response_body_bytes": 5312,
+        "response_body_bytes_by_kind": {
+          "page": 5312
+        },
+        "statuses": {
+          "200": 9
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 9,
+        "elapsed_seconds": 0.203
+      },
+      "same_result": true,
+      "requests_reduction_percent": 0.0,
+      "body_bytes_reduction_percent": 0.0
+    },
+    {
+      "scenario": "status_only_academic_refresh",
+      "before": {
+        "requests": 41,
+        "requests_by_kind": {
+          "page": 41
+        },
+        "response_body_bytes": 7623,
+        "response_body_bytes_by_kind": {
+          "page": 7623
+        },
+        "statuses": {
+          "200": 41
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 41,
+        "elapsed_seconds": 0.219
+      },
+      "after_stage1": {
+        "requests": 41,
+        "requests_by_kind": {
+          "page": 41
+        },
+        "response_body_bytes": 7623,
+        "response_body_bytes_by_kind": {
+          "page": 7623
+        },
+        "statuses": {
+          "200": 41
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 41,
+        "elapsed_seconds": 0.203
+      },
+      "after": {
+        "requests": 41,
+        "requests_by_kind": {
+          "page": 41
+        },
+        "response_body_bytes": 7623,
+        "response_body_bytes_by_kind": {
+          "page": 7623
+        },
+        "statuses": {
+          "200": 41
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 41,
+        "elapsed_seconds": 0.203
+      },
+      "same_result": true,
+      "requests_reduction_percent": 0.0,
+      "body_bytes_reduction_percent": 0.0
+    },
+    {
+      "scenario": "requested_missing_file",
+      "before": {
+        "requests": 106,
+        "requests_by_kind": {
+          "page": 89,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 17605,
+        "response_body_bytes_by_kind": {
+          "page": 16944,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 106
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 99,
+        "elapsed_seconds": 1.188
+      },
+      "after_stage1": {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 97,
+        "elapsed_seconds": 1.062
+      },
+      "after": {
+        "requests": 21,
+        "requests_by_kind": {
+          "page": 18,
+          "post": 2,
+          "file": 1
+        },
+        "response_body_bytes": 6257,
+        "response_body_bytes_by_kind": {
+          "page": 6156,
+          "post": 80,
+          "file": 21
+        },
+        "statuses": {
+          "200": 21
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 21,
+        "elapsed_seconds": 0.281
+      },
+      "same_result": true,
+      "requests_reduction_percent": 80.19,
+      "body_bytes_reduction_percent": 64.46
+    },
+    {
+      "scenario": "course_added",
+      "before": {
+        "requests": 118,
+        "requests_by_kind": {
+          "page": 100,
+          "post": 18
+        },
+        "response_body_bytes": 19782,
+        "response_body_bytes_by_kind": {
+          "page": 19062,
+          "post": 720
+        },
+        "statuses": {
+          "200": 118
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 111,
+        "elapsed_seconds": 1.203
+      },
+      "after_stage1": {
+        "requests": 109,
+        "requests_by_kind": {
+          "page": 91,
+          "post": 18
+        },
+        "response_body_bytes": 14292,
+        "response_body_bytes_by_kind": {
+          "page": 13572,
+          "post": 720
+        },
+        "statuses": {
+          "200": 109
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 99,
+        "elapsed_seconds": 1.234
+      },
+      "after": {
+        "requests": 21,
+        "requests_by_kind": {
+          "page": 19,
+          "post": 2
+        },
+        "response_body_bytes": 6900,
+        "response_body_bytes_by_kind": {
+          "page": 6820,
+          "post": 80
+        },
+        "statuses": {
+          "200": 21
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 21,
+        "elapsed_seconds": 0.329
+      },
+      "same_result": true,
+      "requests_reduction_percent": 82.2,
+      "body_bytes_reduction_percent": 65.12
+    },
+    {
+      "scenario": "course_removed",
+      "before": {
+        "requests": 92,
+        "requests_by_kind": {
+          "page": 78,
+          "post": 14
+        },
+        "response_body_bytes": 15386,
+        "response_body_bytes_by_kind": {
+          "page": 14826,
+          "post": 560
+        },
+        "statuses": {
+          "200": 92
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 92,
+        "elapsed_seconds": 0.953
+      },
+      "after_stage1": {
+        "requests": 85,
+        "requests_by_kind": {
+          "page": 71,
+          "post": 14
+        },
+        "response_body_bytes": 11116,
+        "response_body_bytes_by_kind": {
+          "page": 10556,
+          "post": 560
+        },
+        "statuses": {
+          "200": 85
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 85,
+        "elapsed_seconds": 0.953
+      },
+      "after": {
+        "requests": 8,
+        "requests_by_kind": {
+          "page": 8
+        },
+        "response_body_bytes": 4648,
+        "response_body_bytes_by_kind": {
+          "page": 4648
+        },
+        "statuses": {
+          "200": 8
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 8,
+        "elapsed_seconds": 0.219
+      },
+      "same_result": true,
+      "requests_reduction_percent": 91.3,
+      "body_bytes_reduction_percent": 69.79
+    }
+  ]
+}

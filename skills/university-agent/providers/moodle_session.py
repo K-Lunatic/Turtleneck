@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import random
 import re
 import ssl
 import sys
@@ -10,13 +11,16 @@ import threading
 import time
 import zlib
 from copy import copy
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
+from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
 from http.cookiejar import CookieJar
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
-from urllib.request import Request, build_opener, HTTPRedirectHandler, HTTPCookieProcessor, HTTPSHandler
+from urllib.request import Request, build_opener, BaseHandler, HTTPRedirectHandler, HTTPCookieProcessor, HTTPSHandler
+from providers.request_metrics import MetricsHandler, current_metrics
 
 
 class LoginError(RuntimeError):
@@ -27,20 +31,65 @@ class DownloadRestricted(RuntimeError):
     pass
 
 
+class RequestBackoff(URLError):
+    def __init__(self, seconds):
+        self.seconds = max(0, seconds)
+        super().__init__('학교 요청을 잠시 쉬어야 해요. 대기 시간이 지난 후 다시 확인해 주세요.')
+
+
+def _retry_after(value):
+    if not value:
+        return 0
+    try:
+        if value.strip().isdigit():
+            return int(value)
+        parsed = parsedate_to_datetime(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return max(0, (parsed - datetime.now(timezone.utc)).total_seconds())
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
 class _RequestLimiter:
     """Keep parallel reads bounded per logged-in account."""
-    def __init__(self, gap: float = 0.08):
+    def __init__(self, gap: float = 0.25):
         self.gap = gap
         self.next_at = 0.0
         self.lock = threading.Lock()
+        self.deferred_until = 0.0
 
     def wait(self) -> None:
-        with self.lock:
-            now = time.monotonic()
-            delay = max(0.0, self.next_at - now)
-            self.next_at = max(now, self.next_at) + self.gap
-        if delay:
+        while True:
+            with self.lock:
+                now = time.monotonic()
+                if self.deferred_until > now:
+                    raise RequestBackoff(self.deferred_until - now)
+                delay = self.next_at - now
+                if delay <= 0:
+                    self.next_at = now + self.gap
+                    return
             time.sleep(delay)
+
+    def pause(self, seconds, *, deferred=False):
+        with self.lock:
+            if deferred:
+                self.deferred_until = max(self.deferred_until, time.monotonic() + seconds)
+            else:
+                self.next_at = max(self.next_at, time.monotonic() + seconds)
+
+
+class _RateLimitHandler(BaseHandler):
+    handler_order = 480
+
+    def __init__(self, limiter):
+        self.limiter = limiter
+
+    def http_request(self, request):
+        self.limiter.wait()
+        return request
+
+    https_request = http_request
 
 
 def _default_ssl_context() -> ssl.SSLContext:
@@ -92,6 +141,7 @@ class _DownloadRedirectHandler(HTTPRedirectHandler):
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
         if redirected is not None:
             redirected.allowed_origin = getattr(req, 'allowed_origin', None)
+            redirected.metrics_kind = getattr(req, 'metrics_kind', 'page')
         return redirected
 
 
@@ -110,15 +160,49 @@ class _HiddenInputs(HTMLParser):
 
 
 class MoodleSession:
-    def __init__(self, base_url: str = "https://tls.kku.ac.kr"):
+    def __init__(self, base_url: str = "https://tls.kku.ac.kr", *, metrics=None, _limiter=None):
         self.base_url = base_url.rstrip("/")
+        self.metrics = metrics if metrics is not None else current_metrics.get()
         self.cookies = CookieJar()
-        self._request_limiter = _RequestLimiter()
+        self._request_limiter = _limiter if _limiter is not None else _RequestLimiter()
         self._build_opener()
         self.logged_in = False
 
     def _build_opener(self) -> None:
-        self.opener = build_opener(HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(), HTTPSHandler(context=_default_ssl_context()))
+        handlers = [HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(),
+                    _RateLimitHandler(self._request_limiter), HTTPSHandler(context=_default_ssl_context())]
+        if self.metrics is not None:
+            handlers.append(MetricsHandler(self.metrics))
+        self.opener = build_opener(*handlers)
+
+    def _open(self, request, *, kind):
+        request.metrics_kind = kind
+        retry_safe = request.get_method() == 'GET' or getattr(request, 'retry_safe', False)
+        for attempt in range(3):
+            try:
+                return self.opener.open(request, timeout=30)
+            except Exception as error:
+                if self.metrics is not None:
+                    self.metrics.failed()
+                if isinstance(error, RequestBackoff):
+                    raise
+                if isinstance(error, HTTPError):
+                    if error.code not in (429, 502, 503, 504):
+                        raise
+                    server_delay = _retry_after(error.headers.get('Retry-After') if error.headers else None)
+                    error.close()
+                elif isinstance(error, (URLError, TimeoutError, ConnectionError)):
+                    if isinstance(getattr(error, 'reason', error), ssl.SSLError):
+                        raise
+                    server_delay = 0
+                else:
+                    raise
+                delay = max(server_delay, 2 ** attempt + random.uniform(0, 0.25))
+                if not retry_safe or attempt == 2 or delay > 5:
+                    delay = max(server_delay, 60)
+                    self._request_limiter.pause(delay, deferred=True)
+                    raise RequestBackoff(delay) from error
+                self._request_limiter.pause(delay)
 
     def restore_cookies(self, cookies: CookieJar) -> None:
         self.cookies = cookies
@@ -141,10 +225,9 @@ class MoodleSession:
 
     def fork(self):
         """Independent cookie jar/opener per read worker; login remains single-threaded."""
-        child = MoodleSession(self.base_url)
+        child = MoodleSession(self.base_url, metrics=self.metrics, _limiter=self._request_limiter)
         for cookie in self.cookies:
             child.cookies.set_cookie(copy(cookie))
-        child._request_limiter = self._request_limiter
         child.logged_in = self.logged_in
         return child
 
@@ -166,7 +249,7 @@ class MoodleSession:
     def _decode(cls, response: Any) -> str:
         return cls._decode_bytes(response.read(), response).decode("utf-8", errors="replace")
 
-    def _request(self, path: str, *, data: bytes | None = None, referer: str | None = None, allowed_origin=None, page_only=False) -> tuple[str, Any]:
+    def _request(self, path: str, *, data: bytes | None = None, referer: str | None = None, allowed_origin=None, page_only=False, retry_safe=False) -> tuple[str, Any]:
         url = urljoin(f"{self.base_url}/", path.lstrip("/"))
         check_download_origin(url, allowed_origin)
         if data is None:
@@ -180,8 +263,8 @@ class MoodleSession:
             headers.update({"Content-Type": "application/x-www-form-urlencoded", "Origin": self.base_url, "Referer": referer or url})
         request = Request(url, data=data, headers=headers, method="POST" if data is not None else "GET")
         request.allowed_origin = allowed_origin
-        self._request_limiter.wait()
-        response = self.opener.open(request, timeout=30)
+        request.retry_safe = retry_safe
+        response = self._open(request, kind='post' if data is not None else 'page')
         try:
             check_download_origin(response.geturl(), allowed_origin)
             if data is None:
@@ -256,8 +339,7 @@ class MoodleSession:
         }
         request = Request(url, data=payload, headers=headers, method="POST")
         request.allowed_origin = allowed_origin
-        self._request_limiter.wait()
-        response = self.opener.open(request, timeout=30)
+        response = self._open(request, kind='post')
         try:
             check_download_origin(response.geturl(), allowed_origin)
             html = self._decode(response)
@@ -282,7 +364,7 @@ class MoodleSession:
         fields = {key: values[0] for key, values in query.items()}
         html, _ = self._request('/local/ubdoc/worker.php',
             data=urlencode({**fields, 'job': 'checkState', 'item': '', 'fid': ''}).encode(),
-            referer=viewer_url, allowed_origin='tls.kku.ac.kr')
+            referer=viewer_url, allowed_origin='tls.kku.ac.kr', retry_safe=True)
         try:
             value = json.loads(html)
         except ValueError as error:
@@ -300,8 +382,7 @@ class MoodleSession:
         try:
             request = Request(url, headers={"User-Agent": "UniversityAgent/0.1", "Accept-Encoding": "identity" if max_bytes is not None else "gzip, deflate", **(conditional or {})})
             request.allowed_origin = allowed_origin
-            self._request_limiter.wait()
-            response = self.opener.open(request, timeout=30)
+            response = self._open(request, kind='file')
         except HTTPError as error:
             if error.code != 304:
                 error.close()

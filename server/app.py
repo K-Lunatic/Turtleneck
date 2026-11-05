@@ -24,7 +24,8 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'skills/university-agent'))
-from providers.moodle_session import MoodleSession
+from providers.moodle_session import MoodleSession, RequestBackoff
+from features import sync_policy
 from providers.moodle_provider import MoodleTLSProvider
 from storage.local_db import LocalDatabase
 from features.assignments import get_assignments
@@ -89,8 +90,22 @@ class Gateway:
 
     def sync_worker(self, user, account):
         db = None
+        guard = None
         rerun = False
+        scope = sync_policy.scope_key(getattr(account['session'], 'base_url', 'https://tls.kku.ac.kr'), user)
         try:
+            guard = sync_policy.SyncLock(self.db_path(user))
+            guard.__enter__()
+            if guard.remaining(scope):
+                raise RequestBackoff(guard.remaining(scope))
+            if not guard.state(scope).get('failed') and account.get('availableSections') == ['courses', 'assignments', 'lectures', 'notices']:
+                db = LocalDatabase(self.db_path(user), read_only=True)
+                state = db.get_sync_state(user)
+                db.close()
+                db = None
+                if state.get('sync_scope') == scope and sync_policy.fresh(state.get('gateway_checked_at'), 60):
+                    return
+            guard.record(scope, failed=True)
             provider = MoodleTLSProvider(account['session'])
             records = {'courses': provider.get_courses(user)}
             for field in ('assignments', 'lectures', 'notices'):
@@ -107,13 +122,21 @@ class Gateway:
                 with self.lock:
                     account['syncedAt'] = datetime.now(timezone.utc).isoformat()
                     account['availableSections'] = list(records)
-        except Exception:
+            db = LocalDatabase(self.db_path(user))
+            db.merge_sync_state(user, {'gateway_checked_at': sync_policy.now().isoformat(), 'sync_scope': scope})
+            guard.record(scope)
+        except Exception as error:
+            if guard is not None and guard.file is not None and not guard.file.closed:
+                delay = error.seconds if isinstance(error, RequestBackoff) else 0
+                guard.record(scope, failed=True, delay=max(delay, guard.remaining(scope)))
             # Never return exception text: upstream errors can contain URLs or personal data.
             with self.lock:
                 account['error'] = 'TLS 동기화 실패. 서버가 응답하지 않거나 로그인이 만료됐을 수 있습니다. 다시 연결해 주세요.'
         finally:
             if db:
                 db.close()
+            if guard is not None and guard.file is not None and not guard.file.closed:
+                guard.__exit__()
             with self.lock:
                 account['running'] = False
                 account['stage'] = None

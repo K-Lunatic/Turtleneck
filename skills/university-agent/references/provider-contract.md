@@ -8,16 +8,19 @@ On macOS, if the selected Python runtime has no configured CA bundle, the sessio
 For the first use of a local database, `scripts/sync_tls.py --ensure` performs the
 full import. Later `--ensure` runs a lightweight preflight over visible course
 activity lists and compares per-course fingerprints saved in `sync_state`. When
-nothing changed it exits without fetching assignment details, notice bodies,
-lecture viewers or file bytes. A changed activity list, a new course, or a
-requested `--resource-id` that is not already local falls through to the normal
-sync. `--metadata-only` remains available for an explicit record refresh; it
+nothing changed, only expired scopes are refreshed: assignment/watch status after
+15 minutes, notice details after 6 hours, and resource details after 24 hours.
+Successful activity-list checks can be reused for 5 minutes, including before login.
+These are check ages on invocation, not scheduler guarantees. Changed/new courses
+refresh their details immediately when detected. Requested `--resource-id` values
+recheck current notice restrictions and resource permissions. `--metadata-only`
+prevents file-body downloads; combine it with `--force` for a new record refresh. It
 leaves new files as `NOT_DOWNLOADED` with an explicit reason and does not prepare
 new file contents for study.
-Each stage reports elapsed time and resource checks report progress.
+The summary reports which scopes were checked and elapsed time. `--metrics` adds private aggregate HTTP counters.
 Independent per-course reads use up to two worker sessions, each with its own cookie jar/opener.
 For current assignment/watch status, use `academic_watch.py --daily-report` or
-`sync_tls.py --academic-only`, not the activity fingerprint fast path. This scope uses stored
+`sync_tls.py --academic-only --force`, not activity fingerprints or a reused check. This scope uses stored
 credentials only, fetches both status sets before one snapshot commit, and records
 `sync_state.academic_checked_at` after success without changing full-import fingerprints.
 The report verifies the timestamp belongs to this run and stops after a failed or timed-out sync
@@ -27,6 +30,15 @@ nonselected files retain metadata/restriction checks but are not downloaded. Res
 uses one flat two-worker pool rather than nested per-course/file pools. Database writes remain serial.
 The local sync commits completed assignment/lecture/notice stages before fetching more data.
 A later failure does not undo earlier stages; the run still reports failure, not full completion.
+Successful scopes keep their individual check times. A process-owned lock serializes
+manual, scheduled and gateway syncs sharing a database; process death releases ownership.
+The lock file retains only a scope hash and failure/cooldown metadata, never credentials.
+Forced calls may share work completed after their invocation but never bypass server cooldowns.
+Per-session worker forks share a 0.25-second start interval, including redirects. Only GET
+and the explicitly read-only document-status POST may retry transient failures, at most
+three attempts. Long Retry-After values defer execution; exhausted attempts impose at
+least a 60-second cooldown retained across sync invocations. Login and mutation POSTs
+are not automatically replayed. This is a per-session/store limit, not a school-wide cap.
 New originals are saved immediately through `save_file`, not retained as a whole batch of bytes.
 They live under `files/<courseId>/<resourceId>/<content SHA-256>/<original filename>`;
 different activities and changed versions never overwrite one another. Invalid filesystem characters

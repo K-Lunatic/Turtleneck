@@ -1,0 +1,16 @@
+{
+  "skills/university-agent/providers/moodle_session.py": "25f6e6199ecd9ea93cf8a3e15fe2d2e77b00456b88e3fb4c03d938a9028a720c",
+  "skills/university-agent/providers/moodle_provider.py": "8d5f850a2c093305ff56c7396c2557f253bdfb38f13c61125f95052802990854",
+  "skills/university-agent/scripts/sync_tls.py": "3c6a2aae9158383cac3e4970a599352db3aa6e225a6def69d2cacfb890d47324",
+  "skills/university-agent/providers/request_metrics.py": "4a1c85d5c0605e8b681e8292cd7ddc63c3c89f5990d706a4a0adaf96a11f1d8e",
+  "skills/university-agent/tests/test_tls_optimization.py": "7a80c61fe7bc111cfbcf7ce175d5a0c619605fd5fc2edaf87bdf99dad5ed384c",
+  "skills/university-agent/scripts/benchmark_tls_sync.py": "66f1319668b8cb1c6a7078be90eab20084252484510f1bbdb0daa4be564b6f50",
+  "skills/university-agent/scripts/benchmark_tls_live.py": "6cfa850e13c48c84f5d1ec3b5fae32c4187472a4211183d04de51e45975f3011",
+  "tls-optimization-results/baseline_sources.zip": "76b71d1ec3d3cd54cec718e4919ea18f54332e90f2735bae6057ad9b7456fa91",
+  "tls-optimization-results/live.json": "e744e6e026d68f655dcbf9675b622b3be77a3ce07046330306bdf5c33e91a3d1",
+  "tls-optimization-results/offline.json": "637baa5d2539a2445e4edfa932191876ffb412eb6f0c767525fd9a08a58861ce",
+  "tls-optimization-results/tests.json": "2c7ca7a9871c7587805e73b38bcac99048256b545afca000d8c8e98ab6a76c11",
+  "tls-optimization-results/changes.patch": "bf80d55e889070e5d2210c767c73aec99bf64682a5319b071da91eb3ee361b47",
+  "TLS_OPTIMIZATION_RESULTS.md": "b37323da99788a6ee8f86cb22e180688f94e3036b0ae50f0b1964af5c93e5ca2",
+  "TLS_OPTIMIZATION_MEMO.md": "09ba2105b89b48d3d4d7c361e21c27f6e420884fe1f8648b5a800a74356d5836"
+}
