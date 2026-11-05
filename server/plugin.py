@@ -47,7 +47,8 @@ def tool(name, description, properties=None, required=(), read_only=True):
     return {"name": name, "description": description,
             "inputSchema": schema(properties, required),
             "annotations": {"readOnlyHint": read_only, "destructiveHint": False,
-                            "openWorldHint": False}}
+                            "openWorldHint": False},
+            "_meta": {"securitySchemes": [{"type": "oauth2", "scopes": SCOPE.split()}]}}
 
 
 TOOLS = [
@@ -157,8 +158,9 @@ class PluginGateway(Gateway):
                 "response_types_supported": ["code"],
                 "grant_types_supported": ["authorization_code", "refresh_token"],
                 "scopes_supported": SCOPE.split(),
+                "authorization_response_iss_parameter_supported": True,
                 "code_challenge_methods_supported": ["S256"],
-                "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"],
+                "token_endpoint_auth_methods_supported": ["none"],
             })
         if path == "/mcp/oauth/register" and method == "POST":
             payload = self.json_request(env, 4096)
@@ -286,7 +288,7 @@ class PluginGateway(Gateway):
             "resource": self.base_url + "/mcp",
         }, 120)
         location = flow["redirect_uri"] + "?" + urlencode({
-            "code": code, "state": flow["state"]})
+            "code": code, "state": flow["state"], "iss": self.base_url})
         return 302, "", "text/html", [("Location", location)]
 
     def mcp_token(self, env):
@@ -302,6 +304,7 @@ class PluginGateway(Gateway):
             verifier = body.get("code_verifier", "")
             if (not item or item.get("client_id") != client_id or
                     item.get("resource") != self.base_url + "/mcp" or
+                    body.get("resource") != self.base_url + "/mcp" or
                     item.get("redirect_uri") != body.get("redirect_uri") or
                     not 43 <= len(verifier) <= 128 or
                     not re.fullmatch(r"[A-Za-z0-9._~-]+", verifier)):
@@ -319,7 +322,8 @@ class PluginGateway(Gateway):
             item = self.take(self.tokens, body.get("refresh_token", ""))
             if (not item or item.get("kind") != "refresh" or
                     item.get("client_id") != client_id or
-                    item.get("resource") != self.base_url + "/mcp"):
+                    item.get("resource") != self.base_url + "/mcp" or
+                    body.get("resource") != self.base_url + "/mcp"):
                 return self.respond({"error": "invalid_grant"}, 400)
             with self.lock:
                 item = self.take(self.tokens, body["refresh_token"], consume=True)
