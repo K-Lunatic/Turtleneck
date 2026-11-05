@@ -3,6 +3,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,7 +51,7 @@ class ConceptInsightTests(unittest.TestCase):
             analysis_records.save(root, "student", [other_source], {}, "concepts", {
                 "concepts": [{"concept": "네트워크", "explanation": "다른 과목 자료", "evidence": [other_source]}]
             })
-            with sqlite3.connect(root / "study-sessions.db") as db:
+            with closing(sqlite3.connect(root / "study-sessions.db")) as db, db:
                 db.execute("CREATE TABLE study_exams (user TEXT, state TEXT)")
                 db.execute("INSERT INTO study_exams VALUES (?, ?)", ("student", json.dumps({
                     "questions": [{"id": "q1", "concept": "배열", "evidence": [source]}],

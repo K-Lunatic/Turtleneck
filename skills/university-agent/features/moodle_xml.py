@@ -5,6 +5,7 @@ separate, explicitly targeted operation because it changes the school site.
 """
 from __future__ import annotations
 
+from contextlib import closing
 from html import escape
 import base64
 import hashlib
@@ -310,7 +311,7 @@ def export_exam(path: Path, output: Path, *, category: str = "$course$/top/터�
 def export_saved_exam(database_path: Path, user: str, exam_id: str, output: Path,
                       *, category: str = "$course$/top/터틀넥") -> dict:
     try:
-        with sqlite3.connect(database_path) as database:
+        with closing(sqlite3.connect(database_path)) as database, database:
             row = database.execute(
                 "SELECT state FROM study_exams WHERE user=? AND exam_id=?",
                 (user, exam_id),

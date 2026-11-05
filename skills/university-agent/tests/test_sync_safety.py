@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 import time
+from contextlib import closing
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -308,7 +309,7 @@ class SyncSafetyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'old.db'
             schema = (ROOT / 'database/schema.sql').read_text().replace('due_at TEXT,', 'due_at TEXT NOT NULL,', 1)
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.executescript(schema)
                 db.execute("INSERT INTO users VALUES ('u','u','user',NULL,'now','now')")
                 db.execute("INSERT INTO courses VALUES ('c','c','course',NULL,NULL,'tls','now')")

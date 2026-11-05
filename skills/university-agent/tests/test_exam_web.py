@@ -1,6 +1,7 @@
 """Saved exam -> HTTP answers -> host-AI rubric -> HTTP results, no live account."""
 import json
 import sqlite3
+from contextlib import closing
 import threading
 import socket
 import queue
@@ -395,7 +396,7 @@ class ExamWebTests(ProjectTestBase):
         self.assertEqual(len(started['rightTiles']), 6)
         self.assertNotEqual([item['id'] for item in started['leftTiles']], [item['id'] for item in started['rightTiles']])
         board = started
-        with sqlite3.connect(s.path) as db:
+        with closing(sqlite3.connect(s.path)) as db, db:
             saved = json.loads(db.execute('SELECT state FROM study_sessions WHERE conversation=?', ('exam',)).fetchone()[0])
         wrong_left, wrong_right = saved['match']['pairs'][0]['leftId'], saved['match']['pairs'][1]['rightId']
         board = s.call({'action': 'match_pick', 'matchId': board['matchId'],

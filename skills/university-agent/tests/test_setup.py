@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import closing, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,7 +27,7 @@ class SetupTests(unittest.TestCase):
             account = root / 'account.json'
             account.write_text(json.dumps({'username': 'student', 'passwordProtected': 'DO_NOT_READ'}))
             db = root / 'school.db'
-            with sqlite3.connect(db) as connection:
+            with closing(sqlite3.connect(db)) as connection, connection:
                 connection.execute('CREATE TABLE sync_state(user_id TEXT, state_key TEXT, state_value TEXT)')
                 connection.executemany('INSERT INTO sync_state VALUES(?,?,?)',
                                        [('student', 'course_ids', '[]'), ('student', 'course_fingerprints', '{}')])
@@ -48,7 +48,7 @@ class SetupTests(unittest.TestCase):
                 with LocalCache(cache) as store:
                     store.put('setup', {'view': 'initial'}, {'status': 'RUNNING'})
                 self.assertEqual(setup.status()['everytime']['status'], 'RUNNING')
-                with sqlite3.connect(cache) as connection:
+                with closing(sqlite3.connect(cache)) as connection, connection:
                     connection.execute("UPDATE cache_entries SET fetched_at='2000-01-01T00:00:00+00:00'")
                 self.assertEqual(setup.status()['everytime']['status'], 'PARTIAL')
 

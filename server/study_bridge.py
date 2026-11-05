@@ -6,6 +6,7 @@ import hashlib
 import os
 import secrets
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -90,7 +91,7 @@ def save_generated_exam(data_dir, db_path, user: str, conversation: str, payload
     path = root / "study-sessions.db"
     fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
     os.close(fd)
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db, db:
         db.execute("CREATE TABLE IF NOT EXISTS study_sessions (user TEXT, conversation TEXT, state TEXT, PRIMARY KEY(user,conversation))")
         db.execute("CREATE TABLE IF NOT EXISTS study_exams (user TEXT, exam_id TEXT, conversation TEXT, created_at TEXT, title TEXT, question_count INTEGER, phase TEXT, score REAL, state TEXT, PRIMARY KEY(user,exam_id))")
         title = payload.get("title") or "모바일 학습 팩 연습 시험"

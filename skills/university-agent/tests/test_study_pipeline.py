@@ -1,6 +1,7 @@
 """Offline staged extraction, bounded context and persisted resume checks."""
 import json
 import sqlite3
+from contextlib import closing
 from unittest.mock import patch
 import test_exam_web
 from test_project import ProjectTestBase, snapshot, upsert
@@ -174,13 +175,13 @@ class FilePipelineTests(ProjectTestBase):
         result = session.call({'action': 'assemble', 'candidateIds': choices, 'referenceUse': [
             {'referenceId': reference['id'], 'candidateIds': choices[1:], 'reason': '교수가 강조한 정렬 조건을 더 연습하도록 선택'}]})
         self.assertEqual(result['referenceUse'][0]['questionIds'], ['q2', 'q3'])
-        with sqlite3.connect(session.path) as db:
+        with closing(sqlite3.connect(session.path)) as db, db:
             state = json.loads(db.execute('SELECT state FROM study_sessions WHERE conversation=?', ('transcript',)).fetchone()[0])
             self.assertNotIn('examReferences', state['selection'])
             self.assertLess(len(json.dumps(state)), 50000)
             self.assertNotIn('text', state['examReferences'][0])
         session.call({'action': 'cancel'})
-        with sqlite3.connect(session.path) as db:
+        with closing(sqlite3.connect(session.path)) as db, db:
             saved = json.loads(db.execute('SELECT state FROM study_exams WHERE exam_id=?', (result['examId'],)).fetchone()[0])
             self.assertEqual(saved['referenceUse'], result['referenceUse'])
 
@@ -276,7 +277,7 @@ class FilePipelineTests(ProjectTestBase):
         public = session.call({'action': 'web_status'})
         self.assertEqual(len(public['questions']), 4)
         self.assertNotIn('rubric', json.dumps(public))
-        with sqlite3.connect(self.db_path.parent / 'study-sessions.db') as db:
+        with closing(sqlite3.connect(self.db_path.parent / 'study-sessions.db')) as db, db:
             saved = json.loads(db.execute('SELECT state FROM study_sessions').fetchone()[0])
             pipeline = json.loads(db.execute('SELECT state FROM study_pipelines WHERE user=? AND exam_id=?',
                 ('fixture-user', saved['analysisRef'])).fetchone()[0])
@@ -288,7 +289,7 @@ class FilePipelineTests(ProjectTestBase):
         for _ in range(4):
             prepared = self.extract_questions(self.session('pipeline'), prepared, [self.candidate(prepared)])
         path = self.db_path.parent / 'study-sessions.db'
-        with sqlite3.connect(path) as observer:
+        with closing(sqlite3.connect(path)) as observer, observer:
             before = observer.execute('PRAGMA data_version').fetchone()[0]
             original = observer.execute('SELECT state FROM study_sessions').fetchone()[0]
             self.session('pipeline').call({'action': 'catalog'})
@@ -325,7 +326,7 @@ class FilePipelineTests(ProjectTestBase):
         changed = self.session('third').call(request)
         self.assertTrue(changed['needsExtraction'])
         self.assertIn('새 내용', changed['hostOnly']['SOURCE'][0]['text'])
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db, db:
             db.execute("UPDATE resources SET download_status='PROHIBITED', download_reason='다운로드 금지' WHERE id='r0'")
         forbidden = self.session('fourth').call(request)
         self.assertEqual(forbidden['reusedFiles'], 3)
@@ -349,7 +350,7 @@ class FilePipelineTests(ProjectTestBase):
         for _ in range(4):
             p = self.extract_questions(self.session('pipeline'), p, [self.candidate(p)])
         session = self.session('pipeline')
-        with sqlite3.connect(self.files.parent / 'study-sessions.db') as db:
+        with closing(sqlite3.connect(self.files.parent / 'study-sessions.db')) as db, db:
             state = json.loads(db.execute('SELECT state FROM study_sessions').fetchone()[0])
         material = study_materials(session.provider.get_courses('fixture-user'), session.provider.get_resources('fixture-user'),
             files_root=self.files, course_id='course-1', resource_ids=['r3'], include_ids=True, max_chars=10000000)['data']['materials'][0]
@@ -360,7 +361,7 @@ class FilePipelineTests(ProjectTestBase):
         root = self.files.parent / 'cache'
         value = material_cache.get(root, 'analysis', 'fixture-user', state['pipeline']['analysisKey'])
         material_cache.put(root, 'analysis', 'fixture-user', old_key, value)
-        with sqlite3.connect(root / 'materials.db') as db:
+        with closing(sqlite3.connect(root / 'materials.db')) as db, db:
             db.execute('DELETE FROM material_cache WHERE kind=? AND key=?', ('analysis', state['pipeline']['analysisKey']))
         reused = self.session('upgrade').call({'action': 'request', 'selection': {'courseId': 'course-1', 'allFiles': True},
             'settings': {'count': 4, 'delivery': 'web'}})
@@ -386,7 +387,7 @@ class FilePipelineTests(ProjectTestBase):
         session = self.session('pipeline')
         session.call({'action': 'assemble', 'candidateIds': ['c1', 'c2', 'c3', 'c4']})
         path = self.files.parent / 'study-sessions.db'
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db, db:
             state = json.loads(db.execute('SELECT state FROM study_sessions').fetchone()[0])
             old = json.loads(db.execute('SELECT state FROM study_pipelines').fetchone()[0])
             old['largeOriginal'] = 'x' * 1000000
@@ -394,7 +395,7 @@ class FilePipelineTests(ProjectTestBase):
             db.execute('UPDATE study_sessions SET state=?', (json.dumps(state),))
         session.call({'action': 'start_exam', 'examId': state['examId']})
         session.call({'action': 'draft', 'examId': state['examId'], 'revision': 0, 'answers': {}})
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db, db:
             small = db.execute('SELECT state FROM study_sessions').fetchone()[0]
             preserved = db.execute('SELECT state FROM study_pipelines').fetchone()[0]
             self.assertLess(len(small), 50000)
@@ -422,7 +423,7 @@ class FilePipelineTests(ProjectTestBase):
         self.assertEqual(p['progress']['processedFiles'], 1)
 
     def test_prohibited_file_never_opened_and_exclusion_requires_consent(self):
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db, db:
             db.execute("UPDATE resources SET download_status='PROHIBITED', download_reason='다운로드 금지' WHERE id='r0'")
         with patch('features.study_materials.Path.read_text', side_effect=AssertionError('must not read forbidden file')):
             # Metadata restriction is checked before the text reader is called.

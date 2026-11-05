@@ -41,7 +41,7 @@ class StudyPackTests(unittest.TestCase):
             analysis_records.save(left, "student", [source], {}, "concepts", {
                 "concepts": [{"concept": "배열", "explanation": "연속 저장", "evidence": [source]}]
             })
-            with sqlite3.connect(left / "study-sessions.db") as db:
+            with closing(sqlite3.connect(left / "study-sessions.db")) as db, db:
                 db.execute("CREATE TABLE study_exams (user TEXT, exam_id TEXT, conversation TEXT, created_at TEXT, title TEXT, question_count INTEGER, phase TEXT, score REAL, state TEXT, PRIMARY KEY(user,exam_id))")
                 db.execute("INSERT INTO study_exams VALUES (?,?,?,?,?,?,?,?,?)", ("student", "exam-1", "chat", "2026-10-07", "자료구조", 1, "finished", 10, json.dumps({"sources": [{"courseId": "course-1"}]})))
                 db.commit()

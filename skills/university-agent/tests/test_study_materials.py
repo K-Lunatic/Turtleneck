@@ -25,11 +25,13 @@ class StudyMaterialsTests(ProjectTestBase):
                 'downloadStatus': 'PROHIBITED' if i == 4 else 'DOWNLOADED'})
         counts = {'active': 0, 'peak': 0}
         lock = threading.Lock()
+        batch = threading.Barrier(2)
         def read(path, extension, cache, image_root):
             self.assertNotEqual(path.name, 'source-4.txt')
             with lock:
                 counts['active'] += 1
                 counts['peak'] = max(counts['peak'], counts['active'])
+            batch.wait(timeout=2)
             time.sleep(0.02)
             with lock:
                 counts['active'] -= 1

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import json
 import sqlite3
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -24,7 +25,7 @@ class AnalysisRecordsTest(unittest.TestCase):
             sources = [{'resourceId': 'r', 'courseId': 'c', 'name': '자료', 'location': '1', 'text': 'ONLY_ONCE_TEXT'}]
             identifier = analysis_records.save(directory, 'u', sources, {}, 'exam_analysis',
                 {'units': [{'id': 'u1', 'sources': sources}], 'candidates': [], 'candidateCount': 0})
-            with sqlite3.connect(Path(directory) / 'analysis-records.db') as db:
+            with closing(sqlite3.connect(Path(directory) / 'analysis-records.db')) as db, db:
                 value = db.execute('SELECT value FROM analyses').fetchone()[0]
                 self.assertEqual(value.count('ONLY_ONCE_TEXT'), 1)
                 plan = db.execute('EXPLAIN QUERY PLAN SELECT metadata FROM analyses WHERE user=? AND (resource IN (?) OR resource LIKE ?) ORDER BY created DESC,id DESC LIMIT 20', ('u', 'r', 'attachment-%')).fetchall()

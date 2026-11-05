@@ -3,6 +3,7 @@ import base64
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from contextlib import closing
 from pathlib import Path
 
 from features.moodle_xml import MoodleXmlError, exam_to_xml, export_saved_exam, reference_to_xml
@@ -77,7 +78,7 @@ class MoodleXmlTests(unittest.TestCase):
             database_path = root / 'study-sessions.db'
             output = root / 'exam.xml'
             import sqlite3
-            with sqlite3.connect(database_path) as database:
+            with closing(sqlite3.connect(database_path)) as database, database:
                 database.execute('CREATE TABLE study_exams (user TEXT, exam_id TEXT, state TEXT)')
                 database.execute('INSERT INTO study_exams VALUES (?,?,?)',
                                  ('student', 'exam-1', json.dumps({'questions': [self.question()]})))

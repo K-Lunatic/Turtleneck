@@ -1,5 +1,6 @@
 """Grounded study state machine. Host AI generates and grades; code checks provenance/state."""
 from __future__ import annotations
+from contextlib import closing
 import json
 import hashlib
 import mimetypes
@@ -1000,7 +1001,7 @@ class StudySession:
         # Create private before opening SQLite, rather than chmod after writing sources.
         fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600); os.close(fd)
         os.chmod(self.path, 0o600)
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.row_factory = sqlite3.Row
             db.execute('CREATE TABLE IF NOT EXISTS study_sessions (user TEXT, conversation TEXT, state TEXT, PRIMARY KEY(user, conversation))')
             db.execute('CREATE TABLE IF NOT EXISTS study_exams (user TEXT, exam_id TEXT, conversation TEXT, created_at TEXT, title TEXT, question_count INTEGER, phase TEXT, score REAL, state TEXT, PRIMARY KEY(user,exam_id))')
