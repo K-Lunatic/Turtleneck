@@ -80,12 +80,14 @@ class PluginGatewayTests(unittest.TestCase):
         }, form=True)
         self.assertEqual(response["status"], 302)
         self.assertIn("state=state-123", response["headers"]["Location"])
+        self.assertIn("iss=https%3A%2F%2Ftls.example.test", response["headers"]["Location"])
         return parse_qs(urlsplit(response["headers"]["Location"]).query)["code"][0]
 
     def exchange(self, client, code, verifier=VERIFIER):
         return self.request("/mcp/oauth/token", "POST", {
             "grant_type": "authorization_code", "client_id": client,
             "code": code, "code_verifier": verifier, "redirect_uri": CALLBACK,
+            "resource": "https://tls.example.test/mcp",
         }, form=True)
 
     def connect(self, client, username="alice"):
@@ -109,6 +111,8 @@ class PluginGatewayTests(unittest.TestCase):
         self.assertEqual(resource["body"]["resource"], "https://tls.example.test/mcp")
         auth_server = self.request("/.well-known/oauth-authorization-server")
         self.assertEqual(auth_server["body"]["issuer"], "https://tls.example.test")
+        self.assertTrue(auth_server["body"]["authorization_response_iss_parameter_supported"])
+        self.assertEqual(auth_server["body"]["token_endpoint_auth_methods_supported"], ["none"])
         self.assertIn("S256", auth_server["body"]["code_challenge_methods_supported"])
         for bad in ["https://evil.example/oauth", "http://chatgpt.com/connector_platform_oauth_redirect",
                     "https://chatgpt.com.evil.org/connector_platform_oauth_redirect"]:
@@ -145,15 +149,19 @@ class PluginGatewayTests(unittest.TestCase):
         self.assertEqual(tools["status"], 200)
         self.assertTrue(any(item["name"] == "get_assignments"
                             for item in tools["body"]["result"]["tools"]))
+        self.assertEqual(
+            tools["body"]["result"]["tools"][0]["_meta"]["securitySchemes"],
+            [{"type": "oauth2", "scopes": ["academic:read", "academic:write"]}],
+        )
         old_refresh = valid["body"]["refresh_token"]
         refreshed = self.request("/mcp/oauth/token", "POST", {
             "grant_type": "refresh_token", "client_id": client,
-            "refresh_token": old_refresh,
+            "refresh_token": old_refresh, "resource": "https://tls.example.test/mcp",
         }, form=True)
         self.assertEqual(refreshed["status"], 200)
         self.assertEqual(self.request("/mcp/oauth/token", "POST", {
             "grant_type": "refresh_token", "client_id": client,
-            "refresh_token": old_refresh,
+            "refresh_token": old_refresh, "resource": "https://tls.example.test/mcp",
         }, form=True)["status"], 400)
 
     def test_tools_account_isolation_and_invalid_arguments(self):
