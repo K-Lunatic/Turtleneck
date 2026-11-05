@@ -15,6 +15,11 @@
   <a href="README.zh-CN.md">简体中文</a>
 </p>
 
+## Support the developer
+
+If Turtleneck helped you, you can [support the developer on GitHub Sponsors](https://github.com/sponsors/K-Lunatic).
+Choose a tier that feels right—physical therapy, coffee, or beer are all appreciated. Support is optional and does not unlock or restrict features.
+
 ## What it does
 
 Turtleneck organizes assignments, announcements, lectures, course files, schedules, and study records on the computer where it runs. It extracts readable material in small pieces for the current AI host and opens a local web exam instead of turning the chat into an exam screen.
@@ -27,7 +32,7 @@ Turtleneck organizes assignments, announcements, lectures, course files, schedul
 
 ## Quick start
 
-Requirements: a local Codex, Claude Code, or Gemini environment on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the signed `turtleneck-macos-arm64` or `turtleneck-windows-x64` no-install bundle from GitHub Releases; the launcher does not pipe a remote installer into a shell.
+Requirements: a local Codex, Claude Code, or Gemini environment on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the unsigned `turtleneck-macos-arm64-unsigned` or `turtleneck-windows-x64-unsigned` no-install bundle from GitHub Releases. Verify its checksum before running; the operating system may show a security warning.
 
 To use a no-install bundle, extract it and run `turtleneck` on macOS or `turtleneck.exe` on Windows. Register the plugin with the host's normal install command; the bundle supplies the local runner and Python runtime. See the [release policy](RELEASE.md) and [change log](CHANGELOG.md).
 

@@ -5,12 +5,14 @@
 1. `plugin.json`과 `.claude-plugin/plugin.json`의 버전을 같은 값으로 올립니다.
 2. 전체 테스트와 macOS·Windows CI를 통과시킵니다.
 3. `vMAJOR.MINOR.PATCH` 태그를 만듭니다.
-4. 릴리스 workflow가 운영체제별 무설치 번들을 만들고 서명합니다.
-5. 서명·체크섬이 확인된 GitHub Release만 공개합니다.
+4. 릴리스 workflow가 운영체제별 무서명 무설치 번들과 SHA-256 체크섬을 만듭니다.
+5. GitHub Release에 무서명 경고와 체크섬을 함께 공개합니다.
 6. `turtleneck` 브랜치와 마켓플레이스 메타데이터를 새 안정 버전으로 갱신합니다.
 
 마켓플레이스는 기본적으로 최신 안정 브랜치를 가리키고, 재현 가능한 설치가 필요한
 사용자는 특정 태그를 선택합니다. 릴리스 태그는 덮어쓰지 않습니다.
 
 공개 번들에는 비밀번호, 쿠키, 개인 강좌 ID, 원본 파일, DB, 학습 팩, 터널 설정을 넣지
-않습니다. 서명 키는 GitHub Actions secret으로만 제공하며 저장소에 커밋하지 않습니다.
+않습니다. 현재 번들은 코드 서명·Apple 공증을 하지 않으므로 macOS Gatekeeper와 Windows
+SmartScreen 경고가 표시될 수 있습니다. 사용자는 체크섬을 확인한 뒤 신뢰한 저장소의
+파일만 실행해야 합니다.

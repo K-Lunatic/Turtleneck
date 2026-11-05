@@ -13,7 +13,7 @@
 - 자료·HLS 음성 다운로드 동시성 및 학교 트래픽 보호 강화
 - 다운로드 캐시와 파일별 HTTP 재검증 유지
 - 일일 학사 확인 중복 실행 방지 및 변경 fingerprint 재사용
-- 공개 배포 전 macOS·Windows 테스트와 코드 서명을 강제하는 릴리스 workflow 추가
+- macOS·Windows 무서명 무설치 번들과 SHA-256 체크섬을 공개하는 릴리스 workflow 추가
 
 ## 0.5.8
 

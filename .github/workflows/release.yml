@@ -14,9 +14,9 @@ jobs:
       matrix:
         include:
           - os: macos-14
-            artifact: turtleneck-macos-arm64
+            artifact: turtleneck-macos-arm64-unsigned
           - os: windows-latest
-            artifact: turtleneck-windows-x64
+            artifact: turtleneck-windows-x64-unsigned
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -30,74 +30,6 @@ jobs:
         run: |
           python -m pip install pyinstaller==6.11.1
           pyinstaller packaging/turtleneck.spec --noconfirm --clean
-      - name: Refuse unsigned public release
-        shell: bash
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
-          WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            for value in "$APPLE_CERTIFICATE_BASE64" "$APPLE_CERTIFICATE_PASSWORD" "$APPLE_SIGNING_IDENTITY" "$APPLE_ID" "$APPLE_TEAM_ID" "$APPLE_APP_PASSWORD"; do
-              if [[ -z "$value" ]]; then
-                echo 'Missing Apple signing or notarization secret; refusing unsigned release.' >&2
-                exit 1
-              fi
-            done
-          else
-            for value in "$WINDOWS_PFX_BASE64" "$WINDOWS_PFX_PASSWORD"; do
-              if [[ -z "$value" ]]; then
-                echo 'Missing Windows signing secret; refusing unsigned release.' >&2
-                exit 1
-              fi
-            done
-          fi
-      - name: Sign macOS bundle
-        if: runner.os == 'macOS'
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        shell: bash
-        run: |
-          CERTIFICATE="$RUNNER_TEMP/turtleneck.p12"
-          KEYCHAIN="$RUNNER_TEMP/turtleneck.keychain-db"
-          echo "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE"
-          security create-keychain -p "$RUNNER_TEMP" "$KEYCHAIN"
-          security unlock-keychain -p "$RUNNER_TEMP" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security import "$CERTIFICATE" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$RUNNER_TEMP" "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN"
-          codesign --force --deep --options runtime --timestamp --sign "$SIGNING_IDENTITY" dist/turtleneck/turtleneck
-          codesign --verify --deep --strict dist/turtleneck/turtleneck
-          ditto -c -k --keepParent dist/turtleneck "$RUNNER_TEMP/turtleneck.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/turtleneck.zip" --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
-      - name: Sign Windows bundle
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
-          PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
-          TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
-        run: |
-          $pfx = Join-Path $env:RUNNER_TEMP 'turtleneck.pfx'
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
-          $signtool = Get-ChildItem ${env:ProgramFiles(x86)}\Windows Kits -Filter signtool.exe -Recurse | Select-Object -First 1
-          if (-not $signtool) { throw 'signtool.exe not found' }
-          $arguments = @('sign', '/fd', 'SHA256', '/f', $pfx, '/p', $env:PFX_PASSWORD)
-          if ($env:TIMESTAMP_URL) { $arguments += @('/tr', $env:TIMESTAMP_URL, '/td', 'SHA256') }
-          $arguments += 'dist\turtleneck\turtleneck.exe'
-          & $signtool.FullName @arguments
-          if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
       - name: Package and checksum
         shell: bash
         env:
@@ -134,4 +66,9 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body: |
+            This release contains unsigned desktop bundles.
+
+            macOS may show a Gatekeeper warning and Windows may show a SmartScreen warning.
+            Verify the SHA-256 checksums before extracting and run only from a trusted copy of this repository.
           files: release/*

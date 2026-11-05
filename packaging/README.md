@@ -16,16 +16,9 @@ dist/turtleneck/turtleneck --version
 The public release workflow runs the same build on macOS and Windows. It does
 not call the network, school login, or a real account during packaging tests.
 
-## Signing requirements
+## Public release policy
 
-Unsigned artifacts are only for CI validation. A public release must have:
-
-- macOS Developer ID Application certificate and notarization credentials:
-  `APPLE_CERTIFICATE_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
-  `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`.
-- Windows Authenticode certificate:
-  `WINDOWS_PFX_BASE64`, `WINDOWS_PFX_PASSWORD`, and optionally
-  `WINDOWS_TIMESTAMP_URL`.
-
-The release workflow fails rather than publishing unsigned public artifacts when
-these secrets are missing.
+Public desktop artifacts are intentionally unsigned. macOS may block the first launch
+with a Gatekeeper warning, and Windows may show a SmartScreen warning. Verify the
+published SHA-256 file before extracting and use only a copy obtained from the official
+repository release.

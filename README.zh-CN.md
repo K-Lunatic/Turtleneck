@@ -15,6 +15,11 @@
   简体中文
 </p>
 
+## 支持开发者
+
+如果 Turtleneck 对你有帮助，可以在 [GitHub Sponsors 支持开发者](https://github.com/sponsors/K-Lunatic)。
+可以选择适合自己的档位：物理治疗、咖啡或啤酒都很感谢。支持完全自愿，不会解锁或限制功能。
+
 ## 功能
 
 Turtleneck 会在运行它的电脑上整理作业、通知、课程视频、课程文件、课表和学习记录。它会把可读取的资料拆成小段交给当前 AI，并打开本地网页试卷，而不是把聊天窗口当作考试页面。
@@ -27,7 +32,7 @@ Turtleneck 会在运行它的电脑上整理作业、通知、课程视频、课
 
 ## 快速开始
 
-要求：macOS 或 Windows 上的本地 Codex、Claude Code 或 Gemini 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载带签名的 `turtleneck-macos-arm64` 或 `turtleneck-windows-x64` 免安装包；启动器不会把远程安装脚本直接通过管道交给 Shell 执行。
+要求：macOS 或 Windows 上的本地 Codex、Claude Code 或 Gemini 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载未签名的 `turtleneck-macos-arm64-unsigned` 或 `turtleneck-windows-x64-unsigned` 免安装包。运行前请先核对校验和，操作系统可能显示安全警告。
 
 使用免安装包时，解压后运行 macOS 的 `turtleneck` 或 Windows 的 `turtleneck.exe`。插件仍按 Codex、Claude Code 等宿主的正常安装命令注册；免安装包只提供本地运行器和 Python 运行时。请参阅[发布策略](RELEASE.md)和[变更记录](CHANGELOG.md)。
 

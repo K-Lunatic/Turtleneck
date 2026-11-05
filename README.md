@@ -34,6 +34,11 @@
 
 ---
 
+## 개발자 응원
+
+터틀넥이 도움이 됐다면 [GitHub Sponsors에서 개발자를 응원](https://github.com/sponsors/K-Lunatic)할 수 있어요.
+물리치료비, 커피비, 맥주비처럼 편한 이름과 금액을 선택해 주세요. 후원은 선택 사항이며 기능이나 지원 범위를 제한하지 않습니다.
+
 ## 터틀넥은 무엇인가요?
 
 과제, 공지, 강의자료, 시험 준비가 여러 화면에 흩어져 있을 때 생기는 번거로움을 줄이는 **컴퓨터용 학습 스킬**입니다.
@@ -55,7 +60,7 @@
 
 ### 1. 설치
 
-로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 macOS·Windows 컴퓨터에서는 GitHub Releases의 서명된 `turtleneck-macos-arm64` 또는 `turtleneck-windows-x64` 무설치 번들을 사용할 수 있습니다. 원격 설치 스크립트를 자동 실행하지 않아 첫 설치 과정도 사용자가 확인할 수 있습니다.
+로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 macOS·Windows 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-arm64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 체크섬을 확인한 뒤 실행하세요.
 
 무설치 번들은 압축을 푼 뒤 macOS의 `turtleneck` 또는 Windows의 `turtleneck.exe`를 실행합니다. 플러그인 자체는 사용하는 Codex·Claude Code의 설치 명령으로 등록하고, 번들은 로컬 실행기와 Python 런타임을 제공하는 방식입니다. 배포 절차는 [릴리스 정책](RELEASE.md), 변경 내역은 [변경 기록](CHANGELOG.md)에서 확인할 수 있습니다.
 
