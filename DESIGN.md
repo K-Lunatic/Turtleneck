@@ -17,6 +17,9 @@ colors:
   focus: "#2f7a56"
   errata: "#b83d24"
   errata-tint: "#f8e7e2"
+  errata-line: "#ecc7bd"
+  on-shelf: "#d6e8dd"
+  alert-on-shelf: "#ffd2c6"
   band-1: "#2f7a56"
   band-2: "#7fb592"
   band-3: "#1d4d3a"
@@ -47,6 +50,11 @@ typography:
     fontSize: "17px"
     fontWeight: 500
     lineHeight: 1.7
+  answer:
+    fontFamily: "Apple SD Gothic Neo, Malgun Gothic, 맑은 고딕, Noto Sans KR, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.7
   body:
     fontFamily: "Apple SD Gothic Neo, Malgun Gothic, 맑은 고딕, Noto Sans KR, system-ui, sans-serif"
     fontSize: "15px"
@@ -68,6 +76,7 @@ typography:
     lineHeight: 1.7
 rounded:
   none: "0px"
+  bar: "2px"
   tag: "4px"
   control: "6px"
   surface: "8px"
@@ -218,11 +227,12 @@ components:
 **Character:** macOS와 Windows의 기본 한글 고딕 하나로 모든 위계를 굵기와 크기만으로 만든다. 오프라인·시스템 폰트 제약을 그대로 받아들인, 안내판처럼 담백한 글자다. 본문은 `word-break: keep-all`로 어절 단위로 줄을 바꾼다.
 
 ### Hierarchy
-- **Score** (800, 44px / 880px 이하 34px, 1.05, -0.03em): 채점 후 오른쪽 위 점수. 뒤의 "/ 100"은 20px 600 `ink-2`.
-- **Headline** (800, 26px / 880px 이하 22px, 1.35, -0.02em): 시험지·세트·매칭 페이지 제목.
+- **Score** (800, 44px / 880px 이하 32px, 1.05, -0.03em): 채점 후 오른쪽 위 점수. 뒤의 "/ 100"은 17px 600 `ink-2`.
+- **Headline** (800, 26px, 1.35, -0.02em): 시험지·세트·매칭 페이지 제목.
 - **Question Number** (800, 32px, 1): 문항 번호. 결과에 따라 `shelf` 또는 `errata`로 물든다.
 - **Question** (500, 17px, 1.7, 최대 68ch): 문제 본문.
-- **Body** (400, 15px, 1.6): 기본 본문. 선택지와 입력은 16px.
+- **Answer** (400, 16px, 1.7): 선택지와 답안 입력. 입력칸은 iOS 확대를 피하려고 16px 아래로 내리지 않는다.
+- **Body** (400, 15px, 1.6): 기본 본문.
 - **Label** (700, 13px, 1.35): 출처 라벨 이름 줄, 결과 글자(14px), 정의 목록 머리(13px).
 - **Meta** (400, 12~13px, `ink-2`): 라벨 위치 줄, 시간, 진행, 도움말.
 - **Code** (14px, 1.7, 시스템 모노, tab-size 4): `pre`와 코드 입력.
@@ -258,7 +268,7 @@ components:
 
 ## Shapes
 
-모서리는 쓰임에 따라 네 단계다. 출처 라벨과 매칭 타일은 각진 모서리(0), 유형 칩과 선택지 태그는 4px, 버튼·입력·선택지 행·패널은 6px, 작업면 카드는 8px. 선택지 원은 완전한 원(26px), 복수 선택은 5px 둥근 사각형이다. 띠와 막대만 2px로 끝을 살짝 굴린다. 테두리는 1px이 기본이고, 색 띠만 위쪽 3~4px로 두껍다. 마스코트 아이콘은 흰 원 안에 놓인다.
+모서리는 쓰임에 따라 네 단계다. 출처 라벨과 매칭 타일은 각진 모서리(0), 유형 칩과 선택지 태그는 4px, 버튼·입력·선택지 행·패널은 6px, 작업면 카드는 8px. 선택지 원은 완전한 원(26px), 복수 선택은 4px 둥근 사각형이다. 띠와 막대만 2px로 끝을 살짝 굴린다. 테두리는 1px이 기본이고, 색 띠만 위쪽 3~4px로 두껍다. 마스코트 아이콘은 흰 원 안에 놓인다.
 
 ## Components
 

@@ -51,7 +51,8 @@ async function checkSaveRace() {
   const script = fs.readFileSync(require('node:path').join(__dirname, '../assets/exam.js'), 'utf8');
   const elements = {};
   let finish;
-  const context = {$: id => elements[id] || (elements[id] = {}), error() {},
+  const context = {$: id => elements[id] || (elements[id] = {classList: {add() {}, remove() {}}}), error() {},
+    clearBackup() {}, isConflict: () => false, conflict() {},
     api: () => new Promise(resolve => { finish = () => resolve({revision: 1}); })};
   vm.createContext(context);
   vm.runInContext("let exam={readOnly:false,examId:'test'},drafts={q1:'old'},revision=0,saving=Promise.resolve(),dirty=true,editVersion=1;" +
@@ -102,3 +103,23 @@ async function checkPolling() {
   console.log('Result polling: OK (no overlap, submission race, stops after grading)');
 }
 checkPolling().catch(error => { console.error(error); process.exitCode = 1; });
+
+// A refresh restores this tab's unsaved answers, never overwrites a checked question, then saves once.
+(function checkBackupRestore() {
+  const script = fs.readFileSync(require('node:path').join(__dirname, '../assets/exam.js'), 'utf8');
+  const store = {'exam-draft:e1': JSON.stringify({q1: '서버와 같음', q2: '저장 안 된 답', q3: '확인한 문항'})};
+  let saves = 0, rendered = 0;
+  const elements = {};
+  const context = {$: id => elements[id] || (elements[id] = {}), render() { rendered++; }, saveDraft() { saves++; return new Promise(() => {}); },
+    sessionStorage: {getItem: key => store[key] ?? null, setItem(key, value) { store[key] = value; }, removeItem(key) { delete store[key]; }}};
+  vm.createContext(context);
+  vm.runInContext("let exam={examId:'e1',readOnly:false,status:'question',feedback:[{questionId:'q3'}],drafts:{q1:'서버와 같음',q2:'',q3:'서버 답'},questions:[{id:'q1'},{id:'q2'},{id:'q3'}]},dirty=false,editVersion=0;" +
+    script.slice(script.indexOf('const backupKey'), script.indexOf('// Server wording')), context);
+  vm.runInContext('restoreBackup()', context);
+  const exam = vm.runInContext('exam', context);
+  assert.equal(exam.drafts.q2, '저장 안 된 답');
+  assert.equal(exam.drafts.q3, '서버 답');
+  assert.equal(saves, 1); assert.equal(rendered, 1);
+  assert.match(elements.saved.textContent, /1개/);
+  console.log('Draft backup: OK (restores unsaved answers only, saves once)');
+})();

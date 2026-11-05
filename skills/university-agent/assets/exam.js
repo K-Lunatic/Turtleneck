@@ -32,6 +32,40 @@ async function api(path, data) {
   if (!response.ok) throw new Error(result.error || '시험지 연결을 확인해주세요.');
   return result;
 }
+// Unsaved answers are mirrored in this tab, so a refresh, a stopped local server or a conflict never loses typing.
+const backupKey = () => 'exam-draft:' + exam.examId;
+function backup() { try { sessionStorage.setItem(backupKey(), JSON.stringify(drafts)); } catch (_) { /* Storage blocked: the save line still says what is unsaved. */ } }
+function clearBackup() { try { sessionStorage.removeItem(backupKey()); } catch (_) {} }
+function restoreBackup() {
+  if (exam.readOnly || exam.status !== 'question' || exam.webStarted === false) return;
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(backupKey()) || 'null'); } catch (_) { return; }
+  if (!saved || typeof saved !== 'object') return;
+  const checked = new Set((exam.feedback || []).map(item => item.questionId));
+  const changed = exam.questions.filter(q => !checked.has(q.id) && typeof saved[q.id] === 'string' && saved[q.id] !== (exam.drafts[q.id] || ''));
+  if (!changed.length) { clearBackup(); return; }
+  changed.forEach(q => { exam.drafts[q.id] = saved[q.id]; });
+  render(exam); editVersion++; dirty = true;
+  $('saved').textContent = '저장되지 않았던 답안 ' + changed.length + '개를 이 창에서 되살렸어요';
+  // Keep the count visible after the save line updates, so the restore is not missed.
+  saveDraft().then(() => { if (!dirty) $('saved').textContent = '되살린 답안 ' + changed.length + '개까지 저장했어요'; }, () => {});
+}
+// Server wording for a stale revision (study.py draft check); the only error that offers a choice.
+const isConflict = e => String(e?.message || '').startsWith('다른 시험 창');
+function conflict() {
+  const keep = node('button', '이 창 답안으로 덮어쓰기', 'button'), take = node('button', '최신 답안 불러오기', 'button'), actions = node('div', undefined, 'error-actions');
+  keep.type = take.type = 'button';
+  keep.addEventListener('click', async () => {
+    try { revision = (await api('/api/exam')).revision; editVersion++; dirty = true; await saveDraft(); } catch (_) { /* saveDraft already reported it. */ }
+  });
+  take.addEventListener('click', async () => {
+    try { clearBackup(); dirty = false; render(await api('/api/exam')); error(''); } catch (e) { error(e.message); }
+  });
+  actions.append(keep, take);
+  $('error').replaceChildren(node('p', '다른 창에서 이 시험의 답안이 바뀌었어요. 어느 쪽 답안을 남길까요?'), actions);
+  $('error').hidden = false;
+}
+function questionError(q, message) { const box = $('q-error-' + q.id); if (box) { box.textContent = message; box.hidden = !message; } }
 // Call-number style label: source name on top, exact location under it.
 function sourceLabel(sources, className) {
   if (!Array.isArray(sources) || !sources.length) return null;
@@ -125,17 +159,22 @@ function saveDraft() {
     revision = result.revision;
     dirty = editVersion !== version;
     $('saved').textContent = dirty ? '새로 쓴 답안도 저장하고 있어요…' : '답안 저장 완료';
+    $('saved').classList.remove('failed');
+    if (!dirty) clearBackup();
     error('');
   });
-  // A failed save blocks this submission; the next edit may retry the connection.
-  saving.catch(e => error(e.message));
+  // A failed save blocks this submission; the answers stay in this tab and the next edit retries.
+  saving.catch(e => {
+    $('saved').textContent = '저장하지 못했어요 · 답안은 이 창에 보관 중'; $('saved').classList.add('failed');
+    if (isConflict(e)) conflict(); else error(e.message);
+  });
   return saving;
 }
 function setDraft(q, value) {
   if (submitting || exam.readOnly || exam.status !== 'question') return;
   focusQuestion(q);
   drafts[q.id] = value;
-  editVersion++;
+  editVersion++; backup();
   $('row-' + q.id).replaceWith(navRow(q, exam.questions.indexOf(q)));
   progress(); resetConfirm(); clearTimeout(timer);
   dirty = true; $('saved').textContent = '답안 변경됨';
@@ -166,6 +205,8 @@ function confusionButton(q) {
 function define(list, term, text, className) { list.append(node('dt', term), node('dd', text, className)); }
 function options(q, feedback) {
   const answering = exam.status === 'question' && !exam.readOnly && !feedback, list = node('ol', undefined, 'options' + (answering ? '' : ' graded'));
+  // The question text names the group, so a screen reader hears the question before each option.
+  list.setAttribute('role', q.responseFormat === 'multi_choice' ? 'group' : 'radiogroup'); list.setAttribute('aria-labelledby', 'q-text-' + q.id);
   q.options.forEach((option, n) => {
     const row = node(answering ? 'label' : 'div', undefined, 'option');
     if (answering) {
@@ -228,10 +269,13 @@ function answerInput(q, index) {
   if (q.type === 'short') input.type = 'text'; else input.rows = 4;
   if (q.responseFormat === 'code') input.spellcheck = false;
   input.maxLength = 50000; input.value = drafts[q.id] || '';
-  input.setAttribute('aria-label', (index + 1) + '번 답안');
+  input.setAttribute('aria-label', (index + 1) + '번 답안'); input.setAttribute('aria-describedby', 'q-text-' + q.id);
   input.placeholder = q.responseFormat === 'code' ? '코드를 써 주세요' : q.type === 'short' ? '답' : '답을 문장으로 써 주세요';
-  input.addEventListener('input', () => setDraft(q, input.value));
-  return input;
+  const wrap = node('div', undefined, 'answer-field'), limit = node('p', '답안은 50,000자까지 쓸 수 있어요. 더 쓴 내용은 저장되지 않아요.', 'field-limit');
+  limit.hidden = input.value.length < 50000;
+  input.addEventListener('input', () => { limit.hidden = input.value.length < 50000; setDraft(q, input.value); });
+  wrap.append(input, limit);
+  return wrap;
 }
 function myAnswer(list, q) {
   if (q.responseFormat !== 'choice' && q.responseFormat !== 'multi_choice') define(list, '내 답', answered(q) ? displayAnswer(q, drafts[q.id]) : '답을 쓰지 않았어요.', q.responseFormat === 'code' && answered(q) ? 'code' : '');
@@ -242,6 +286,7 @@ function result(q, feedback) {
   const correct = feedback.outcome === 'correct', box = node(correct ? 'details' : 'div', undefined, 'result'), list = node('dl');
   const label = OUTCOME[feedback.outcome] || '결과를 확인했어요';
   const outcome = node(correct ? 'summary' : 'p', undefined, 'outcome ' + feedback.outcome);
+  outcome.id = 'outcome-' + q.id; if (!correct) outcome.tabIndex = -1;
   outcome.append(feedback.outcome === 'pending' ? label : label + ' ' + feedback.score + '/' + feedback.points + '점');
   if (correct) outcome.append(' ', node('span', '해설 보기', 'more'));
   box.append(outcome);
@@ -276,6 +321,7 @@ function timeBar(q) {
 }
 function questionItem(q, index, feedback) {
   const item = node('li', undefined, 'question' + (feedback ? ' is-' + feedback.outcome : '')), body = node('div', undefined, 'body'), text = node('p', q.question, 'q-text');
+  text.id = 'q-text-' + q.id;
   item.id = 'q-' + index;
   item.addEventListener('pointerdown', () => focusQuestion(q)); item.addEventListener('focusin', () => focusQuestion(q));
   const head = node('div', undefined, 'question-head'), meta = node('div', undefined, 'q-meta');
@@ -300,6 +346,7 @@ function questionItem(q, index, feedback) {
     const list = node('dl'); myAnswer(list, q);
     if (list.childElementCount) body.append(list);
   }
+  const qError = node('p', '', 'q-error'); qError.id = 'q-error-' + q.id; qError.setAttribute('role', 'alert'); qError.hidden = true; body.append(qError);
   item.append(body);
   return item;
 }
@@ -320,13 +367,14 @@ function navRow(q, index, feedback) {
 }
 async function submitQuestion(q, button) {
   if (submitting || exam.readOnly || exam.status !== 'question' || (exam.feedback || []).some(item => item.questionId === q.id)) return;
-  if (!answered(q)) { error('먼저 답을 입력해주세요.'); return; }
-  submitting = true; button.disabled = true; document.body.classList.add('busy'); clearTimeout(timer); error('');
+  if (!answered(q)) { questionError(q, '먼저 답을 입력해주세요.'); return; }
+  submitting = true; button.disabled = true; document.body.classList.add('busy'); clearTimeout(timer); error(''); questionError(q, '');
   try {
     await focusRequest;
     await saveDraft();
     render(await api('/api/answer', {examId: exam.examId, questionId: q.id, text: drafts[q.id] || '', revision}));
-  } catch (e) { error(e.message); button.disabled = false; }
+    $('outcome-' + q.id)?.focus?.();
+  } catch (e) { if (!isConflict(e)) questionError(q, e.message); button.disabled = false; }
   finally { submitting = false; document.body.classList.remove('busy'); }
 }
 function answerButton(q) {
@@ -427,9 +475,11 @@ async function submit() {
     const blank = exam.questions.map((q, i) => answered(q) ? '' : (i + 1) + '번').filter(Boolean);
     $('confirm-text').textContent = (blank.length ? blank.join(', ') + ' 문항이 비어 있어요. 빈 답안은 미응답으로 제출돼요. ' : '') + '제출하면 답안을 고칠 수 없어요.';
     $('confirm-text').hidden = false; $('cancel').hidden = false;
-    $('submit').textContent = '제출하기'; $('submit').dataset.armed = '1';
+    $('submit').textContent = '제출하기'; $('submit').dataset.armed = String(Date.now());
     return;
   }
+  // A double click lands both presses here; only a deliberate second press submits.
+  if (Date.now() - Number($('submit').dataset.armed) < 600) return;
   const submittedAnswers = {...drafts};
   submitting = true; document.body.classList.add('busy');
   $('exam').querySelectorAll('input,textarea,button').forEach(el => { el.disabled = true; });
@@ -438,11 +488,12 @@ async function submit() {
     await focusRequest;
     await saveDraft();
     render(await api('/api/submit', {examId: exam.examId, answers: submittedAnswers, revision}));
+    clearBackup(); $('notice').focus?.();
   } catch (e) { error(e.message); $('exam').querySelectorAll('input,textarea,button').forEach(el => { el.disabled = false; }); }
   finally { submitting = false; document.body.classList.remove('busy'); }
 }
 $('submit').addEventListener('click', submit);
-$('cancel').addEventListener('click', resetConfirm);
+$('cancel').addEventListener('click', () => { resetConfirm(); $('submit').focus?.(); });
 $('history-toggle').addEventListener('click', openHistory);
 $('history-close').addEventListener('click', () => { $('history-panel').hidden = true; });
 $('start').addEventListener('click', async () => {
@@ -457,6 +508,7 @@ window.addEventListener('beforeunload', event => {
 });
 (async () => {
   try { render(await api('/api/exam')); } catch (e) { $('title').textContent = '시험지를 열지 못했어요'; $('submit-area').hidden = true; error(e.message); return; }
+  restoreBackup();
   if (exam.readOnly || exam.status === 'finished') return;
   const poll = async () => {
     if (exam.status === 'finished') return;

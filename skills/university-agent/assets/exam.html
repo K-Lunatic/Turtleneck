@@ -26,14 +26,14 @@
       <button id="cancel" class="button" type="button" hidden>계속 풀기</button>
       <p id="submit-help" class="submit-help">제출하면 답안을 고칠 수 없어요.</p>
     </div>
-    <p id="error" class="error" role="alert" hidden></p>
   </aside>
   <main class="paper">
     <div class="paper-head">
       <div class="paper-title"><h1 id="title">시험지를 가져오고 있어요</h1><p id="total" class="subtitle"></p></div>
       <p id="score" class="score" hidden><span class="score-label">점수</span><span class="score-number"><span id="score-got"></span><span id="score-total" class="score-total"></span></span></p>
     </div>
-    <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+    <p id="notice" class="notice" role="status" aria-live="polite" tabindex="-1" hidden></p>
+    <div id="error" class="error page-error" role="alert" hidden></div>
     <a id="sets-link" class="set-return" href="/" hidden>문제 세트 목록으로 돌아가기</a>
     <section id="review" class="review" aria-labelledby="review-title" hidden><h2 id="review-title">다시 볼 개념</h2><ul id="review-list"></ul></section>
     <section id="start-panel" class="start-panel" hidden aria-labelledby="start-title"><h2 id="start-title">준비됐나요?</h2><p>시작 버튼을 누르면 문제와 선택지가 공개되고 풀이 시간이 시작돼요.</p><button id="start" class="button primary" type="button">시험 시작하기</button></section>
