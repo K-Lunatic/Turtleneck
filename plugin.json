@@ -40,24 +40,12 @@
         "release_notes": "English and Simplified Chinese listing translations, public privacy/terms/support pages, and the formal mobile Actions support scope.",
         "translations": {
           "en": {
-            "displayName": "Turtleneck",
-            "shortDescription": "Local university study helper",
-            "longDescription": "Turtleneck organizes courses, assignments, lectures, notices, Everytime timetable data, and study records on the user's Mac or Windows computer. It reads permitted local course files in bounded sections, keeps source locations, and hands only the needed excerpts to the current AI host for grounded study materials, translation, question generation, and grading. A supported optional ChatGPT Actions gateway provides limited mobile lookup and web-exam handoff while the owner's computer remains online. It does not provide device-to-device database sync or a school-wide hosted service.",
-            "defaultPrompt": [
-              "Tell me what I should do first today",
-              "Save my current study progress",
-              "Help me study from this course material"
-            ]
+            "subtitle": "Local university study helper",
+            "description": "Turtleneck organizes courses, assignments, lectures, notices, Everytime timetable data, and study records on the user's Mac or Windows computer. It reads permitted local course files in bounded sections, keeps source locations, and hands only the needed excerpts to the current AI host for grounded study materials, translation, question generation, and grading. A supported optional ChatGPT Actions gateway provides limited mobile lookup and web-exam handoff while the owner's computer remains online. It does not provide device-to-device database sync or a school-wide hosted service."
           },
           "zh-CN": {
-            "displayName": "Turtleneck",
-            "shortDescription": "本地大学学习助手",
-            "longDescription": "Turtleneck 在用户的 Mac 或 Windows 电脑上整理课程、作业、讲座、通知、Everytime 课表和学习记录。它会分段读取允许使用的本地课程文件，保留来源位置，只把必要内容交给当前 AI，用于学习资料、翻译、题目生成和评分。可选的 ChatGPT Actions 网关支持有限的移动端查询和网页试卷交接，但用户电脑必须保持在线。它不提供设备之间的数据库同步，也不是面向全校的托管服务。",
-            "defaultPrompt": [
-              "告诉我今天应该先做什么",
-              "保存我当前的学习进度",
-              "用这份课程资料帮我学习"
-            ]
+            "subtitle": "本地大学学习助手",
+            "description": "Turtleneck 在用户的 Mac 或 Windows 电脑上整理课程、作业、讲座、通知、Everytime 课表和学习记录。它会分段读取允许使用的本地课程文件，保留来源位置，只把必要内容交给当前 AI，用于学习资料、翻译、题目生成和评分。可选的 ChatGPT Actions 网关支持有限的移动端查询和网页试卷交接，但用户电脑必须保持在线。它不提供设备之间的数据库同步，也不是面向全校的托管服务。"
           }
         }
       }
