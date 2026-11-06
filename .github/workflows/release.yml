@@ -3,6 +3,12 @@ name: Release Turtleneck
 on:
   push:
     tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing or new release tag to update
+        required: true
+        default: v0.6.1
 
 permissions:
   contents: write
@@ -13,8 +19,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            artifact: turtleneck-macos-arm64-unsigned
+          - os: macos-13
+            artifact: turtleneck-macos-x64-unsigned
           - os: windows-latest
             artifact: turtleneck-windows-x64-unsigned
     runs-on: ${{ matrix.os }}
@@ -65,7 +71,8 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          generate_release_notes: false
           body: |
             This release contains unsigned desktop bundles.
 
