@@ -1,0 +1,16 @@
+{
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "branch": "experiment/rust-core-refactor",
+  "baseline_commit": "1a4f7e6",
+  "previous_commit": "1a4f7e618cdfa341a96c096404a1f8cd3ff8bd0d",
+  "production_commit": "3dff972874ce2607d21843a13c70b44bb0586057",
+  "pypdf_live_test": "6.21.4",
+  "pillow_live_test": "13.0.0",
+  "dependencies_location": "Private parent workspace test folder; not installed globally.",
+  "local_benchmark_samples": 30,
+  "final_questions": 30,
+  "live_samples_are_paired_inference": false,
+  "source_data_committed": false,
+  "model_settings_changed": false
+}

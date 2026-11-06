@@ -28,6 +28,7 @@ PROMPT = '''역할: 제공된 수업자료로 연습문제를 만들고 채점�
 - 순서 배열형은 `blocks`의 각 블록을 한 번씩 올바른 순서로 배치하게 만들고, 정답은 블록 번호 배열로 보관한다.
 - 코딩 자료는 예제 기반 오류 수정이나 실행 결과 예측 문제를 우선한다. 코드를 실행하지 않는다.
 - 각 문제에는 핵심 개념, 해설, 평가 기준, 실제 자료의 위치와 짧은 원문 근거를 포함한다.
+- 생성 결과는 JSON으로 한 번에 제출한다. 유형에 필요 없는 선택 필드나 빈 배열·빈 문자열은 반복하지 않는다. 해설·힌트·평가 기준은 정답 판단에 필요한 내용만 간결하게 쓰고, 코드·조건·근거는 생략하지 않는다.
 - 개념 중요도는 `importanceBySource`로 출처별로 나눈다. 에타 강의평, AI 평가, 인터넷 평가,
   교수 전사문·공지의 점수와 이유를 섞지 말고, AI 평가를 공식 정답이나 시험 출제 보장으로 표현하지 않는다.
 - 사용자가 남긴 학습·시험 메모는 출제 형식, 난이도, 시간 배분과 설명 방식만 조절하는 참고다.
@@ -1125,7 +1126,7 @@ class StudySession:
 
     def transition(self, state, event):
         action = event.get('action')
-        if (action in ('status', 'accept', 'generate', 'extract', 'catalog', 'unit', 'candidate', 'assemble') and
+        if (action in ('status', 'accept', 'generate', 'extract', 'extract_batch', 'catalog', 'unit', 'candidate', 'assemble') and
             state['phase'] in ('prepared', 'offered', 'extracting', 'assembling')):
             pipeline = state.get('pipeline', {})
             ids = {s['resourceId'] for s in state.get('sources', [])}

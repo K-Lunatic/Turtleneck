@@ -100,6 +100,19 @@ class StudyMaterialsTests(ProjectTestBase):
         with patch('features.study_materials.PdfReader', return_value=reader), patch('features.study_materials.shutil.which', side_effect=lambda name: 'pdftotext' if name == 'pdftotext' else None), patch('features.study_materials.subprocess.run', return_value=SimpleNamespace(returncode=0, stdout='대체 추출 성공')):
             self.assertEqual(attached_material(str(pdf))['sections'][0]['text'], '대체 추출 성공')
 
+    def test_missing_optional_image_library_keeps_pdf_text(self):
+        class Page:
+            def extract_text(self):
+                return '본문은 읽을 수 있습니다.'
+            @property
+            def images(self):
+                raise ImportError('Pillow not installed')
+        path = self.files / 'text-only.pdf'
+        reader = SimpleNamespace(is_encrypted=False, pages=[Page()])
+        with patch('features.study_materials.PdfReader', return_value=reader), patch('features.study_materials.shutil.which', return_value=None):
+            pages = _pdf_sections([path], Path('unused.swift'), self.files / 'cache')
+        self.assertEqual(pages[str(path.resolve())][0]['text'], '본문은 읽을 수 있습니다.')
+
     def test_portable_reader_real_pdf_without_swift_or_poppler(self):
         from features.study_materials import PdfReader
         if PdfReader is None:

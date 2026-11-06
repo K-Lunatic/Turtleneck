@@ -92,7 +92,7 @@ class FilePipelineTests(ProjectTestBase):
     def test_twenty_question_budget_scales_with_files_without_losing_source(self):
         state = {'settings': {'count': 20, 'choices': 4, 'difficulty': '보통', 'types': ['auto'] * 20}, 'selection': {'courseId': 'course-1'},
                  'pipeline': {'files': [f'r{i}' for i in range(7)], 'units': [], 'candidates': []}}
-        text = 'x' * 24000
+        text = 'x' * (CHUNK_CHARS * 3)
         load_chunks(state, {'id': 'r0', 'title': '자료', 'extension': 'pdf',
                             'contentKey': 'test', 'sections': [{'location': 'p.1', 'text': text}]})
         self.assertEqual(state['pipeline']['candidateTarget'], 2)
@@ -110,7 +110,13 @@ class FilePipelineTests(ProjectTestBase):
         larger = self.session('larger-count').call({'action': 'request',
             'selection': {'courseId': 'course-1', 'allFiles': True}, 'settings': {'count': 20}})
         self.assertTrue(larger['needsExtraction'])
-        self.assertEqual(larger['hostOnly']['settings']['count'], 8)
+        self.assertEqual(larger['hostOnly']['settings']['count'], 6)
+
+    def test_thirty_questions_are_not_capped_at_twenty_for_one_part(self):
+        prepared = self.session('thirty').call({'action': 'request',
+            'selection': {'courseId': 'course-1', 'resourceIds': ['r0']}, 'settings': {'count': 30}})
+        self.assertEqual(prepared['hostOnly']['settings']['count'], 36)
+        self.assertEqual(prepared['hostOnly']['examSettings']['count'], 30)
 
     def test_python_selection_balances_files_deduplicates_and_reserves_types(self):
         state = {'settings': {'count': 2, 'types': ['auto', 'code_fix']}, 'pipeline': {
@@ -154,7 +160,7 @@ class FilePipelineTests(ProjectTestBase):
 
     def test_transcript_is_chunked_as_source_and_reference_use_is_preserved(self):
         ref = {'kind': 'instructor_transcript', 'courseId': 'course-1', 'source': '교수 강의 녹음 전사문',
-               'location': '00:12:00~00:18:00', 'text': '정렬된 배열을 강조합니다. ' * 1000}
+               'location': '00:12:00~00:18:00', 'text': '정렬된 배열을 강조합니다. ' * 2000}
         session = self.session('transcript')
         p = session.call({'action': 'request', 'selection': {'courseId': 'course-1',
             'resourceIds': ['r0'], 'examReferences': [ref]}, 'settings': {'count': 3}})
@@ -342,6 +348,126 @@ class FilePipelineTests(ProjectTestBase):
         self.assertEqual(''.join(s['text'] for part in chunks for s in part), text + '끝')
         self.assertTrue(all(sum(len(s['text']) for s in part) <= CHUNK_CHARS for part in chunks))
         self.assertEqual(chunks[-1][-1]['location'], '2')
+
+    def test_review_questions_are_private_and_follow_selected_order(self):
+        prepared = self.request()
+        for i in range(4):
+            q = self.candidate(prepared)
+            q['question'] += str(i)
+            prepared = self.extract_questions(self.session('pipeline'), prepared, [q])
+        host = prepared['hostOnly']
+        self.assertEqual([q['id'] for q in host['reviewQuestions']], host['selectionPlan']['candidateIds'])
+        self.assertFalse(host['reviewRemainingIds'])
+        self.assertIn('answer', host['reviewQuestions'][0])
+        self.assertNotIn('reviewQuestions', {k: v for k, v in prepared.items() if k != 'hostOnly'})
+
+    def test_review_payload_is_bounded_and_remaining_ids_are_returned(self):
+        from features.study_pipeline import catalog
+        question = {**self.question(), 'id': 'c1', 'unitId': 'u1', 'explanation': 'x' * 60001}
+        state = {'settings': {'count': 1, 'types': ['auto']}, 'pipeline': {
+            'files': ['r0'], 'fileIndex': 1, 'failures': [], 'learningFocus': [],
+            'units': [{'id': 'u1', 'resourceId': 'r0'}], 'candidates': [question]}}
+        host = catalog(self.session('bounded'), state, {})['hostOnly']
+        self.assertEqual(host['reviewQuestions'], [])
+        self.assertEqual(host['reviewRemainingIds'], ['c1'])
+
+    def test_generation_metrics_survive_resume_and_are_saved_at_assembly(self):
+        session = self.session('timed')
+        with patch('features.study_pipeline.time.time', return_value=100):
+            prepared = session.call({'action': 'request', 'selection': {'courseId': 'course-1',
+                'resourceIds': ['r0']}, 'settings': {'count': 1}})
+        with patch('features.study_pipeline.time.time', return_value=110):
+            session.call({'action': 'status'})
+        with patch('features.study_pipeline.time.time', return_value=130):
+            ready = self.extract_questions(session, prepared, [self.candidate(prepared)])
+        self.assertEqual(ready['generationMetrics']['hostHandoffSeconds'], 30)
+        with patch('features.study_pipeline.time.time', return_value=140):
+            result = session.call({'action': 'assemble', 'candidateIds': ['c1']})
+        self.assertEqual(result['generationMetrics'], {'requestToAssemblySeconds': 40,
+            'hostHandoffSeconds': 30, 'completedBatches': 1})
+        with closing(sqlite3.connect(session.path)) as db:
+            saved = json.loads(db.execute('SELECT state FROM study_sessions WHERE conversation=?', ('timed',)).fetchone()[0])
+        self.assertEqual(saved['generationMetrics'], result['generationMetrics'])
+
+    def test_previous_8000_character_analysis_is_reused(self):
+        from features.study_pipeline import analysis_key
+        from features.study_materials import study_materials
+        from features import material_cache
+        prepared = self.request()
+        for i in range(4):
+            prepared = self.extract_questions(self.session('pipeline'), prepared, [self.candidate(prepared)])
+        session = self.session('pipeline')
+        with closing(sqlite3.connect(session.path)) as db:
+            state = json.loads(db.execute('SELECT state FROM study_sessions').fetchone()[0])
+        cache = self.files.parent / 'cache'
+        for rid in ('r0', 'r1', 'r2', 'r3'):
+            material = study_materials(session.provider.get_courses('fixture-user'), session.provider.get_resources('fixture-user'),
+                files_root=self.files, course_id='course-1', resource_ids=[rid], include_ids=True, metadata_only=True)['data']['materials'][0]
+            current, old = analysis_key(state, material), analysis_key(state, material, chunk_chars=8000)
+            value = material_cache.get(cache, 'analysis', 'fixture-user', current)
+            material_cache.put(cache, 'analysis', 'fixture-user', old, value)
+            with closing(sqlite3.connect(cache / 'materials.db')) as db, db:
+                db.execute('DELETE FROM material_cache WHERE kind=? AND key=?', ('analysis', current))
+        with patch('features.study_materials._read_sections', side_effect=AssertionError('reuse old analysis')):
+            reused = self.session('old-cache').call({'action': 'request', 'selection': {'courseId': 'course-1',
+                'allFiles': True}, 'settings': {'count': 4}})
+        self.assertTrue(reused['needsAssembly'])
+        self.assertEqual(reused['reusedFiles'], 4)
+
+    def test_batch_checks_changed_source_permission(self):
+        prepared = self.request()
+        with closing(sqlite3.connect(self.db_path)) as db, db:
+            db.execute("UPDATE resources SET download_status='PROHIBITED' WHERE id='r0'")
+        with self.assertRaisesRegex(ValueError, '자료 이용 상태'):
+            self.session('pipeline').call({'action': 'extract_batch',
+                'batchRequestId': prepared['batchRequestId'], 'items': []})
+
+    def test_compact_extraction_matches_full_validated_questions(self):
+        request = {'action': 'request', 'selection': {'courseId': 'course-1', 'resourceIds': ['r0']},
+                   'settings': {'count': 1, 'types': ['mcq']}}
+        full, compact = self.session('full-payload'), self.session('compact-payload')
+        first, second = full.call(request), compact.call(request)
+        schema = first['hostOnly']['schema']
+        self.assertIn('answerIndex', schema['questions'][0])
+        self.assertNotIn('blocks', schema['questions'][0])
+        self.assertEqual(schema['questionDefaults']['type'], 'mcq')
+        q = self.candidate(first)
+        self.extract_questions(full, first, [q])
+        defaults = {key: q[key] for key in ('type', 'concept', 'hint', 'rubric')}
+        short = {key: value for key, value in q.items() if key not in {*defaults, 'answer', 'id', 'evidence'}}
+        short.update(answerIndex=q['options'].index(q['answer']),
+                     evidence=[{'sourceIndex': 0, 'quote': q['evidence'][0]['quote']}])
+        compact.call({'action': 'extract', 'requestId': second['requestId'], 'data': {
+            'context': '정렬된 배열에서 이진 탐색하는 수업', 'questionDefaults': defaults,
+            'learning': [{'concept': '이진 탐색', 'explanation': '정렬 조건과 범위 축소', 'evidence': short['evidence']}],
+            'types': [{'type': 'mcq', 'reason': '탐색 조건을 확인한다'}], 'questions': [short], 'shortageReason': '근거 있는 후보'}})
+        self.assertEqual(full.call({'action': 'candidate', 'candidateId': 'c1'})['hostOnly'],
+                         compact.call({'action': 'candidate', 'candidateId': 'c1'})['hostOnly'])
+
+    def test_compact_indices_and_defaults_cannot_bypass_validation(self):
+        from features.study_pipeline import _expand_questions, _expand_evidence
+        sources = [{'resourceId': 'r0', 'location': '1', 'text': '정렬'}]
+        for index in (-1, 1, True, '0'):
+            with self.subTest(sourceIndex=index), self.assertRaises(ValueError):
+                _expand_evidence([{'sourceIndex': index, 'quote': '정렬'}], sources)
+            with self.subTest(answerIndex=index), self.assertRaises(ValueError):
+                _expand_questions({'questions': [{'options': ['정렬'], 'answerIndex': index}]}, sources)
+        for data in ({'questionDefaults': {'answer': '정렬'}},
+                     {'questions': [{'options': ['정렬'], 'answerIndex': 0, 'answer': '다름'}]}):
+            with self.assertRaises(ValueError):
+                _expand_questions(data, sources)
+        with self.assertRaises(ValueError):
+            _expand_evidence([{'sourceIndex': 0, 'quote': '정렬', 'resourceId': '다른 자료'}], sources)
+
+    def test_compact_evidence_still_rejects_invented_quotes(self):
+        session = self.session('compact-provenance')
+        prepared = session.call({'action': 'request', 'selection': {'courseId': 'course-1',
+            'resourceIds': ['r0']}, 'settings': {'count': 1}})
+        q = self.candidate(prepared)
+        q['evidence'] = [{'sourceIndex': 0, 'quote': '자료에 존재하지 않는 원문'}]
+        with self.assertRaises(ValueError):
+            self.extract_questions(session, prepared, [q])
+        self.assertEqual(session.call({'action': 'status'})['requestId'], prepared['requestId'])
 
     def test_legacy_text_analysis_is_invalidated_after_decoder_change(self):
         from features import material_cache

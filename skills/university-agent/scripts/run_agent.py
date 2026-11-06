@@ -798,7 +798,7 @@ def main() -> None:
             result = {"toolCalls": ["study"], "status": "error", "error": {"code": "STUDY_INVALID", "message": str(exc)}, "answer": str(exc)}
     if args.command not in ("ask", "study"):
         result = with_next_commands(result)
-    print(json.dumps(redact_output(result), ensure_ascii=False, indent=2))
+    print(json.dumps(redact_output(result), ensure_ascii=False, separators=(',', ':')))
     if DB is not None:
         DB.close()
     if "error" in result:

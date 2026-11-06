@@ -1,0 +1,92 @@
+{
+  "source": {
+    "title": "제네릭과 컬렉션A.pdf 파일",
+    "sha256": "731777542322dd4fd3f49928dbec711442d9978d4d0d891bc02a7066beba428d",
+    "bytes": 1277602,
+    "pages": 24,
+    "text_chars": 7703
+  },
+  "tls_preparation": {
+    "seconds": 80.907,
+    "requests": 291,
+    "file_requests": 1,
+    "excluded_from_generation_timer": true
+  },
+  "baseline": {
+    "requested_questions": 30,
+    "parts": 1,
+    "candidate_budget": 20,
+    "accepted_thirty": false,
+    "validation_error": "근거 있는 문항만 설정 개수 이내로 제공하세요.",
+    "actual_model_generation_timed": false
+  },
+  "first_live_sample": {
+    "candidates": 36,
+    "final_questions": 30,
+    "request_to_assembly_seconds": 103.80317234992981,
+    "events": [
+      {
+        "action": "request",
+        "localSeconds": 0.39056580000033136,
+        "returnedAtUnix": 1793942886.9109104
+      },
+      {
+        "action": "extract_batch",
+        "localSeconds": 0.021427499999845168,
+        "returnedAtUnix": 1793942967.232367
+      },
+      {
+        "action": "assemble",
+        "localSeconds": 0.008227300000726245,
+        "returnedAtUnix": 1793942990.3241823
+      }
+    ]
+  },
+  "compact_live_sample": {
+    "candidates": 30,
+    "final_questions": 30,
+    "request_to_assembly_seconds": 69.61234498023987,
+    "request_to_web_api_seconds": 69.88575077056885,
+    "events": [
+      {
+        "action": "request",
+        "localSeconds": 0.3790741999982856,
+        "returnedAtUnix": 1793949068.393263
+      },
+      {
+        "action": "extract_batch",
+        "localSeconds": 0.028345099999569356,
+        "returnedAtUnix": 1793949137.2793922
+      },
+      {
+        "action": "assemble",
+        "localSeconds": 0.0166148999996949,
+        "returnedAtUnix": 1793949137.6251993
+      }
+    ],
+    "prestart_answers_hidden": true
+  },
+  "excluded_interrupted_sample": {
+    "seconds": 5804.226189851761,
+    "reason": "Approval service usage limit interrupted execution; not a performance sample."
+  },
+  "same_content_serialization": {
+    "compact_utf8_bytes": 9457,
+    "expanded_utf8_bytes": 15922,
+    "note": "Same content, source and answer validation; byte counts are not model token counts."
+  },
+  "warm_local_reuse": {
+    "request_seconds": 0.019852900000842055,
+    "assemble_seconds": 0.0076485999998112675,
+    "questions": 30,
+    "ai_extraction_requests": 0,
+    "host_semantic_review_timed": false
+  },
+  "limits": [
+    "Single current-host observations, same source already in model context; no reset or randomized paired inference.",
+    "First sample generated 36 candidates; compact sample generated 30. Not an isolated causal comparison.",
+    "30 basic multiple-choice questions with short explanations; no code execution or unseen image interpretation.",
+    "Request-to-web measures HTTP readiness, not browser rendering. TLS/file preparation and dependency setup excluded.",
+    "No proof of a 30-60 second first generation or a speedup relative to the user-reported 3-4 minute run."
+  ]
+}

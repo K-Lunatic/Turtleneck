@@ -210,7 +210,7 @@ def _pdf_sections(paths: list[Path], script: Path, cache_dir: Path, image_root: 
                                       for item, image in enumerate(page.images, 1)]
                         key = (source_keys or {}).get(str(path), path.stem)
                         images = _save_images(image_root, f'{key}-p-{index}', raw_images)
-                    except (AttributeError, OSError, ValueError):
+                    except (ImportError, AttributeError, OSError, ValueError):
                         pass
                     if text or images:
                         pages.append({'location': f'PDF p.{index}',

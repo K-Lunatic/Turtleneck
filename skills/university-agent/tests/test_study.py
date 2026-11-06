@@ -86,7 +86,7 @@ class StudyFlowTests(ProjectTestBase):
         direct = self.cli('ask', '--text', '자료구조 3주차 자료로 객관식 5문제 만들어줘', '--conversation', 'direct-study')
         self.assertEqual(direct['status'], 'prepared')
         self.assertEqual(direct['hostOnly']['examSettings']['types'], ['mcq'] * 5)
-        self.assertEqual(direct['hostOnly']['settings']['types'], ['mcq'] * 8)
+        self.assertEqual(direct['hostOnly']['settings']['types'], ['mcq'] * 6)
         self.assertEqual(direct['hostOnly']['SOURCE'][0]['name'], '3주차 탐색')
         unrelated = self.cli('ask', '--text', '과제 알려줘', '--conversation', 'unrelated-study')
         self.assertNotEqual(unrelated['toolCalls'], ['study'])

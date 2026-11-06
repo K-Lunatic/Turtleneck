@@ -1,0 +1,23 @@
+{
+  "experiments/study-generation/benchmark.py": "c2af490fa653a2449f9b131ae78da8c3d66847844e9eebff0d2ce5f9a70d737e",
+  "experiments/study-generation/README.md": "f8b558855c1d6083f17c7a268f5bcd0afbe78239c2c7ac5acd786a50a6dd12ec",
+  "experiments/study-generation/results/after.json": "085e1e59fd5cd1dd11b6bd29d6f9ec835e91cf5c8c7d71ea7392f066e5d73e62",
+  "experiments/study-generation/results/before.json": "006beb9903167edc3d1ea4faa218847865f0a1110ce97431a4c851817cdab62d",
+  "experiments/study-generation/results/environment.json": "a3cd4d67e17cded4eee3c6c813d5c5742add3225cbe020a9eb32154fe9452897",
+  "experiments/study-generation/results/live-java.json": "9c1eb44f8a0ceaf683d035fcb642567671d25fc6d4bad63c1da5a4e148dbd0ee",
+  "experiments/study-generation/results/regression.json": "51407b83779a5cbe4498097a40a876785168101b038073cab17a2fede1a0eeac",
+  "experiments/study-generation/results/regression.txt": "399657dea2a2932e4f3648ff66ad55893f47b4218dfe8090c608897464f55982",
+  "experiments/study-generation/verify.py": "cc1623973232ba6987f45e5412aeedb137df0d2b98a00e79591f2e70207a5ff4",
+  "skills/university-agent/features/study.py": "93e94a21b115e9019d91ca6890a958bb9e7f2bd7e6de681bc65f4411f9658960",
+  "skills/university-agent/features/study_materials.py": "b05291e195c2b559ef9b8ae956a702de8243390f3c7baef102c1385636670a52",
+  "skills/university-agent/features/study_pipeline.py": "5d321f17e89d514c59caa4673d813f37a88db6dc88f4dd4fb9e1061af6b45555",
+  "skills/university-agent/references/project-tests.md": "413d80fb218a797714ce3236aefe792a46553d638ceb3fc08a6c94ad801fa22f",
+  "skills/university-agent/references/study.md": "30294900c4131a24c7c0efa3df72adf6ffb31dfdef30975b0b1811a64d8912ee",
+  "skills/university-agent/scripts/run_agent.py": "faa6ebabab3b9317971ee3624f853da4f7dad2533daefb85f29a9899a64a8099",
+  "skills/university-agent/SKILL.md": "116f22cd31197f5083105e28fcdd633655094fac196a2bdffb7a924bb0cd7b68",
+  "skills/university-agent/tests/test_study.py": "97c2ca613ef978260a651b86bc872d68fd58f8960386e6c770c5fa17ce10724e",
+  "skills/university-agent/tests/test_study_materials.py": "ff2c7ca8614d247a3acb571c73f08e33d6bdde86b3e9688b5a98807819388700",
+  "skills/university-agent/tests/test_study_pipeline.py": "dd6aaa2d5777e28c24953d83953271f6ee86f802451b434ae8b0b5fae378aa16",
+  "STUDY_GENERATION_OPTIMIZATION_REPORT_MEMO.md": "de8c9d6d8a22587e7025b6e6480a43136a8317a5c47cd352642ce842c0b74bf6",
+  "STUDY_GENERATION_OPTIMIZATION_RESULTS.md": "9ba4d5681811a8de5198438cbd6db3733fc461e718c817e3ac91a00f193ec137"
+}
