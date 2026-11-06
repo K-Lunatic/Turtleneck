@@ -1,0 +1,19 @@
+{
+  "experiments/study-generation/handoff_benchmark.py": "7024e76b88bc0342e52b6a725638842ebf3ef3dca2a20b16635a1063bc4df2ec",
+  "experiments/study-generation/proposal_audit.py": "481e349c0319def6f70676d99129cc17c9bf37d314602b71b6559f4bfaab5b88",
+  "experiments/study-generation/results/handoff-environment.json": "605cb774db30a8fc88dd8cb0375b106ddc8e1b01b60ea66585e09bcf2c6d078d",
+  "experiments/study-generation/results/handoff-live-java.json": "832a5003f4e32c2503f83ac96441aa56b9ccbf2c8d2b247369c00666c900f0dc",
+  "experiments/study-generation/results/handoff-regression.json": "5533430e0f5b932c5dad7e88e4a8b1d99bf1a167ccb02585ab8af4f6280a7e42",
+  "experiments/study-generation/results/handoff-regression.txt": "2d536b33816d0afa17f87c4ca786ed44cee58953f1422220eab2d2388d3f5009",
+  "experiments/study-generation/results/handoff-step12.json": "6e15fd5b7d6878fe725bf4ebfc9c8131781f61e81042a40a903721926fa02183",
+  "experiments/study-generation/results/next-proposal-audit.json": "55967fcabbc55aecd0960450ea3ce3924c9484f28692f0ba44b12fdfcac019df",
+  "skills/university-agent/features/study_pipeline.py": "25eba97efe78fa2c95dc9362ec2638d058322d949d7f8e5355fd67c1dc1f8440",
+  "skills/university-agent/references/study.md": "cf307134bc5c24ba3a4bcc39cb2912b9ce834cd29d7d39bd63e61d68423ffa2f",
+  "skills/university-agent/scripts/run_agent.py": "5b8c5be7466649399254a29736be5b344bdd88a230eb81f07722d983f41b199c",
+  "skills/university-agent/SKILL.md": "0ec9184a3ec1de4465cc45d404aa8c47129077f3def78914a8f79f206a4272e0",
+  "skills/university-agent/tests/test_study.py": "c48733c426fa5354e057b637734213558a197b08aa04c1b72265697306ebe45e",
+  "skills/university-agent/tests/test_study_pipeline.py": "5d6cbcf7e6c426ee34aa5af532c40f7d288d269c9dce15f40d58a84b722b16bf",
+  "STUDY_GENERATION_NEXT_OPTIMIZATION_MEMO.md": "64ea18a9ed8ed1e2d7226f6ae73e925895987423662112af50b635f460d36e6b",
+  "STUDY_GENERATION_NEXT_OPTIMIZATION_REPORT_MEMO.md": "c9caea60df357afb2fb15d7fe5121142dc459ee75f545a46047f6878cc4b607c",
+  "STUDY_GENERATION_NEXT_OPTIMIZATION_RESULTS.md": "1989ba56cdb33d4ce56ba6746f22dd38918955b27b911f722bf3a4a79f9d7b79"
+}

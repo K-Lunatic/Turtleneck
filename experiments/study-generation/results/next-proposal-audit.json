@@ -1,0 +1,42 @@
+{
+  "scope": "Planning audit only; no production code or model configuration changed.",
+  "observed_web_seconds": 69.88575077056885,
+  "observed_local_call_seconds": 0.4240341999975499,
+  "seconds_if_local_calls_were_free": 69.4617165705713,
+  "required_reduction": {
+    "60": {
+      "seconds": 9.885750770568848,
+      "percent": 14.146
+    },
+    "45": {
+      "seconds": 24.885750770568848,
+      "percent": 35.609
+    },
+    "30": {
+      "seconds": 39.88575077056885,
+      "percent": 57.073
+    }
+  },
+  "synthetic_protocol_examples": [
+    {
+      "synthetic_source_chars": 7703,
+      "requests": 1,
+      "current_response_bytes": 58566,
+      "proposed_response_bytes": 29504,
+      "response_byte_reduction_percent": 49.623,
+      "all_request_sources_preserved": true,
+      "ai_latency_measured": false,
+      "legacy_root_consumers_need_migration": true
+    },
+    {
+      "synthetic_source_chars": 20000,
+      "requests": 2,
+      "current_response_bytes": 125979,
+      "proposed_response_bytes": 72134,
+      "response_byte_reduction_percent": 42.741,
+      "all_request_sources_preserved": true,
+      "ai_latency_measured": false,
+      "legacy_root_consumers_need_migration": true
+    }
+  ]
+}

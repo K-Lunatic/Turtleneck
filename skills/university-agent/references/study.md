@@ -106,6 +106,25 @@
 반환된 요청을 끝까지 처리해야 한다. 파일 읽기와 분석 결과는 사용자별 로컬 캐시에 저장되며, 내용이 바뀌지
 않은 자료는 다시 읽거나 분석하지 않는다.
 
+CLI의 `handoffVersion: 2`는 `hostOnly.requests`를 유일한 추출 요청 목록으로 사용한다.
+각 요청 안의 SOURCE/schema/settings/instruction을 읽고, hostOnly 루트의 SOURCE를 찾지 않는다.
+최상위 requestId는 첫 요청 ID로 유지되어 단일 extract도 가능하다. 직접 Python의
+StudySession.call을 사용하는 기존 호출은 첫 요청 루트 복사본을 유지한다. 개념 설명 모드의
+needsGeneration 반환은 이 변경 대상이 아니다.
+
+문항 생성 결과는 compact JSON 이벤트를 파일에 직접 작성한 뒤 기존
+`study --conversation <id> --event-file <path>`로 제출한다. 공통 필드 복원은 서버가 하므로
+시험마다 별도의 Python 작성 프로그램을 만들지 않는다. 문항별 해설·정답·근거 검토와
+조합 단계의 중복·정답 노출 검토를 유지한다. 이벤트의 외곽은 다음과 같다.
+
+```json
+{"action":"extract_batch","batchRequestId":"반환된 묶음 ID","items":[{"requestId":"각 요청 ID","data":{"context":"자료 맥락","learning":[],"types":[],"questionDefaults":{},"questions":[]}}]}
+```
+
+위 빈 목록은 모양 설명용이다. 실제 learning/types/questions는 각 요청의 schema와 현재
+SOURCE에 근거해 작성하며, 부족하면 shortageReason을 명시한다. 토큰·응답 시간을 줄이기
+위해 근거 없는 문항이나 무의미한 공통 해설로 채우지 않는다.
+
 조합 단계는 저장된 후보의 구조·근거만 확인하며 AI에 후보를 다시 생성·재분석시키지 않는다.
 `selectionPlan`은 파일·개념·유형을 분산하는 Python 제안이고, 호스트는 의미·정답·중복을 검토한 뒤
 기존 `candidateIds`를 선택한다. 조합 시 `generate`가 실행되어도 새 AI 요청이 아니라 코드 측 형식 확인이다.

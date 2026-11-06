@@ -1,0 +1,11 @@
+{
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "branch": "turtleneck",
+  "base_commit": "4e248f91dc3aaf53cf4896a8c122d1f78218932c",
+  "scope": "CLI handoff v2 and JSON-only host workflow; direct Python API preserved.",
+  "runtime_inference_speedup_proven": false,
+  "target_60_seconds_achieved": false,
+  "production_plugin_updated": false,
+  "school_access_in_this_phase": false,
+  "live_test_source": "Existing authorized private Java2 snapshot."
+}

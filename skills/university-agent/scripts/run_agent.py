@@ -29,7 +29,7 @@ from features.context import format_current_context, get_current_context
 from features.context_bookmarks import format_resume_card, get_context_bookmark, list_unfinished_context_bookmarks, save_context_bookmark
 from features.context_commands import command_template, detect_context_intent, parse_context_command, with_next_commands
 from features.study import StudySession, study_intent, event_from_text
-from features import analysis_records, study_pack
+from features import analysis_records, study_pack, study_pipeline
 from features.concept_insights import build_insights
 from features.learning_plan import build_plan
 from features.lectures import get_lectures
@@ -798,7 +798,7 @@ def main() -> None:
             result = {"toolCalls": ["study"], "status": "error", "error": {"code": "STUDY_INVALID", "message": str(exc)}, "answer": str(exc)}
     if args.command not in ("ask", "study"):
         result = with_next_commands(result)
-    print(json.dumps(redact_output(result), ensure_ascii=False, separators=(',', ':')))
+    print(json.dumps(redact_output(study_pipeline.host_response(result)), ensure_ascii=False, separators=(',', ':')))
     if DB is not None:
         DB.close()
     if "error" in result:

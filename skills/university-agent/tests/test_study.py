@@ -85,9 +85,27 @@ class StudyFlowTests(ProjectTestBase):
         self.assertEqual(prepared['hostOnly']['SOURCE'][0]['courseId'], 'course-1')
         direct = self.cli('ask', '--text', '자료구조 3주차 자료로 객관식 5문제 만들어줘', '--conversation', 'direct-study')
         self.assertEqual(direct['status'], 'prepared')
-        self.assertEqual(direct['hostOnly']['examSettings']['types'], ['mcq'] * 5)
-        self.assertEqual(direct['hostOnly']['settings']['types'], ['mcq'] * 6)
-        self.assertEqual(direct['hostOnly']['SOURCE'][0]['name'], '3주차 탐색')
+        self.assertEqual(direct['handoffVersion'], 2)
+        self.assertNotIn('SOURCE', direct['hostOnly'])
+        host = direct['hostOnly']['requests'][0]
+        self.assertEqual(host['examSettings']['types'], ['mcq'] * 5)
+        self.assertEqual(host['settings']['types'], ['mcq'] * 6)
+        self.assertEqual(host['SOURCE'][0]['name'], '3주차 탐색')
+        q = self.question()
+        defaults = {k: q[k] for k in ('type', 'concept', 'hint', 'rubric')}
+        compact = {k: v for k, v in q.items() if k not in {*defaults, 'id', 'answer', 'evidence'}}
+        compact.update(answerIndex=0, evidence=[{'sourceIndex': 0, 'quote': q['evidence'][0]['quote']}])
+        event = {'action': 'extract_batch', 'batchRequestId': direct['batchRequestId'], 'items': [{
+            'requestId': host['requestId'], 'data': {'context': '이진 탐색 조건',
+            'learning': [{'concept': '이진 탐색', 'explanation': '정렬된 배열에서 탐색한다.', 'evidence': compact['evidence']}],
+            'types': [{'type': 'mcq', 'reason': '조건 확인'}], 'questionDefaults': defaults,
+            'questions': [compact], 'shortageReason': '근거를 확인한 후보만 저장'}}]}
+        event_file = self.files / 'compact-event.json'
+        event_file.write_text(json.dumps(event, ensure_ascii=False), encoding='utf-8')
+        ready = self.cli('study', '--conversation', 'direct-study', '--event-file', str(event_file))
+        self.assertTrue(ready['needsAssembly'])
+        self.assertEqual(ready['totalCandidates'], 1)
+        self.assertEqual(ready['hostOnly']['reviewQuestions'][0]['answer'], q['answer'])
         unrelated = self.cli('ask', '--text', '과제 알려줘', '--conversation', 'unrelated-study')
         self.assertNotEqual(unrelated['toolCalls'], ['study'])
         old_offer = self.session('unrelated-study').call({'action': 'offer'})

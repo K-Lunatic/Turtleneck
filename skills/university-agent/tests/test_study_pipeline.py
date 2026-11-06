@@ -7,7 +7,7 @@ import test_exam_web
 from test_project import ProjectTestBase, snapshot, upsert
 from storage.local_db import LocalDatabase
 from features.study_pipeline import CHUNK_CHARS
-from features.study_pipeline import load_chunks, selection_plan
+from features.study_pipeline import load_chunks, selection_plan, host_response
 
 
 class FilePipelineTests(ProjectTestBase):
@@ -117,6 +117,41 @@ class FilePipelineTests(ProjectTestBase):
             'selection': {'courseId': 'course-1', 'resourceIds': ['r0']}, 'settings': {'count': 30}})
         self.assertEqual(prepared['hostOnly']['settings']['count'], 36)
         self.assertEqual(prepared['hostOnly']['examSettings']['count'], 30)
+
+    def test_cli_handoff_preserves_requests_without_duplicating_first_source(self):
+        prepared = self.request()
+        full = json.dumps(prepared, ensure_ascii=False)
+        compact = host_response(prepared)
+        self.assertEqual(compact['handoffVersion'], 2)
+        self.assertEqual(set(compact['hostOnly']), {'requests', 'batchRequestId'})
+        self.assertEqual(compact['hostOnly']['requests'], prepared['hostOnly']['requests'])
+        self.assertEqual(compact['requestId'], prepared['requestId'])
+        self.assertEqual(compact['batchRequestId'], prepared['batchRequestId'])
+        self.assertEqual(full, json.dumps(prepared, ensure_ascii=False))
+        self.assertEqual(host_response(compact), compact)
+        # Direct Python callers keep their legacy first-request view.
+        self.assertIn('SOURCE', prepared['hostOnly'])
+
+    def test_compact_handoff_resumes_two_parts_and_accepts_full_batch(self):
+        (self.files / '0.txt').write_text('가' * (CHUNK_CHARS + 10), encoding='utf-8')
+        session = self.session('handoff-batch')
+        prepared = session.call({'action': 'request', 'selection': {'courseId': 'course-1',
+            'resourceIds': ['r0']}, 'settings': {'count': 2}})
+        compact = host_response(prepared)
+        self.assertEqual(len(compact['hostOnly']['requests']), 2)
+        resumed = host_response(session.call({'action': 'status'}))
+        self.assertEqual(compact['hostOnly'], resumed['hostOnly'])
+        items = []
+        for host in compact['hostOnly']['requests']:
+            q = self.candidate({'hostOnly': host})
+            q['question'] += host['requestId']
+            items.append({'requestId': host['requestId'], 'data': {'context': '본문 확인',
+                'learning': [{'concept': '개념', 'explanation': '자료 내용', 'evidence': q['evidence']}],
+                'types': [{'type': 'mcq', 'reason': '조건 확인'}], 'questions': [q], 'shortageReason': '근거 있는 후보'}})
+        ready = session.call({'action': 'extract_batch', 'batchRequestId': compact['batchRequestId'], 'items': items})
+        self.assertEqual(ready['totalCandidates'], 2)
+        self.assertTrue(ready['needsAssembly'])
+        self.assertIs(host_response(ready), ready)
 
     def test_python_selection_balances_files_deduplicates_and_reserves_types(self):
         state = {'settings': {'count': 2, 'types': ['auto', 'code_fix']}, 'pipeline': {

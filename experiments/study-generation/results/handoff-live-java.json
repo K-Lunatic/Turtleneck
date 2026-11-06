@@ -1,0 +1,42 @@
+{
+  "source": {
+    "sha256": "731777542322dd4fd3f49928dbec711442d9978d4d0d891bc02a7066beba428d",
+    "pages": 24,
+    "text_chars": 7703
+  },
+  "model_was_current_host": true,
+  "questions": 30,
+  "candidates": 30,
+  "handoffVersion": 2,
+  "request_to_http_ready_seconds": 81.2324423789978,
+  "events": [
+    {
+      "action": "request",
+      "cli_seconds": 0.7179446999980428,
+      "returnedAtUnix": 1793955091.1731467
+    },
+    {
+      "action": "extract_batch",
+      "cli_seconds": 0.33355479999954696,
+      "returnedAtUnix": 1793955170.7719643
+    },
+    {
+      "action": "assemble",
+      "cli_seconds": 0.7278129999976954,
+      "returnedAtUnix": 1793955171.6807067
+    }
+  ],
+  "input_bytes": {
+    "reconstructed_legacy_cli": 42891,
+    "actual_v2_cli": 21715
+  },
+  "prestart_answers_hidden": true,
+  "submitted_compact_data_bytes": 10532,
+  "limits": [
+    "Single run in the same host conversation with a previously seen source.",
+    "Different questions and per-question concepts; not paired inference or equal output work.",
+    "81.2 seconds is slower than the previous 69.9-second observation. No proven latency improvement.",
+    "Actual CLI includes process launch and web startup; previous sample used an in-process test harness.",
+    "Source preparation/download and actual browser rendering excluded; no new Python authoring script used."
+  ]
+}

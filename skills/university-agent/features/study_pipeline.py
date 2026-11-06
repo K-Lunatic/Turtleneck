@@ -13,6 +13,15 @@ CHUNK_CHARS = 16000
 EXTRACTION_BATCH_SIZE = 2
 
 
+def host_response(result):
+    """Remove legacy first-request duplication only at the CLI handoff boundary."""
+    host = result.get('hostOnly', {})
+    if result.get('needsExtraction') and host.get('requests'):
+        return {**result, 'handoffVersion': 2, 'hostOnly': {
+            'requests': host['requests'], 'batchRequestId': host['batchRequestId']}}
+    return result
+
+
 def learning_focus(session, state):
     p = state['pipeline']
     if 'learningFocus' not in p:
