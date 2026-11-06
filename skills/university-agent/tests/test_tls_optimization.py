@@ -208,7 +208,7 @@ class TLSOptimizationTests(unittest.TestCase):
     def test_requested_missing_file_scopes_known_course_and_downloads_only_target(self):
         path = self.copy_seed()
         metrics = run_sync(sync_tls, self.pages, path, '--ensure', '--resource-id', 'tls-resource-108')
-        self.assertEqual(metrics['requests'], 17)
+        self.assertEqual(metrics['requests'], 15)
         self.assertEqual(metrics['requests_by_kind']['file'], 1)
         self.assertEqual(len(snapshot(path)['resources']), 16)
         self.assertEqual(sum(row['downloadStatus'] == 'DOWNLOADED' for row in snapshot(path)['resources']), 1)

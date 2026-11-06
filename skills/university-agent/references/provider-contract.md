@@ -26,7 +26,12 @@ credentials only, fetches both status sets before one snapshot commit, and recor
 The report verifies the timestamp belongs to this run and stops after a failed or timed-out sync
 (120 seconds), never reporting an earlier snapshot as fresh. Notices/viewer scans/file bytes are skipped.
 Initial setup uses `--ensure --metadata-only`. File requests pass repeated `--resource-id` values;
-nonselected files retain metadata/restriction checks but are not downloaded. Resource processing
+when course lists are unchanged and resource checks are still fresh, only selected resources
+receive detail/viewer/status requests. Other resource records are preserved. Changed, expired,
+forced, or unknown-resource scopes still receive a full detail scan. Selected requests always
+recheck notice restrictions. Individual success times in `resource_item_checks` allow concurrent
+requests for the same file to share completed work without advancing whole-course freshness.
+Nonselected files are never downloaded by a selected request. Resource processing
 uses one flat two-worker pool rather than nested per-course/file pools. Database writes remain serial.
 The local sync commits completed assignment/lecture/notice stages before fetching more data.
 A later failure does not undo earlier stages; the run still reports failure, not full completion.

@@ -1,0 +1,19 @@
+{
+  "skills/university-agent/providers/moodle_provider.py": "f90067954f009c164df209c77d4f73028dab027e6a1d2b045928056f30ff753a",
+  "skills/university-agent/references/provider-contract.md": "0e8dcf14296fd373f4da2a9a4a61c37e7f0e4184c0b77525bc29660bdcb6bcfc",
+  "skills/university-agent/scripts/benchmark_tls_resources.py": "7ba77b61df589b6de29b1a711201ce56c52e340bf45f59f98d32f6b188c4685c",
+  "skills/university-agent/scripts/benchmark_tls_resources_live.py": "cb2747f799dabc90e4784569dd9b1db2c3bf3307e2a405212e58d91df4656c37",
+  "skills/university-agent/scripts/sync_tls.py": "6b687ce1651e63be01a046cfa666d1efd51d651d53570a7a37db3f468d7df2fe",
+  "skills/university-agent/SKILL.md": "65da00e05a5a90a537b4b929a354c917eb02bc3c0d34418ac1418fb716a05701",
+  "skills/university-agent/tests/test_resource_targeting.py": "16686bef190aeccee393442d4d581aaebb4a2a594a1be03f3f0e6721558088ca",
+  "skills/university-agent/tests/test_tls_optimization.py": "1ed66713865672fb54a99ee9da723264405c8dee300b32b2c9a394703ef3033f",
+  "tls-optimization-stage6-results/changes.patch": "f631442f0789f91a9aa261cfb61010ce46b33114bea27e117b8d2124c5ffcc45",
+  "tls-optimization-stage6-results/live.json": "40d053cc91c1563846a90962b458491aa08bf35d0362993f503e5bcb81fcec9f",
+  "tls-optimization-stage6-results/offline.json": "52bdade302ea2110a40e5b20ae2486900367a71a693bdf4ae5960b29d65addba",
+  "tls-optimization-stage6-results/stage05_sources.zip": "f231246f21805288b664496ea366b60c6228bbcb0ff14f541a65bf66dc0735d6",
+  "tls-optimization-stage6-results/stage6_sources.zip": "95b2573643d3f5595845773a0ca6e2ce834f365c95ef4150e830207c1c6147b9",
+  "tls-optimization-stage6-results/tests.json": "57282d336292bc09e885ca44848d7ec55353469d7a16a563ef6f303f66c889c5",
+  "tls-optimization-stage6-results/tests.txt": "1caf6a48e75096d80f7add5fad35910cfa75be33788d5724160c3bd23d8c6510",
+  "TLS_OPTIMIZATION_STAGE6_REPORT_MEMO.md": "1b5acc26975bfbaa4d2a8438cfb8f5723ac96b8ce99984079d99b22feea7c45c",
+  "TLS_OPTIMIZATION_STAGE6_RESULTS.md": "230828760a5d148fa9474d210085ad37a92b10d95b49500c1347cba9d9201004"
+}

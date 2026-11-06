@@ -312,8 +312,17 @@ def _can_reuse(args, state, scope, db_path, user_id, requested_at):
         if _resource_needs_data(db_path, user_id, args.resource_id):
             return False
         targets = _requested_course_ids(db_path, user_id, args.resource_id)
-        return targets is not None and not any(sync_policy.due_courses(
-            state, kind, targets, sync_policy.CATALOG_TTL, since=requested_at) for kind in ('notice', 'resource'))
+        try:
+            item_checks = json.loads(state.get('resource_item_checks', '{}'))
+        except (TypeError, ValueError):
+            item_checks = {}
+        if not isinstance(item_checks, dict):
+            item_checks = {}
+        return (targets is not None
+                and not sync_policy.due_courses(state, 'notice', targets, sync_policy.CATALOG_TTL, since=requested_at)
+                and (not sync_policy.due_courses(state, 'resource', targets, sync_policy.CATALOG_TTL, since=requested_at)
+                     or all(sync_policy.fresh(item_checks.get(identifier), sync_policy.CATALOG_TTL,
+                                              since=requested_at) for identifier in args.resource_id)))
     required = [('academic', sync_policy.ACADEMIC_TTL), ('notice', sync_policy.NOTICE_TTL),
                 ('resource', sync_policy.RESOURCE_TTL)]
     if not args.metadata_only:
@@ -429,8 +438,11 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
     academic = changed | sync_policy.due_courses(state, 'academic', ids, sync_policy.ACADEMIC_TTL)
     notices_scope = changed | sync_policy.due_courses(state, 'notice', ids, sync_policy.NOTICE_TTL)
     resources_scope = changed | sync_policy.due_courses(state, 'resource', ids, sync_policy.RESOURCE_TTL)
+    detail_courses = resources_scope.copy()
     if args.resource_id:
         requested = _requested_course_ids(db_path, user_id, args.resource_id) if db_path.exists() else None
+        if requested is None:
+            detail_courses |= ids
         requested = ids if requested is None else requested & ids
         resources_scope |= requested
         notices_scope |= requested  # Recheck restrictions stated in notices before an explicit download.
@@ -459,14 +471,33 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
         file_root = db_path.parent / 'files'
         with closing(LocalDatabase(db_path, read_only=True)) as database:
             notices = database.get_notices(user_id)
+            previous_resources = database.get_resources(user_id, include_permissions=False)
         resources = provider.for_courses(user_id, resources_scope).get_resources(
             user_id, notices=notices, existing_resources=_cached_resources(db_path, user_id, file_root),
             download_new_files=not args.metadata_only, resource_ids=set(args.resource_id) if args.resource_id else None,
+            detail_course_ids=detail_courses if args.resource_id else None,
             save_file=lambda item: store_resource(file_root, item))
         if any(item.get('_checkFailed') for item in resources):
             raise URLError('일부 자료의 현재 상태를 확인하지 못했어요.')
+        checked_resource_ids = {item['id'] for item in resources}
+        partial_courses = resources_scope - detail_courses if args.resource_id else set()
+        resources += [item for item in previous_resources if item['courseId'] in partial_courses
+                      and item['id'] not in checked_resource_ids]
         persist(db_path, user_id, username, courses, resources=resources, refreshed_course_ids=resources_scope)
-        _mark_checks(db_path, user_id, 'resource', resources_scope, ids, scope)
+        _mark_checks(db_path, user_id, 'resource', resources_scope - partial_courses, ids, scope)
+        if args.resource_id:
+            try:
+                item_checks = json.loads(state.get('resource_item_checks', '{}'))
+            except (TypeError, ValueError):
+                item_checks = {}
+            if not isinstance(item_checks, dict):
+                item_checks = {}
+            current_ids = {item['id'] for item in resources} | {
+                item['id'] for item in previous_resources if item['courseId'] in ids - resources_scope}
+            item_checks = {key: value for key, value in item_checks.items() if key in current_ids}
+            item_checks.update(dict.fromkeys(checked_resource_ids & set(args.resource_id), sync_policy.now().isoformat()))
+            with closing(LocalDatabase(db_path)) as database:
+                database.merge_sync_state(user_id, {'resource_item_checks': json.dumps(item_checks)})
         if not args.metadata_only and not args.resource_id:
             complete = {identifier for identifier in resources_scope if all(
                 item.get('downloadStatus') in ('DOWNLOADED', 'PROHIBITED')

@@ -1,0 +1,88 @@
+{
+  "measurement": "live TLS resource-detail resolution only; metadata mode",
+  "resources_in_selected_course": 36,
+  "courses_in_preflight": 9,
+  "authentication_setup": {
+    "requests": 5,
+    "requests_by_kind": {
+      "page": 3,
+      "post": 2
+    },
+    "response_body_bytes": 30657,
+    "response_body_bytes_by_kind": {
+      "page": 18194,
+      "post": 12463
+    },
+    "statuses": {
+      "303": 2,
+      "200": 3
+    },
+    "peak_open_requests": 1,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 4.75
+  },
+  "preflight_and_notices_setup": {
+    "requests": 11,
+    "requests_by_kind": {
+      "page": 11
+    },
+    "response_body_bytes": 127210,
+    "response_body_bytes_by_kind": {
+      "page": 127210
+    },
+    "statuses": {
+      "200": 11
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 2.922
+  },
+  "before": {
+    "requests": 72,
+    "requests_by_kind": {
+      "page": 72
+    },
+    "response_body_bytes": 20559,
+    "response_body_bytes_by_kind": {
+      "page": 20559
+    },
+    "statuses": {
+      "303": 36,
+      "200": 36
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 19.469
+  },
+  "resource_records_before": 36,
+  "after": {
+    "requests": 2,
+    "requests_by_kind": {
+      "page": 2
+    },
+    "response_body_bytes": 622,
+    "response_body_bytes_by_kind": {
+      "page": 622
+    },
+    "statuses": {
+      "303": 1,
+      "200": 1
+    },
+    "peak_open_requests": 1,
+    "peak_requests_per_second": 2,
+    "elapsed_seconds": 0.531
+  },
+  "target_results_equal": true,
+  "selected_count": 1,
+  "source_db_bytes_unchanged": true,
+  "requests_reduction_percent": 97.22,
+  "response_body_bytes_reduction_percent": 96.97,
+  "elapsed_seconds_reduction_percent": 97.27,
+  "notes": [
+    "Before: every resource detail in the course. After: one selected resource detail.",
+    "Common authentication, all-course preflight and selected-course notice reads excluded from comparison.",
+    "Same cached course page, notices and authenticated account; sequential single samples.",
+    "No CLI end-to-end timing, no actual file-body transfer, and no writes to user DB.",
+    "Only aggregate metrics/equality flags are saved; no course or resource IDs, URLs, cookies or bodies."
+  ]
+}

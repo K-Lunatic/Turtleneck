@@ -902,7 +902,8 @@ class MoodleTLSProvider:
                       progress: Callable[[str], None] | None = None,
                       download_new_files: bool = True,
                       save_file: Callable[[dict], dict] | None = None,
-                      resource_ids: set[str] | None = None) -> list[dict[str, Any]]:
+                      resource_ids: set[str] | None = None,
+                      detail_course_ids: set[str] | None = None) -> list[dict[str, Any]]:
         jobs = []
         seen = set()
         notices_by_course = {}
@@ -914,6 +915,9 @@ class MoodleTLSProvider:
             for activity in parser.items:
                 match = re.search(r"/mod/(?:resource|ubfile)/view\.php\?id=(\d+)", activity['href'])
                 if match and match.group(1) not in seen:
+                    if (detail_course_ids is not None and course['id'] not in detail_course_ids
+                            and f'tls-resource-{match.group(1)}' not in (resource_ids or set())):
+                        continue
                     seen.add(match.group(1))
                     jobs.append((course, activity, match.group(1)))
 
