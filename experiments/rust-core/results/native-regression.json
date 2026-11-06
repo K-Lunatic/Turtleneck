@@ -1,0 +1,18 @@
+{
+  "university": {
+    "total": 368,
+    "passed": 366,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 2
+  },
+  "server": {
+    "total": 16,
+    "passed": 16,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0
+  },
+  "native_calls": 1030,
+  "fallbacks": 0
+}

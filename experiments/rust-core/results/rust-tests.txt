@@ -1,0 +1,16 @@
+
+running 3 tests
+test tests::duplicate_attributes_require_python_recovery ... ok
+test tests::validates_ffi_input_and_frees_owned_output ... ok
+test tests::extracts_nested_activity_text_and_entities ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `release` profile [optimized] target(s) in 0.05s
+     Running unittests src\lib.rs (.publish-tls\experiments\rust-core\target\release\deps\turtleneck_activity_parser-4c4563ed4f9aebcc.exe)
+   Doc-tests turtleneck_activity_parser

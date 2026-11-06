@@ -1,0 +1,10 @@
+test_complete_valid_evidence_allows_next_stage (test_assess.GateTests.test_complete_valid_evidence_allows_next_stage) ... ok
+test_failed_or_missing_regression_stops_expansion (test_assess.GateTests.test_failed_or_missing_regression_stops_expansion) ... ok
+test_micro_speedup_cannot_replace_missing_representative_flow (test_assess.GateTests.test_micro_speedup_cannot_replace_missing_representative_flow) ... ok
+test_noise_or_insufficient_improvement_stops_expansion (test_assess.GateTests.test_noise_or_insufficient_improvement_stops_expansion) ... ok
+test_request_or_data_changes_cannot_be_called_a_speedup (test_assess.GateTests.test_request_or_data_changes_cannot_be_called_a_speedup) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.000s
+
+OK

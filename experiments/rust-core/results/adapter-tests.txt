@@ -1,0 +1,11 @@
+test_concurrent_calls_are_independent (test_adapter.ParityTests.test_concurrent_calls_are_independent) ... ok
+test_fallback_preserves_duplicate_attribute_semantics (test_adapter.ParityTests.test_fallback_preserves_duplicate_attribute_semantics) ... ok
+test_ffi_rejects_invalid_utf8_and_input_size (test_adapter.ParityTests.test_ffi_rejects_invalid_utf8_and_input_size) ... ok
+test_generated_markup_matches (test_adapter.ParityTests.test_generated_markup_matches) ... ok
+test_incremental_feed_keeps_completed_items (test_adapter.ParityTests.test_incremental_feed_keeps_completed_items) ... ok
+test_static_html_contracts (test_adapter.ParityTests.test_static_html_contracts) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.012s
+
+OK

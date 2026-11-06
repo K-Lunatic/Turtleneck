@@ -23,3 +23,6 @@ dist/
 .env.*
 !.env.example
 .venv/
+
+# Rust prototype build output; keep source and Cargo.lock reviewable.
+/experiments/rust-core/target/

@@ -1,0 +1,18 @@
+[package]
+name = "turtleneck-activity-parser"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+html5ever = "=0.40.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

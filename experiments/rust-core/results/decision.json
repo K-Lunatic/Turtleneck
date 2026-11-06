@@ -1,0 +1,22 @@
+{
+  "allow_expansion": false,
+  "checks": {
+    "required_flows_present": true,
+    "thirty_pairs": true,
+    "representative_median_20_percent": false,
+    "positive_95_percent_interval": false,
+    "representative_records_equal": true,
+    "requests_equal": true,
+    "native_exercised": true,
+    "regression_suites_present": true,
+    "regression_passed": true,
+    "adapter_passed": true
+  },
+  "action": "stop expansion; retain Python production backend",
+  "candidate_remainder": [
+    "section overview",
+    "course structure",
+    "visible-text normalization"
+  ],
+  "note": "Run benchmarks and tests from the current source before assessing; hashes are recorded with results."
+}

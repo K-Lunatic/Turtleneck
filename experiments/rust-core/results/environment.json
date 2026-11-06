@@ -1,0 +1,13 @@
+{
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "machine": "AMD64",
+  "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+  "cargo": "1.99.1",
+  "target": "x86_64-pc-windows-gnu",
+  "source_branch": "experiment/rust-core-refactor",
+  "base_commit": "c60d9752b58d9d3bc4d2b635d016f7761627513f",
+  "dll_sha256": "b87386a223b83c56872dd919698378466a47e631a8dc55c810e60f38b21d7a8a",
+  "cargo_lock_sha256": "74cc9b8ac8878f2d25763f9c4827e9cfa3ef78f7a9a17c4c5b366c626de2af55",
+  "baseline_provider_sha256": "5d3aed8e6eabf4d64db18c17a05763c299cec4031d3eddd89ff44ea02fbef5ad"
+}
