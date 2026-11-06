@@ -32,9 +32,15 @@ Turtleneck 会在运行它的电脑上整理作业、通知、课程视频、课
 
 ## 快速开始
 
-要求：macOS 或 Windows 上的本地 Codex、Claude Code 或 Gemini 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载未签名的 `turtleneck-macos-arm64-unsigned` 或 `turtleneck-windows-x64-unsigned` 免安装包。运行前请先核对校验和，操作系统可能显示安全警告。
+要求：macOS 或 Windows 上的本地 Codex、Claude Code 或 Gemini 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载未签名的 `turtleneck-macos-x64-unsigned` 或 `turtleneck-windows-x64-unsigned` 免安装包。运行前请先核对校验和，操作系统可能显示安全警告。
 
 使用免安装包时，解压后运行 macOS 的 `turtleneck` 或 Windows 的 `turtleneck.exe`。插件仍按 Codex、Claude Code 等宿主的正常安装命令注册；免安装包只提供本地运行器和 Python 运行时。请参阅[发布策略](RELEASE.md)和[变更记录](CHANGELOG.md)。
+
+### 为什么会出现安全警告
+
+公开发布的免安装包目前是**未签名**的，因为还没有使用 Apple Developer 证书或 Windows 代码签名证书打包。因此 macOS Gatekeeper 可能提示开发者无法验证，Windows SmartScreen 可能阻止首次运行。这不是缺少 Python 的错误，而是操作系统无法验证发布者签名。
+
+运行前请确认文件来自官方 GitHub Release，并将 `.sha256` 文件中的校验和与发布页面的校验和进行比较。如果校验和不一致或来源不明，请停止运行，不要忽略警告。未签名并不代表文件自动安全。
 
 ### Codex
 

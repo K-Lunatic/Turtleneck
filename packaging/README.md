@@ -18,7 +18,12 @@ not call the network, school login, or a real account during packaging tests.
 
 ## Public release policy
 
-Public desktop artifacts are intentionally unsigned. macOS may block the first launch
-with a Gatekeeper warning, and Windows may show a SmartScreen warning. Verify the
-published SHA-256 file before extracting and use only a copy obtained from the official
-repository release.
+Public desktop artifacts are intentionally unsigned because no Apple Developer or
+Windows code-signing certificate is currently used. macOS may block the first launch
+with a Gatekeeper warning, and Windows may show a SmartScreen warning. This means the
+operating system cannot verify the publisher signature; it is not a missing-Python
+error and it is not proof that the file is safe.
+
+Before extracting or running, confirm that the file came from the official repository
+release and compare its SHA-256 value with the published `.sha256` file. Stop if the
+checksum differs or the source is unclear.

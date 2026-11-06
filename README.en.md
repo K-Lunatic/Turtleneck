@@ -32,9 +32,15 @@ Turtleneck organizes assignments, announcements, lectures, course files, schedul
 
 ## Quick start
 
-Requirements: a local Codex, Claude Code, or Gemini environment on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the unsigned `turtleneck-macos-arm64-unsigned` or `turtleneck-windows-x64-unsigned` no-install bundle from GitHub Releases. Verify its checksum before running; the operating system may show a security warning.
+Requirements: a local Codex, Claude Code, or Gemini environment on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the unsigned `turtleneck-macos-x64-unsigned` or `turtleneck-windows-x64-unsigned` no-install bundle from GitHub Releases. Verify its checksum before running; the operating system may show a security warning.
 
 To use a no-install bundle, extract it and run `turtleneck` on macOS or `turtleneck.exe` on Windows. Register the plugin with the host's normal install command; the bundle supplies the local runner and Python runtime. See the [release policy](RELEASE.md) and [change log](CHANGELOG.md).
+
+### Why a security warning appears
+
+Public bundles are currently **unsigned** because they are not packaged with an Apple Developer certificate or a Windows code-signing certificate. macOS Gatekeeper may report an unverified developer, and Windows SmartScreen may block the first launch. This is not a missing-Python error; it means the operating system cannot verify the publisher signature.
+
+Before opening the bundle, confirm that it came from the official GitHub Release and that its `.sha256` checksum matches the published checksum. Stop if the checksum differs or the source is unclear. An unsigned bundle is not automatically safe.
 
 ### Codex
 

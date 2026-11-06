@@ -60,9 +60,15 @@
 
 ### 1. 설치
 
-로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 macOS·Windows 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-arm64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 체크섬을 확인한 뒤 실행하세요.
+로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 macOS·Windows 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.
 
 무설치 번들은 압축을 푼 뒤 macOS의 `turtleneck` 또는 Windows의 `turtleneck.exe`를 실행합니다. 플러그인 자체는 사용하는 Codex·Claude Code의 설치 명령으로 등록하고, 번들은 로컬 실행기와 Python 런타임을 제공하는 방식입니다. 배포 절차는 [릴리스 정책](RELEASE.md), 변경 내역은 [변경 기록](CHANGELOG.md)에서 확인할 수 있습니다.
+
+#### 설치 중 보안 경고가 뜨는 이유
+
+공개 번들은 현재 Apple 개발자 인증서와 Windows 코드 서명 인증서가 없어 **무서명** 상태입니다. 따라서 macOS Gatekeeper가 “확인되지 않은 개발자”라고 표시하거나 Windows SmartScreen이 실행을 막을 수 있습니다. 이는 Python이 없어서 생기는 오류가 아니라 운영체제가 파일의 개발자 서명을 확인하지 못했다는 안내입니다.
+
+실행 전에는 반드시 공식 GitHub Release에서 받은 파일인지 확인하고, 함께 제공된 `.sha256` 파일과 체크섬이 일치하는지 비교하세요. 체크섬이 다르거나 출처가 불분명하면 경고를 무시하지 말고 실행을 중단하세요. 서명이 없다는 사실만으로 안전하다는 뜻은 아닙니다.
 
 **Codex:**
 
