@@ -41,7 +41,7 @@
         "translations": {
           "en": {
             "displayName": "Turtleneck",
-            "shortDescription": "Local university study assistant",
+            "shortDescription": "Local university study helper",
             "longDescription": "Turtleneck organizes courses, assignments, lectures, notices, Everytime timetable data, and study records on the user's Mac or Windows computer. It reads permitted local course files in bounded sections, keeps source locations, and hands only the needed excerpts to the current AI host for grounded study materials, translation, question generation, and grading. A supported optional ChatGPT Actions gateway provides limited mobile lookup and web-exam handoff while the owner's computer remains online. It does not provide device-to-device database sync or a school-wide hosted service.",
             "defaultPrompt": [
               "Tell me what I should do first today",
