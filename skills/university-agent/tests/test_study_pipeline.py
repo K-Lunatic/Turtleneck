@@ -110,7 +110,8 @@ class FilePipelineTests(ProjectTestBase):
         larger = self.session('larger-count').call({'action': 'request',
             'selection': {'courseId': 'course-1', 'allFiles': True}, 'settings': {'count': 20}})
         self.assertTrue(larger['needsExtraction'])
-        self.assertEqual(larger['hostOnly']['settings']['count'], 6)
+        self.assertEqual(larger['hostOnly']['settings']['count'], 4)
+        self.assertIn('reusedAnalysis', larger['hostOnly'])
 
     def test_thirty_questions_are_not_capped_at_twenty_for_one_part(self):
         prepared = self.session('thirty').call({'action': 'request',

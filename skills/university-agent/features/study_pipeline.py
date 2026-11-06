@@ -75,10 +75,30 @@ def start(session, state, selected, material=None):
         courses, resources = session.provider.get_courses(session.user), session.provider.get_resources(session.user)
         metadata = study_materials(courses, resources, files_root=session.files_root,
             course_id=state['selection']['courseId'], resource_ids=selected, include_ids=True, metadata_only=True)['data']['materials']
+        if not state['selection'].get('rebuildAnalysis') and len(metadata) == len(state['pipeline']['files']):
+            banks = []
+            for material_meta in metadata:
+                bank = None
+                if not material_meta.get('error'):
+                    for size in (CHUNK_CHARS, 8000):
+                        bank = material_cache.get(session.files_root.parent / 'cache', 'analysis', session.user,
+                                                  analysis_key(state, material_meta, size))
+                        if bank:
+                            break
+                banks.append(bank)
+            if all(banks):
+                units, candidates = [], []
+                for index, bank in enumerate(banks):
+                    units.extend({**u, 'id': f'{index}:{u["id"]}'} for u in bank['units'])
+                    candidates.extend({**q, 'id': f'{index}:{q["id"]}', 'unitId': f'{index}:{q["unitId"]}'}
+                                      for q in bank['candidates'])
+                state['pipeline']['completeCacheCoverage'] = not selection_plan({
+                    'settings': state['settings'], 'pipeline': {'units': units, 'candidates': candidates}})['missingCount']
         missing = [m['id'] for m in metadata if not m.get('error') and
             (state['selection'].get('rebuildAnalysis') is True or not any(material_cache.get(
                 session.files_root.parent / 'cache', 'analysis', session.user, analysis_key(state, m, size))
-                for size in (CHUNK_CHARS, 8000)))]
+                for size in (CHUNK_CHARS, 8000)) and not material_cache.get(
+                    session.files_root.parent / 'cache', 'source-analysis', session.user, source_analysis_key(state, m)))]
         if len(missing) > 1:
             # Warm local text only; the model still receives one bounded part at a time.
             study_materials(courses, resources, files_root=session.files_root,
@@ -102,6 +122,13 @@ def analysis_key(state, material, chunk_chars=CHUNK_CHARS):
     return material_cache.key(['analysis-v3', chunk_chars, state['selection']['courseId'],
         material['id'], material['title'], material.get('extension'), material.get('contentKey'),
         sorted(set(locations)) if locations is not None else None, configuration])
+
+
+def source_analysis_key(state, material):
+    return material_cache.key(['source-analysis-v1', state['selection']['courseId'],
+        material['id'], material['title'], material.get('contentKey'), material.get('extension'),
+        state['selection'].get('locations', {}).get(material['id']), state.get('examReferences', []),
+        state.get('focusNotes', [])])
 
 
 def load_chunks(state, material):
@@ -132,6 +159,7 @@ def load_chunks(state, material):
     p.update(chunks=chunks, chunkIndex=0, fileName=material['title'],
              fileSourceKind=material.get('sourceKind', 'course_file'),
              analysisKey=analysis_key(state, material),
+             sourceAnalysisKey=source_analysis_key(state, material),
              unitStart=len(p['units']), candidateStart=len(p['candidates']),
              activeBatch=[], activeDone=[])
     p['candidateTarget'] = min(40, max(1, ceil(state['settings'].get('count', 20) * 1.2 /
@@ -157,13 +185,19 @@ def reuse_analysis(session, state, material=None):
             material_cache.put(session.files_root.parent / 'cache', 'analysis', session.user, p['analysisKey'], saved)
         else:
             saved = None
-    if not saved:
+    source_key = source_analysis_key(state, material) if material is not None else None
+    saved_source_key = saved.get('sourceAnalysisKey') if saved else None
+    if not saved and material is not None:
+        saved = material_cache.get(session.files_root.parent / 'cache', 'source-analysis', session.user,
+                                   source_key)
+        saved_source_key = source_key
+    if not saved or not saved.get('units'):
+        p.pop('completeCacheCoverage', None)
         return False
-    target = min(40, max(1, ceil(state['settings']['count'] * 1.2 /
-                                max(1, len(p['files']) * len(saved['units'])))))
-    # A small earlier exam must not permanently cap a later, larger request.
-    if target > saved.get('candidateBudget', 20) and len(saved['candidates']) < min(state['settings']['count'], target * len(saved['units'])):
-        return False
+    if any(s.get('images') for u in saved['units'] for s in u['sources']) and not saved.get('imageRefs'):
+        p.pop('completeCacheCoverage', None)
+        return False  # Older image analyses need a normal read to recover valid image paths.
+    unit_start, candidate_start = len(p['units']), len(p['candidates'])
     ids = {}
     for unit in saved['units']:
         uid = f"u{len(p['units']) + 1}"
@@ -171,9 +205,30 @@ def reuse_analysis(session, state, material=None):
         p['units'].append({**unit, 'id': uid})
     for question in saved['candidates']:
         p['candidates'].append({**question, 'id': f"c{len(p['candidates']) + 1}", 'unitId': ids[question['unitId']]})
+    p.setdefault('imageRefs', {}).update(saved.get('imageRefs', {}))
+    file_types = state['settings']['types'][p['fileIndex']::len(p['files'])]
+    plan = selection_plan({'settings': {'count': len(file_types), 'types': file_types}, 'pipeline': {
+        'units': p['units'][unit_start:], 'candidates': p['candidates'][candidate_start:]}})
+    # shortcut: incomplete multi-file banks use per-file quotas; use a global top-up planner if overfill matters.
+    missing = ([] if p.get('completeCacheCoverage') else
+               [file_types[index - 1] for index in plan['missingSlots']])
+    p['reusedFiles'] = p.get('reusedFiles', 0) + 1
+    if missing:
+        units = p['units'][unit_start:]
+        work = []
+        for index, unit in enumerate(units):
+            types = missing[index::len(units)]
+            for offset in range(0, len(types), 40):
+                work.append({'unitId': unit['id'], 'types': types[offset:offset + 40]})
+        p.update(chunks=[next(u['sources'] for u in units if u['id'] == w['unitId']) for w in work],
+                 chunkIndex=0, topUpRequests=work, activeBatch=[], activeDone=[],
+                 unitStart=unit_start, candidateStart=candidate_start,
+                 candidateTarget=max(len(w['types']) for w in work),
+                 fileName=material['title'], fileSourceKind=material.get('sourceKind', 'course_file'),
+                 sourceAnalysisKey=source_key if saved_source_key == source_key else None)
+        return True
     p['fileIndex'] += 1
     p['chunks'] = []
-    p['reusedFiles'] = p.get('reusedFiles', 0) + 1
     return True
 
 
@@ -185,6 +240,9 @@ def _request_for_chunk(session, state, chunk_index, request_id):
     requested_types = set(state['settings']['types'])
     part_type = next(iter(requested_types)) if len(requested_types) == 1 else 'auto'
     part_settings = {**state['settings'], 'count': target, 'types': [part_type] * target}
+    top_up = p.get('topUpRequests', [])
+    if top_up:
+        part_settings.update(count=len(top_up[chunk_index]['types']), types=top_up[chunk_index]['types'])
     sources = p['chunks'][chunk_index]
     schema = session.generation_request({'settings': part_settings, 'selection': state['selection'],
         'sources': sources, 'requestId': request_id}, [], False, schema_only=True)
@@ -214,6 +272,13 @@ def _request_for_chunk(session, state, chunk_index, request_id):
             'settings': part_settings, 'examSettings': state['settings'],
             'studyContext': state.get('focusNotes', []), 'learningFocus': learning_focus(session, state),
             'SOURCE': sources, 'schema': schema}
+    if top_up:
+        unit = next(u for u in p['units'] if u['id'] == top_up[chunk_index]['unitId'])
+        host['reusedAnalysis'] = {k: unit[k] for k in ('context', 'learning', 'types')}
+        host['existingQuestions'] = [q['question'] for q in p['candidates'] if q['unitId'] == unit['id']]
+        host['instruction'] += '\n이번 요청은 부족 문항만 추가한다. 기존 개념/맥락을 재작성하지 말고 questions, types와 필요하면 shortageReason만 제출한다. 기존 후보와 의미가 겹치지 않게 만들며 SOURCE 근거를 다시 확인한다.'
+        schema.pop('context', None)
+        schema.pop('learning', None)
     return {'requestId': request_id,
             'progress': {'processedFiles': p['fileIndex'], 'totalFiles': len(p['files']),
                          'fileName': p['fileName'], 'part': chunk_index + 1, 'totalParts': len(p['chunks'])},
@@ -254,11 +319,19 @@ def _finish_file(session, state, target):
         [s for u in units for s in u['sources']], state['settings'], 'exam_analysis',
         {'units': units, 'candidates': candidates, 'candidateCount': len(candidates)}, operation_id=operation_id)
     material_cache.put(session.files_root.parent / 'cache', 'analysis', session.user, p['analysisKey'],
-        {'units': units, 'candidates': candidates, 'candidateBudget': target})
+        {'units': units, 'candidates': candidates, 'candidateBudget': target, 'imageRefs': p.get('imageRefs', {}),
+         'sourceAnalysisKey': p.get('sourceAnalysisKey')})
+    if p.get('sourceAnalysisKey'):
+        factual_units = [{**u, 'learning': [{k: x[k] for k in ('concept', 'explanation', 'evidence')}
+            for x in u['learning']]} for u in units]
+        material_cache.put(session.files_root.parent / 'cache', 'source-analysis', session.user, p['sourceAnalysisKey'],
+            {'units': factual_units, 'candidates': [], 'imageRefs': p.get('imageRefs', {}),
+             'sourceAnalysisKey': p['sourceAnalysisKey']})
     p['fileIndex'] += 1
     p['chunks'] = []
     p['activeBatch'] = []
     p['activeDone'] = []
+    p.pop('topUpRequests', None)
 
 
 def advance(session, state):
@@ -385,6 +458,12 @@ def _validated_part(session, state, item, data):
     p = state['pipeline']
     if not isinstance(data, dict):
         raise ValueError('분석 결과는 객체여야 합니다.')
+    if p.get('topUpRequests'):
+        unit = next(u for u in p['units'] if u['id'] == p['topUpRequests'][item['chunkIndex']]['unitId'])
+        learning = [{**{k: x[k] for k in ('concept', 'explanation')}, 'evidence': [
+            {k: ref[k] for k in ('resourceId', 'location', 'quote')} for ref in x['evidence']]}
+            for x in unit['learning']]
+        data = {'context': unit['context'], 'learning': learning, **data}
     context = required_text(data, 'context')
     if len(context) > 2000:
         raise ValueError('파일 맥락은 2000자 이내로 정리하세요.')
@@ -405,6 +484,9 @@ def _validated_part(session, state, item, data):
     part_type = next(iter(requested_types)) if len(requested_types) == 1 else 'auto'
     candidate_state = {'sources': sources, 'imageRefs': p.get('imageRefs', {}),
                        'settings': {**state['settings'], 'count': target, 'types': [part_type] * target}}
+    if p.get('topUpRequests'):
+        types = p['topUpRequests'][item['chunkIndex']]['types']
+        candidate_state['settings'].update(count=len(types), types=types)
     questions = validate_generated({**data, 'questions': _expand_questions(data, sources)}, candidate_state)
     if any(q['type'] not in {t['type'] for t in checked_types} for q in questions):
         raise ValueError('각 문항은 분석한 시험 유형에 속해야 합니다.')
@@ -418,8 +500,13 @@ def _validated_part(session, state, item, data):
 def _store_parts(session, state, parts):
     p = state['pipeline']
     for part in parts:
-        unit_id = f"u{len(p['units']) + 1}"
-        p['units'].append({'id': unit_id, 'resourceId': p['files'][p['fileIndex']],
+        unit_id = (p['topUpRequests'][part['chunkIndex']]['unitId'] if p.get('topUpRequests')
+                   else f"u{len(p['units']) + 1}")
+        if p.get('topUpRequests'):
+            unit = next(u for u in p['units'] if u['id'] == unit_id)
+            unit['types'] = list({t['type']: t for t in [*unit['types'], *part['types']]}.values())
+        else:
+            p['units'].append({'id': unit_id, 'resourceId': p['files'][p['fileIndex']],
             'part': part['chunkIndex'] + 1, 'context': part['context'], 'learning': part['learning'],
             'types': part['types'], 'sources': part['sources'], 'shortageReason': part['shortageReason']})
         for question in part['questions']:

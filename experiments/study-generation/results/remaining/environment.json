@@ -1,0 +1,18 @@
+{
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "branch": "turtleneck",
+  "base_commit": "50ce63cd5efe07c23163c20647bd12c4de983618",
+  "fixture_samples_per_version": 30,
+  "real_host_samples_per_mode": 5,
+  "host_worker_counts": {
+    "serial": 1,
+    "parallel": 2
+  },
+  "parallel_default_adoption": false,
+  "new_exam_complete_60s_goal_proven": false,
+  "production_plugin_updated": false,
+  "original_user_study_db_changed": false,
+  "live_scope": "Authorized Java2 resource-only refresh; no school writes.",
+  "model_configuration": "Inherited current host defaults; backend version/queue/token counts not exposed."
+}

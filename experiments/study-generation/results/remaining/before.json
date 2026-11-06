@@ -1,0 +1,922 @@
+{
+  "ai_latency_measured": false,
+  "samples": 30,
+  "narrow_scope": false,
+  "topup": {
+    "raw": [
+      {
+        "request_local_ms": 12.441599999874597,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.916899999050656,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.086099999578437,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.130499999329913,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.589699999603909,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.195699997391785,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.537099999462953,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.005899999872781,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.502800000016578,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.564100001123734,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.393000000680331,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.435700002039084,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.061999997968087,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 11.687300000630785,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.189199998829281,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 15.474100000574253,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 13.132699998095632,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.357700001302874,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.525199999799952,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.517099999968195,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.935500002640765,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.290599999687402,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 13.710700000956422,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.028100001771236,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 12.955500002135523,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 14.342399997985922,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 13.155699998605996,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 14.407499998924322,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 18.103400001564296,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      },
+      {
+        "request_local_ms": 18.139499999961117,
+        "new_candidates_requested": 36,
+        "reused_facts": false,
+        "final_questions": 30,
+        "bank_candidates": 36
+      }
+    ],
+    "median": {
+      "request_local_ms": 12.324150000495138,
+      "new_candidates_requested": 36.0,
+      "reused_facts": 0.0,
+      "final_questions": 30.0,
+      "bank_candidates": 36.0
+    }
+  },
+  "resource_preparation": {
+    "raw": [
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 75,
+        "elapsed_seconds": 1.579,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1570.3887999989092
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 75,
+        "elapsed_seconds": 1.546,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1550.1288000014029
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 89,
+        "elapsed_seconds": 1.297,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1297.7859999991779
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.218,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1221.1241999975755
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 92,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1204.7243999986676
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 92,
+        "elapsed_seconds": 1.188,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1199.031100000866
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.219,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1217.4272000011115
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1207.7781000007235
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.234,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1236.1516999990272
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 89,
+        "elapsed_seconds": 1.266,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1258.5973000022932
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 83,
+        "elapsed_seconds": 1.375,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1366.1202000002959
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 89,
+        "elapsed_seconds": 1.25,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1250.6611999997403
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.235,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1241.314800001419
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 89,
+        "elapsed_seconds": 1.219,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1232.8646999994817
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1205.9974000003422
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.219,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1209.4512000003306
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1200.4149999993388
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 89,
+        "elapsed_seconds": 1.328,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1341.0053000006883
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.219,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1218.1806999979017
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.219,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1221.3067000011506
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.219,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1217.35240000271
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.187,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1193.4583000002021
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.266,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1263.7684000001173
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1200.9104999997362
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1195.0738000014098
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1198.0180999998993
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.219,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1205.6806000000506
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 87,
+        "elapsed_seconds": 1.297,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1298.0748000009044
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 91,
+        "elapsed_seconds": 1.203,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1197.2276000014972
+      },
+      {
+        "requests": 98,
+        "requests_by_kind": {
+          "page": 81,
+          "post": 16,
+          "file": 1
+        },
+        "response_body_bytes": 12725,
+        "response_body_bytes_by_kind": {
+          "page": 12064,
+          "post": 640,
+          "file": 21
+        },
+        "statuses": {
+          "200": 98
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 89,
+        "elapsed_seconds": 1.265,
+        "login_calls": 1,
+        "failed": false,
+        "local_ms": 1254.3288999986544
+      }
+    ],
+    "median_requests": 98.0,
+    "median_local_ms": 1219.6524499977386
+  }
+}

@@ -1,0 +1,317 @@
+{
+  "phase": "Question authoring + worker self-review + structural checks, after source read.",
+  "samples_per_mode": 5,
+  "source_sha256": "731777542322dd4fd3f49928dbec711442d9978d4d0d891bc02a7066beba428d",
+  "settings": {
+    "questions": 30,
+    "choices": 4,
+    "type": "mcq",
+    "difficulty": "base",
+    "early_late_page_split": [
+      15,
+      15
+    ]
+  },
+  "serial_median_seconds": 71.30634808540344,
+  "parallel_generation_median_seconds": 42.01828622817993,
+  "generation_only_median_reduction_percent": 41.073568684439245,
+  "trials": [
+    {
+      "trial": 1,
+      "serial": {
+        "startedAtUnix": 1793956138.995566,
+        "count": 30,
+        "endedAtUnix": 1793956209.7755759,
+        "seconds": 70.78000998497009,
+        "questions": 30,
+        "utf8_bytes": 9755,
+        "sha256": "d3ab084b03810be62739761cdccffd8d1ef162755ae1af4f6188a46261c58b5e",
+        "structural_validation": true
+      },
+      "worker_a": {
+        "startedAtUnix": 1793956650.6665304,
+        "count": 15,
+        "endedAtUnix": 1793956691.198773,
+        "seconds": 40.5322425365448,
+        "questions": 15,
+        "utf8_bytes": 4831,
+        "sha256": "3598243c286f945298f5d8d9574ac59268ed8106a14683fe729da1354f9c6e03",
+        "structural_validation": true
+      },
+      "worker_b": {
+        "startedAtUnix": 1793956650.4880645,
+        "count": 15,
+        "endedAtUnix": 1793956692.5063508,
+        "seconds": 42.01828622817993,
+        "questions": 15,
+        "utf8_bytes": 5290,
+        "sha256": "f6c0cd8c5bd4e3fdcbe0def1fd3d25321ce41c2a90599124fa3483479d42f63a",
+        "structural_validation": true
+      },
+      "parallel_generation_wall_seconds": 42.01828622817993,
+      "serial_cyclic_answer_positions": true
+    },
+    {
+      "trial": 2,
+      "serial": {
+        "startedAtUnix": 1793956222.3290718,
+        "count": 30,
+        "endedAtUnix": 1793956293.6354198,
+        "seconds": 71.30634808540344,
+        "questions": 30,
+        "utf8_bytes": 9705,
+        "sha256": "95d98adca51c86a4efe6d6ffad9fba0f083c5da36e452167f29d477a456b025f",
+        "structural_validation": true
+      },
+      "worker_a": {
+        "startedAtUnix": 1793956701.1361988,
+        "count": 15,
+        "endedAtUnix": 1793956739.8379133,
+        "seconds": 38.701714515686035,
+        "questions": 15,
+        "utf8_bytes": 4672,
+        "sha256": "f0578cb35e72b9fcf98e0100733a5358d364ff337c34b54d8ba965e2686e34cd",
+        "structural_validation": true
+      },
+      "worker_b": {
+        "startedAtUnix": 1793956701.0917163,
+        "count": 15,
+        "endedAtUnix": 1793956741.888598,
+        "seconds": 40.796881675720215,
+        "questions": 15,
+        "utf8_bytes": 5121,
+        "sha256": "5320641ba694c22bf65e2b203764a5cfcce8b43c834d95f7a1a59e904ac14882",
+        "structural_validation": true
+      },
+      "parallel_generation_wall_seconds": 40.796881675720215,
+      "serial_cyclic_answer_positions": true
+    },
+    {
+      "trial": 3,
+      "serial": {
+        "startedAtUnix": 1793956303.029435,
+        "count": 30,
+        "endedAtUnix": 1793956373.9354434,
+        "seconds": 70.90600848197937,
+        "questions": 30,
+        "utf8_bytes": 10083,
+        "sha256": "225399efad82e5d987fd7a61b3b51fb70e4715fb83c540052b1efd6148c061ff",
+        "structural_validation": true
+      },
+      "worker_a": {
+        "startedAtUnix": 1793956747.9434676,
+        "count": 15,
+        "endedAtUnix": 1793956786.398462,
+        "seconds": 38.454994440078735,
+        "questions": 15,
+        "utf8_bytes": 4969,
+        "sha256": "364f2e4d9d34dfb97dc5dd37c08d9cc1aa34d319a7f068a015649e554f7332d2",
+        "structural_validation": true
+      },
+      "worker_b": {
+        "startedAtUnix": 1793956747.758588,
+        "count": 15,
+        "endedAtUnix": 1793956790.1143186,
+        "seconds": 42.35573053359985,
+        "questions": 15,
+        "utf8_bytes": 5543,
+        "sha256": "87191d172a0813a1e7c4ba3550379ccd3fd7be2f25e2b41900bc7bbeef265bc8",
+        "structural_validation": true
+      },
+      "parallel_generation_wall_seconds": 42.35573053359985,
+      "serial_cyclic_answer_positions": true
+    },
+    {
+      "trial": 4,
+      "serial": {
+        "startedAtUnix": 1793956383.662567,
+        "count": 30,
+        "endedAtUnix": 1793956455.36663,
+        "seconds": 71.70406317710876,
+        "questions": 30,
+        "utf8_bytes": 10386,
+        "sha256": "30197eb94642579a5d833f55100532583f8f5b536bd58d599b6af40c3ffa0b25",
+        "structural_validation": true
+      },
+      "worker_a": {
+        "startedAtUnix": 1793956796.7459342,
+        "count": 15,
+        "endedAtUnix": 1793956838.3108044,
+        "seconds": 41.56487011909485,
+        "questions": 15,
+        "utf8_bytes": 4829,
+        "sha256": "155768f5020dc1a9fb190e6add4964ede194ecd546082e64cc412a0728df81d0",
+        "structural_validation": true
+      },
+      "worker_b": {
+        "startedAtUnix": 1793956796.738134,
+        "count": 15,
+        "endedAtUnix": 1793956840.260588,
+        "seconds": 43.522454023361206,
+        "questions": 15,
+        "utf8_bytes": 5028,
+        "sha256": "67dd93587796260939b3b4c2bd9a9a47dc026471c08265b3efb7fd9e0f1c48bf",
+        "structural_validation": true
+      },
+      "parallel_generation_wall_seconds": 43.522454023361206,
+      "serial_cyclic_answer_positions": true
+    },
+    {
+      "trial": 5,
+      "serial": {
+        "startedAtUnix": 1793956461.2099698,
+        "count": 30,
+        "endedAtUnix": 1793956535.2621608,
+        "seconds": 74.05219101905823,
+        "questions": 30,
+        "utf8_bytes": 10411,
+        "sha256": "06bc926190f64b5234fe95f9f59cd602b8862f4a6656975d43572814da395c2b",
+        "structural_validation": true
+      },
+      "worker_a": {
+        "startedAtUnix": 1793956849.5109806,
+        "count": 15,
+        "endedAtUnix": 1793956888.7529883,
+        "seconds": 39.24200773239136,
+        "questions": 15,
+        "utf8_bytes": 4869,
+        "sha256": "031a83574015a29613ae4c260db4d8c2f7ff5389388227eacfc2644d4532bad7",
+        "structural_validation": true
+      },
+      "worker_b": {
+        "startedAtUnix": 1793956849.410202,
+        "count": 15,
+        "endedAtUnix": 1793956890.092257,
+        "seconds": 40.68205499649048,
+        "questions": 15,
+        "utf8_bytes": 5442,
+        "sha256": "01713e7d584964b2ee70c4f028da0d6858d41edaebecb29b6694c2663a66444d",
+        "structural_validation": true
+      },
+      "parallel_generation_wall_seconds": 40.68205499649048,
+      "serial_cyclic_answer_positions": true
+    }
+  ],
+  "quality_review": {
+    "overall": {
+      "questionsReviewed": 150,
+      "incorrectKeyedAnswersFound": 0,
+      "exactEvidenceQuoteMismatches": 0,
+      "substantiveDuplicatePairsFound": 1,
+      "directCrossStemDisclosurePairsFound": 3,
+      "trialsWithPredictableAnswerPositions": 5,
+      "productionChanges": false,
+      "generatedContentEdited": false,
+      "assessment": "Source-based factual keys appear correct on this review. The duplicate, explicit cross-item clues, and deterministic key cycle mean structural success does not establish equivalent educational quality or suitability as an independent assessment."
+    },
+    "review_wall_seconds_for_all_five_sets": 150.52231907844543,
+    "trials": [
+      {
+        "trial": 1,
+        "issue_count": 1,
+        "issues": [
+          {
+            "type": "predictable_answer_positions",
+            "severity": "medium",
+            "questions": "A1-A15,B1-B15"
+          }
+        ]
+      },
+      {
+        "trial": 2,
+        "issue_count": 2,
+        "issues": [
+          {
+            "type": "predictable_answer_positions",
+            "severity": "medium",
+            "questions": "A1-A15,B1-B15"
+          },
+          {
+            "type": "cross_question_answer_disclosure",
+            "severity": "medium",
+            "questions": [
+              "B4",
+              "B3"
+            ]
+          }
+        ]
+      },
+      {
+        "trial": 3,
+        "issue_count": 1,
+        "issues": [
+          {
+            "type": "predictable_answer_positions",
+            "severity": "medium",
+            "questions": "A1-A15,B1-B15"
+          }
+        ]
+      },
+      {
+        "trial": 4,
+        "issue_count": 2,
+        "issues": [
+          {
+            "type": "predictable_answer_positions",
+            "severity": "medium",
+            "questions": "A1-A15,B1-B15"
+          },
+          {
+            "type": "cross_question_answer_disclosure",
+            "severity": "medium",
+            "questions": [
+              "A14",
+              "A13"
+            ]
+          }
+        ]
+      },
+      {
+        "trial": 5,
+        "issue_count": 3,
+        "issues": [
+          {
+            "type": "predictable_answer_positions",
+            "severity": "medium",
+            "questions": "A1-A15,B1-B15"
+          },
+          {
+            "type": "substantive_duplicate",
+            "severity": "medium",
+            "questions": [
+              "A2",
+              "A8"
+            ]
+          },
+          {
+            "type": "cross_question_answer_disclosure",
+            "severity": "medium",
+            "questions": [
+              "A8",
+              "A2"
+            ]
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "This is a manual model review of supplied extracted text, not a blinded instructor review or empirical learner evaluation; zero incorrect keys found is not a guarantee of correctness.",
+      "No original PDF images were inspected and no image-only content was inferred. Some pages have little or no extracted text, so page-range coverage is not topic coverage of every page.",
+      "No Java compiler or runtime was used. Example state changes and arithmetic were checked by reading and reasoning.",
+      "Cross-question clue counts cover clear identified cases, not an exhaustive semantic dependence proof. Many items reuse the same small examples; explanations or correct answers displayed before other items can create further cues.",
+      "Disclosure severity depends on presentation: later-question stems can aid earlier questions only when learners can inspect or revisit them. The raw generated payload does not establish the UI's navigation or answer-reveal policy.",
+      "Basic syntax-reading questions can validly contain their own notation, but they provide weak evidence of conceptual mastery. This review distinguishes those from factual errors.",
+      "Review is separate overhead and is not included in worker generation clocks. No fixes or regeneration were performed, so reported generation times describe these original outputs."
+    ]
+  },
+  "adopt_parallel_by_default": false,
+  "target_60_second_complete_exam_proven": false,
+  "limitations": [
+    "Five serial trials were run first, then five synchronized parallel trials; not randomized alternating order.",
+    "Source was already read; agent spawn/first source ingestion, parent cross-review, repair, assembly and HTTP startup excluded.",
+    "Same inherited host model configuration; backend settings, token usage and server queue are not exposed.",
+    "Drafts differ, so this compares matched workloads, not identical token output.",
+    "Predictable answer positions also appear in serial drafts and are not proven to be caused by parallelism.",
+    "Human-independent educational equivalence was not established; no Java execution or image interpretation."
+  ]
+}

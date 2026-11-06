@@ -1,0 +1,19 @@
+{
+  "scope": "Java2 target preparation only; earlier 80.907s run was broader and transferred file bytes.",
+  "elapsed_seconds": 2.234,
+  "requests": 7,
+  "requests_by_kind": {
+    "file": 1,
+    "page": 6
+  },
+  "response_body_bytes": 46172,
+  "statuses": {
+    "200": 5,
+    "303": 1,
+    "304": 1
+  },
+  "school_writes": false,
+  "whole_academic_freshness_advanced": false,
+  "controlled_before_after": false,
+  "file_body_transferred": false
+}

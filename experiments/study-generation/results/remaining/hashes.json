@@ -1,0 +1,21 @@
+{
+  "experiments/study-generation/remaining_benchmark.py": "8c8966da0678c54ddf12e835d15699508f6764cf1ef9c053530283783c5d2c17",
+  "experiments/study-generation/results/remaining/after.json": "d31c4cd473671ff7fee085273ba7454cbe802fd314bcc230ec9ed6cf47d6cb5e",
+  "experiments/study-generation/results/remaining/before.json": "e9b0d2fb40bb207d168d4e19fc9ec4b8dcab8e66701a211e52bc6e918c7b59a1",
+  "experiments/study-generation/results/remaining/environment.json": "a22f860505c4c3d4d935c5779403fef14d8fa342646c2ba242e9a1e50078ddb7",
+  "experiments/study-generation/results/remaining/parallel-experiment.json": "94c861f1b0735da2b3746d9a762350cc44181a44eb1c83f07c9212b44c4ec82d",
+  "experiments/study-generation/results/remaining/regression.json": "64c5e5c5ef2f18f71304d608e5f2fa949fb032fcf91e9e7113537cde926a97bd",
+  "experiments/study-generation/results/remaining/regression.txt": "418b28c5bd8b54743012992310e37a3f19a04569f9aacb6cd73e821c9c32198b",
+  "experiments/study-generation/results/remaining/resource-live.json": "a470546be3a348604cf77bf3fec5782371ec470f91e5586ab9ccdb2653a7fb36",
+  "experiments/study-generation/verify.py": "4c2a6c573e8a5f2b251338ed74047d24f72fe033e871129cf7024f916db0a193",
+  "skills/university-agent/features/study_pipeline.py": "90047e4d8b9f0cfbd8296695181178365841d7b39b6c79377ce23645809749f7",
+  "skills/university-agent/references/study.md": "52c71d628c29336eaffaa738c9da7ac95db734f08f25acc79c805a380beda9ed",
+  "skills/university-agent/scripts/sync_tls.py": "90e165e677108705c5c29d274d8e83cdea4722ceb5dff255b2c2985508adee4f",
+  "skills/university-agent/SKILL.md": "ae9fbc988bd0d41bf24b7b2541efb180e77b62595b1697e2631e38df05850d60",
+  "skills/university-agent/tests/test_study_pipeline.py": "54e19d063398ee5d0bd2c74be1e5f7b1ea007b95de8a6a1269a01db8ceab2318",
+  "skills/university-agent/tests/test_study_topup.py": "ac45a4bd007917d47cca72b8b72ff5ecc9db12edd43d868821d3f59309af1025",
+  "skills/university-agent/tests/test_sync_policy.py": "69f3352637143fddaefcda50c67d4d43af18c62bbddc485c3304930f506f41ea",
+  "STUDY_GENERATION_NEXT_OPTIMIZATION_MEMO.md": "fab8d8db4f32d8d838bd4596369f546a07d3c131c14d20c0ef9878ffeafe9ece",
+  "STUDY_GENERATION_REMAINING_REPORT_MEMO.md": "0dc10e43a24a49b9152b34f5231a95bd10d9bd70a3bacc89a151195618d812d4",
+  "STUDY_GENERATION_REMAINING_RESULTS.md": "ed6a06e6565790e6f6083fbc37f42a1659d33c4ce56f73de6f0a3f66d45d000f"
+}

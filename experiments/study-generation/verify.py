@@ -1,5 +1,6 @@
 """Run existing offline suites and save UTF-8 evidence for generation changes."""
 import contextlib
+import argparse
 import json
 from pathlib import Path
 import sys
@@ -7,7 +8,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-results = Path(__file__).parent / 'results'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--output-dir', type=Path, default=Path(__file__).parent / 'results')
+results = parser.parse_args().output_dir
+results.mkdir(parents=True, exist_ok=True)
 summary = {}
 with (results / 'regression.txt').open('w', encoding='utf-8') as log:
     with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):

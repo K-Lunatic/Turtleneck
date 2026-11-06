@@ -289,6 +289,8 @@ def _mark_checks(db_path, user_id, kind, refreshed, course_ids, scope):
 
 
 def _can_reuse(args, state, scope, db_path, user_id, requested_at):
+    if getattr(args, 'resource_only', False):
+        return False  # Explicit file preparation rechecks current enrollment and restrictions.
     if state.get('sync_scope') != scope:
         return False
     since = requested_at if args.force or args.full else None
@@ -339,8 +341,11 @@ def _main() -> None:
     parser.add_argument('--full', action='store_true', help='Force a complete refresh')
     parser.add_argument('--force', action='store_true', help='Bypass successful-check ages; still respect active syncs and server cooldowns')
     parser.add_argument('--resource-id', action='append', default=[], help='Prepare the requested original file after checking current permissions')
+    parser.add_argument('--resource-only', action='store_true', help='Prepare only known requested files and their course restrictions')
     parser.add_argument('--metrics', action='store_true', help='Print private aggregate HTTP request counters to stderr')
     args = parser.parse_args()
+    if args.resource_only and (not args.resource_id or args.full or args.metadata_only or args.academic_only or args.connect):
+        parser.error('--resource-only는 --resource-id와 함께 쓰며 전체/학사/연결/목록 전용 모드와 함께 쓸 수 없습니다.')
     if args.academic_only and (args.ensure or args.full or args.resource_id or args.connect):
         parser.error('--academic-only는 다른 동기화 범위나 연결 모드와 함께 사용할 수 없습니다.')
     if args.ensure and args.full:
@@ -399,6 +404,46 @@ def _main() -> None:
         raise SystemExit('학교 확인이 끝나지 않았어요. 기존 기록은 보존했으며 잠시 후 다시 확인할 수 있어요.') from error
 
 
+def _prepare_requested_resources(args, db_path, user_id, username, provider, scope, state):
+    if state.get('sync_scope') != scope or not db_path.exists():
+        raise RuntimeError('자료의 연결 범위를 먼저 전체 목록 갱신으로 확인해 주세요.')
+    requested = _requested_course_ids(db_path, user_id, args.resource_id)
+    courses = provider.get_courses(user_id)
+    ids = {c['id'] for c in courses}
+    # Reconcile enrollment even when a formerly accessible target is no longer available.
+    persist(db_path, user_id, username, courses)
+    if requested is None or not requested <= ids:
+        raise RuntimeError('현재 수강 중인 과목의 알려진 자료만 준비할 수 있어요. 자료 목록을 갱신해 주세요.')
+    reader = provider.for_courses(user_id, requested)
+    with closing(LocalDatabase(db_path, read_only=True)) as database:
+        previous_notices = database.get_notices(user_id)
+        previous_resources = database.get_resources(user_id, include_permissions=False)
+    notices = reader.get_notices(user_id, existing_notices=previous_notices, force_details=True)
+    persist(db_path, user_id, username, courses, notices=notices, refreshed_course_ids=requested)
+    targets = set(args.resource_id)
+    file_root = db_path.parent / 'files'
+    resources = reader.get_resources(user_id, notices=notices,
+        existing_resources=_cached_resources(db_path, user_id, file_root), resource_ids=targets,
+        detail_course_ids=set(), download_new_files=True, save_file=lambda item: store_resource(file_root, item))
+    if any(item.get('_checkFailed') for item in resources):
+        raise URLError('요청한 자료의 현재 상태를 확인하지 못했어요.')
+    seen = {item['id'] for item in resources}
+    resources += [{**item, 'downloadStatus': 'PROHIBITED', 'downloadReason': '현재 과목 자료 목록에서 확인되지 않습니다.'}
+                  for item in previous_resources if item['id'] in targets - seen]
+    resources += [item for item in previous_resources if item['courseId'] in requested and item['id'] not in targets]
+    persist(db_path, user_id, username, courses, resources=resources, refreshed_course_ids=requested)
+    try:
+        checks = json.loads(state.get('resource_item_checks', '{}'))
+    except (TypeError, ValueError):
+        checks = {}
+    if not isinstance(checks, dict):
+        checks = {}
+    checks.update(dict.fromkeys(seen & targets, sync_policy.now().isoformat()))
+    with closing(LocalDatabase(db_path)) as database:
+        database.merge_sync_state(user_id, {'resource_item_checks': json.dumps(checks)})
+    print(f'요청한 자료 확인 완료 · 대상 {len(targets)}개 · 관련 과목 {len(requested)}개')
+
+
 def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_failed=False):
     started = monotonic()
     force = args.full or args.force or retry_failed
@@ -407,6 +452,9 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
     state = _saved_sync_state(db_path, user_id)
     if state.get('sync_scope') != scope:
         force = True
+    if getattr(args, 'resource_only', False):
+        _prepare_requested_resources(args, db_path, user_id, username, provider, scope, state)
+        return
     if args.academic_only:
         courses, assignments, lectures = provider.get_academic_snapshot(user_id)
         persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures)

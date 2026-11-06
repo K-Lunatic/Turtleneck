@@ -84,6 +84,58 @@ class SyncPolicyTests(unittest.TestCase):
         self.assertEqual(result['requests_by_kind']['file'], 1)
         self.assertEqual(sum(row['downloadStatus'] == 'DOWNLOADED' for row in snapshot(self.db)['resources']), 1)
 
+    def test_resource_only_skips_other_courses_and_keeps_global_freshness(self):
+        from providers.moodle_provider import MoodleTLSProvider
+        before = snapshot(self.db)
+        stamps = sync_tls._saved_sync_state(self.db, 'fixture')
+        pages = {key: value for key, value in self.pages.items()
+                 if key != '/course/view.php?id=2' and '/mod/assign/' not in key and '/mod/vod/' not in key}
+        with patch.object(MoodleTLSProvider, 'preflight', side_effect=AssertionError('no whole catalog')):
+            result = self.sync('--resource-only', '--resource-id', 'tls-resource-108', pages=pages)
+        after = snapshot(self.db)
+        self.assertEqual(result['requests_by_kind']['file'], 1)
+        self.assertEqual(after['assignments'], before['assignments'])
+        self.assertEqual(after['lectures'], before['lectures'])
+        self.assertEqual([r for r in after['resources'] if r['id'] != 'tls-resource-108'],
+                         [r for r in before['resources'] if r['id'] != 'tls-resource-108'])
+        saved = sync_tls._saved_sync_state(self.db, 'fixture')
+        self.assertEqual({k:v for k,v in saved.items() if k != 'resource_item_checks'}, stamps)
+
+    def test_resource_only_rechecks_prohibition_and_removed_target(self):
+        self.pages['/local/ubdoc/worker.php'] = '{"state_code":"100","file_download":"0"}'
+        result = self.sync('--resource-only', '--resource-id', 'tls-resource-108')
+        self.assertEqual(result.get('requests_by_kind', {}).get('file', 0), 0)
+        self.assertEqual(next(r for r in snapshot(self.db)['resources'] if r['id']=='tls-resource-108')['downloadStatus'], 'PROHIBITED')
+        self.pages['/course/view.php?id=1'] = self.pages['/course/view.php?id=1'].replace('/mod/ubfile/view.php?id=108', '/mod/other/view.php?id=108')
+        self.sync('--resource-only', '--resource-id', 'tls-resource-108')
+        row = next(r for r in snapshot(self.db)['resources'] if r['id']=='tls-resource-108')
+        self.assertIn('목록에서', row['downloadReason'])
+
+    def test_resource_only_unknown_or_unenrolled_target_fails_closed(self):
+        result = run_sync(sync_tls, self.pages, self.db, '--resource-only', '--resource-id', 'unknown', allow_failure=True)
+        self.assertTrue(result['failed'])
+        self.pages['/local/ubion/user/'] = '<a href="/course/view.php?id=2">과목 2</a>'
+        result = run_sync(sync_tls, self.pages, self.db, '--resource-only', '--resource-id', 'tls-resource-108', allow_failure=True)
+        self.assertTrue(result['failed'])
+        self.assertFalse(any(r['courseId']=='tls-course-1' for r in snapshot(self.db)['resources']))
+
+    def test_resource_only_bad_combinations_fail_before_login(self):
+        for args in (('--resource-only',), ('--resource-only','--resource-id','tls-resource-108','--full')):
+            row = run_sync(sync_tls, self.pages, self.db, *args, allow_failure=True)
+            self.assertTrue(row['failed'])
+            self.assertEqual(row['login_calls'], 0)
+
+    def test_resource_only_failure_keeps_target_and_success_stamps(self):
+        from providers.moodle_provider import MoodleTLSProvider
+        before = snapshot(self.db)
+        stamps = sync_tls._saved_sync_state(self.db, 'fixture')
+        with patch.object(MoodleTLSProvider, 'get_resources', side_effect=sync_tls.URLError('fixture failure')):
+            row = run_sync(sync_tls, self.pages, self.db, '--resource-only', '--resource-id',
+                           'tls-resource-108', allow_failure=True)
+        self.assertTrue(row['failed'])
+        self.assertEqual(snapshot(self.db)['resources'], before['resources'])
+        self.assertEqual(sync_tls._saved_sync_state(self.db, 'fixture'), stamps)
+
     def test_force_and_force_academic_bypass_success_age(self):
         self.instant += timedelta(seconds=1)
         self.assertEqual(self.sync('--academic-only')['requests'], 0)
