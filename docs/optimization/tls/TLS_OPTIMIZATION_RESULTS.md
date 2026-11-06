@@ -61,7 +61,7 @@
 
 두 실제 실행은 순차 실행이므로 시간과 응답량에는 네트워크 상태·동적 HTML의 영향이 있다. 동일 입력에서의 정확한 알고리즘 차이는 아래 모의 비교로 보완했다.
 
-원시 집계: [live.json](tls-optimization-results/live.json)
+원시 집계: [live.json](../../../tls-optimization-results/live.json)
 
 ## 동일 입력에서의 변경 전후 비교
 
@@ -101,7 +101,7 @@
 
 모의 응답에는 실제 네트워크 지연이 없고 요청 간격도 제거했으므로, 모의 실행 시간과 초당 요청 수는 실서비스 속도나 순간 부하의 추정값으로 사용하지 않는다.
 
-원시 집계: [offline.json](tls-optimization-results/offline.json)
+원시 집계: [offline.json](../../../tls-optimization-results/offline.json)
 
 ## 측정 지표의 정의와 한계
 
@@ -114,7 +114,7 @@
 
 ## 기존 0~2단계 검증·재현 기록
 
-검증 결과: 대학 기능 **325개 중 323개 통과·2개 건너뜀**, 서버 **14개 모두 통과**. 건너뛴 항목은 macOS PDFKit 전용 검사와 설치되지 않은 선택적 PDF 추출 의존성 검사다. 신규 최적화·계측 검사 12개가 대학 기능 검사에 포함된다. 전체 로그는 [tests.txt](tls-optimization-results/tests.txt), 집계는 [tests.json](tls-optimization-results/tests.json)에 저장했다. Windows 기본 cp949 환경의 출력 해석 오류는 `PYTHONUTF8=1`로 재실행해 해결했다.
+검증 결과: 대학 기능 **325개 중 323개 통과·2개 건너뜀**, 서버 **14개 모두 통과**. 건너뛴 항목은 macOS PDFKit 전용 검사와 설치되지 않은 선택적 PDF 추출 의존성 검사다. 신규 최적화·계측 검사 12개가 대학 기능 검사에 포함된다. 전체 로그는 [tests.txt](../../../tls-optimization-results/tests.txt), 집계는 [tests.json](../../../tls-optimization-results/tests.json)에 저장했다. Windows 기본 cp949 환경의 출력 해석 오류는 `PYTHONUTF8=1`로 재실행해 해결했다.
 
 로컬 모의 비교는 실제 TLS에 접속하지 않는다.
 
@@ -134,9 +134,9 @@ python skills/university-agent/scripts/sync_tls.py --ensure --metadata-only --me
 python skills/university-agent/scripts/benchmark_tls_live.py
 ```
 
-변경 전 소스는 [baseline_sources.zip](tls-optimization-results/baseline_sources.zip)에 보관했다. 원본 소스 SHA-256은 `offline.json`에 기록했다. Git 저장소가 없는 작업 폴더이므로 이 보관본을 변경 전 기준으로 사용했다.
+변경 전 소스는 [baseline_sources.zip](../../../tls-optimization-results/baseline_sources.zip)에 보관했다. 원본 소스 SHA-256은 `offline.json`에 기록했다. Git 저장소가 없는 작업 폴더이므로 이 보관본을 변경 전 기준으로 사용했다.
 
-수정 파일의 비교는 [changes.patch](tls-optimization-results/changes.patch), 최종 소스·측정 파일 해시는 [source_hashes.json](tls-optimization-results/source_hashes.json)에 보관한다.
+수정 파일의 비교는 [changes.patch](../../../tls-optimization-results/changes.patch), 최종 소스·측정 파일 해시는 [source_hashes.json](../../../tls-optimization-results/source_hashes.json)에 보관한다.
 
 푸시는 수행하지 않았다.
 
@@ -177,7 +177,7 @@ python skills/university-agent/scripts/benchmark_tls_live.py
 
 재사용 결과와 실제 확인 시각은 준비본과 일치했다. 강제 갱신한 과제·강의 내용도 이전 실행 결과와 일치했다. 본문 70 B 차이는 순차 응답의 변동이며 절감으로 해석하지 않는다. 강제 확인은 요청 총량을 줄이는 대신 요청을 분산해 시간이 늘었다. 실제 평균 처리 시간이나 전체 사용자 환경을 대표하는 수치는 아니다.
 
-비교 외 준비 비용: 인증 **5회·30,663 B**, 초기 상태 확인 **57회·520,507 B**. 비교 114회를 포함한 이번 실측의 총 요청은 **176회**다. 파일 본문 다운로드는 없다. 원본 DB 파일 SHA-256 전후 일치를 확인했다. 원시 집계: [stage345_live.json](tls-optimization-results/stage345_live.json).
+비교 외 준비 비용: 인증 **5회·30,663 B**, 초기 상태 확인 **57회·520,507 B**. 비교 114회를 포함한 이번 실측의 총 요청은 **176회**다. 파일 본문 다운로드는 없다. 원본 DB 파일 SHA-256 전후 일치를 확인했다. 원시 집계: [stage345_live.json](../../../tls-optimization-results/stage345_live.json).
 
 ### 동일 응답 비교: 8과목, 0~2단계 → 최종본
 
@@ -197,7 +197,7 @@ python skills/university-agent/scripts/benchmark_tls_live.py
 
 **상태만 변경된 기본 명령은 결과가 의도적으로 다르다.** 이전은 제출 완료를 놓쳤지만 최종본은 15분 만료 후 이를 반영했다. 따라서 9→41을 성능 저하만으로 평가하거나, 오래된 결과와 최신 결과를 동일한 서비스로 비교하지 않는다. 나머지 8개 조건은 저장 결과가 일치했다. 파일 요청은 권한 재검사와 파일 수신을 유지하면서 신선한 과제·강의 조회 4회만 생략했다.
 
-고정 응답 측정에서는 일반 요청 간격을 제거하므로 실행 시간은 실서비스 속도 추정에 쓰지 않는다. [stage345_offline.json](tls-optimization-results/stage345_offline.json)에 요청 종류·상태·본문량·호출별 상세와 시간도 보존했다.
+고정 응답 측정에서는 일반 요청 간격을 제거하므로 실행 시간은 실서비스 속도 추정에 쓰지 않는다. [stage345_offline.json](../../../tls-optimization-results/stage345_offline.json)에 요청 종류·상태·본문량·호출별 상세와 시간도 보존했다.
 
 ### 동시 실행·순간 부하·오류 검증
 
@@ -221,8 +221,8 @@ python skills/university-agent/scripts/benchmark_tls_policy.py
 python skills/university-agent/scripts/benchmark_tls_policy_live.py
 ```
 
-3~5단계 변경 전 기준은 [stage012_sources.zip](tls-optimization-results/stage012_sources.zip)이다. 최종 검사 집계는 [stage345-tests.json](tls-optimization-results/stage345-tests.json), 상세 로그는 [stage345-tests.txt](tls-optimization-results/stage345-tests.txt), 소스 차이는 [stage345-changes.patch](tls-optimization-results/stage345-changes.patch), 최종 증거 파일 해시는 [final_hashes.json](tls-optimization-results/final_hashes.json)에 보관한다. 기존 0~2단계 측정·소스·로그도 보존했다.
+3~5단계 변경 전 기준은 [stage012_sources.zip](../../../tls-optimization-results/stage012_sources.zip)이다. 최종 검사 집계는 [stage345-tests.json](../../../tls-optimization-results/stage345-tests.json), 상세 로그는 [stage345-tests.txt](../../../tls-optimization-results/stage345-tests.txt), 소스 차이는 [stage345-changes.patch](../../../tls-optimization-results/stage345-changes.patch), 최종 증거 파일 해시는 [final_hashes.json](../../../tls-optimization-results/final_hashes.json)에 보관한다. 기존 0~2단계 측정·소스·로그도 보존했다.
 
-패치는 변경 전 보관본이 있는 수집·세션·예약·서버 파일과 신규 정책/검사/측정 파일을 대상으로 한다. 보관본이 없던 기존 테스트·사용 안내 문서의 수정도 포함한 최종 파일 묶음은 [final_sources.zip](tls-optimization-results/final_sources.zip)에 보관했다. 기존 0~2단계 비교 스크립트도 보관된 0~2단계 소스를 사용하도록 고쳤고, [stage012-reproduced.json](tls-optimization-results/stage012-reproduced.json)의 모든 시나리오에서 과거 요청 수·본문량·기준 소스 해시가 일치함을 확인했다.
+패치는 변경 전 보관본이 있는 수집·세션·예약·서버 파일과 신규 정책/검사/측정 파일을 대상으로 한다. 보관본이 없던 기존 테스트·사용 안내 문서의 수정도 포함한 최종 파일 묶음은 [final_sources.zip](../../../tls-optimization-results/final_sources.zip)에 보관했다. 기존 0~2단계 비교 스크립트도 보관된 0~2단계 소스를 사용하도록 고쳤고, [stage012-reproduced.json](../../../tls-optimization-results/stage012-reproduced.json)의 모든 시나리오에서 과거 요청 수·본문량·기준 소스 해시가 일치함을 확인했다.
 
 학교 서버 내부 CPU·메모리·DB 사용량과 실제 다중 기기 합산 부하는 측정하지 않았다. 응답 본문량은 전체 회선 전송량이 아니다. 조건별 요청 감소와 순간 분산 효과까지만 확인한 결과다.

@@ -1,8 +1,8 @@
 # Rust partial-backend experiment
 
 Current: [PARTIAL_PLAN.md](PARTIAL_PLAN.md),
-[detailed results](../../RUST_PARTIAL_RESULTS.md),
-[report memo](../../RUST_PARTIAL_REPORT_MEMO.md).
+[detailed results](../../docs/optimization/rust/RUST_PARTIAL_RESULTS.md),
+[report memo](../../docs/optimization/rust/RUST_PARTIAL_REPORT_MEMO.md).
 Activity and overview passed partial adoption; slower concept ranking stays Python.
 The actual internal exam API was measured with ThreadingHTTPServer and called no
 HTML parsers. No Rust HTTP server was implemented.
@@ -47,7 +47,7 @@ remain unvalidated. Initial evidence below is historical; preserve its hashes.
 ## Historical activity-only pilot
 
 See [PLAN.md](PLAN.md) for the decision fixed before timing, and
-[RUST_MIGRATION_RESULTS.md](../../RUST_MIGRATION_RESULTS.md) for measured results.
+[RUST_MIGRATION_RESULTS.md](../../docs/optimization/rust/RUST_MIGRATION_RESULTS.md) for measured results.
 
 This is an experiment on `experiment/rust-core-refactor`. Production remains Python.
 The pilot does not log in, fetch URLs, alter permissions or write the user DB.

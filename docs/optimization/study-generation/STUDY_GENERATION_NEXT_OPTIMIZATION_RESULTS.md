@@ -40,7 +40,7 @@
 
 7,703자 경우 비밀 정보 제거·직렬화 중앙값은 0.802→0.417ms였다. 이 수 ms 이하의 변화는
 실사용 전체 단축으로 일반화하지 않는다. 바이트 감소율도 모델 토큰/시간 감소율이 아니다.
-[원시 표본](experiments/study-generation/results/handoff-step12.json).
+[원시 표본](../../../experiments/study-generation/results/handoff-step12.json).
 
 ## 실제 Java2 CLI 관측
 
@@ -75,7 +75,7 @@ SHA-256 `731777542322dd4fd3f49928dbec711442d9978d4d0d891bc02a7066beba428d`.
 **이번 변경에 신규 생성 속도 개선 수치를 부여하지 않는다.** 30~60초 목표도 달성했다고
 하지 않는다. 원문 다운로드와 최초 의존성 설치는 이번 타이머에 포함하지 않았다.
 
-[사건별 시각과 한계](experiments/study-generation/results/handoff-live-java.json).
+[사건별 시각과 한계](../../../experiments/study-generation/results/handoff-live-java.json).
 원문·문항·사용자 DB 복사본·시험 URL 토큰은 Git 바깥 테스트 폴더에만 보관한다.
 
 ## 검사
@@ -87,8 +87,8 @@ SHA-256 `731777542322dd4fd3f49928dbec711442d9978d4d0d891bc02a7066beba428d`.
   통합 검사했다. 기존 인용·권한·사용자 분리 검사는 전체 회귀에서 통과했다.
 - 이 검사 결과는 `handoff-regression.*`에 따로 저장하고 기존 `regression.*`는 보존했다.
 
-원시 검사: [요약](experiments/study-generation/results/handoff-regression.json),
-[로그](experiments/study-generation/results/handoff-regression.txt).
+원시 검사: [요약](../../../experiments/study-generation/results/handoff-regression.json),
+[로그](../../../experiments/study-generation/results/handoff-regression.txt).
 크기 재현: `python experiments/study-generation/handoff_benchmark.py`.
 
 ## 다음 판단

@@ -59,7 +59,7 @@ SHA-256 `731777542322dd4fd3f49928dbec711442d9978d4d0d891bc02a7066beba428d`.
 병렬을 기본 실행에 넣지 않았다. 형식 통과는 교육적 정확성/독립성을 보장하지 않는다.
 직접 Java 실행, PDF 이미지 판독, 교사의 독립 평가와 학습자 평가는 하지 않았다.
 
-[원시 시간·해시·집계된 품질 문제](experiments/study-generation/results/remaining/parallel-experiment.json).
+[원시 시간·해시·집계된 품질 문제](../../../experiments/study-generation/results/remaining/parallel-experiment.json).
 원문·생성 문항·상세 검토는 Git 바깥 비공개 작업 폴더에 보관한다.
 
 ## 2. 부족분만 추가 생성
@@ -125,16 +125,16 @@ ms 차이를 실제 학교 시간 단축률로 보고하지 않는다.
 전체 메타데이터와 파일 본문 전송까지 포함해 조건이 다르다. 둘의 차이를 순수 옵션 효과로
 계산하지 않는다. 학교에 쓰기/제출하지 않았으며 기존 보호된 연결을 재사용했다.
 
-[실제 준비 결과](experiments/study-generation/results/remaining/resource-live.json),
-[동일 fixture 기준](experiments/study-generation/results/remaining/before.json),
-[변경 후](experiments/study-generation/results/remaining/after.json).
+[실제 준비 결과](../../../experiments/study-generation/results/remaining/resource-live.json),
+[동일 fixture 기준](../../../experiments/study-generation/results/remaining/before.json),
+[변경 후](../../../experiments/study-generation/results/remaining/after.json).
 
 ## 검증·재현·한계
 
 부족분 보존, 유형 변경, 원문 변경, 강제 재분석, 중단/오류 재시도, 권한 철회, 특정 자료의
 금지/삭제/수강 철회/미등록 ID/네트워크 오류, 전체 freshness 보존을 검사했다. 기존 회귀와
-서버 검사 결과는 [regression.json](experiments/study-generation/results/remaining/regression.json)과
-[로그](experiments/study-generation/results/remaining/regression.txt)에 따로 저장했다.
+서버 검사 결과는 [regression.json](../../../experiments/study-generation/results/remaining/regression.json)과
+[로그](../../../experiments/study-generation/results/remaining/regression.txt)에 따로 저장했다.
 
 최종 전체 검사: 대학 기능 391개 중 **390개 통과·1개 건너뜀**, 서버 **16개 통과**.
 총 **406개 통과**, 오류/실패 0개다. 건너뛴 검사는 선택적 환경 의존 검사다.

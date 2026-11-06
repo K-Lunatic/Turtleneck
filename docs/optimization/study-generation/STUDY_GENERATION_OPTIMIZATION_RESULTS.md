@@ -65,7 +65,7 @@ AI 대기, 실제 웹 시작까지 포함한 실사용 시간과 다르다. 전�
 
 사용자 요청에 따라 TLS에서 Java프로그래밍2의 **제네릭과 컬렉션A.pdf**를 확인/가져왔다.
 PDF 24쪽·1,277,602바이트에서 텍스트 7,703자를 추출했다. SHA-256과 사건별 시각은
-[live-java.json](experiments/study-generation/results/live-java.json)에 있다. 원문·문항·사용자
+[live-java.json](../../../experiments/study-generation/results/live-java.json)에 있다. 원문·문항·사용자
 DB 복사본·서버 토큰은 Git 바깥 작업 폴더에만 보관한다. 기존 학습 기록은 수정하지 않았다.
 요청한 TLS 갱신은 정상 사용자 DB의 학사 메타데이터를 갱신했고, 해당 파일 요청은 1회였다.
 
@@ -135,10 +135,10 @@ python experiments/study-generation/verify.py
 별도 체크아웃에 benchmark.py만 복사해 실행한다. 현재 코드에서 before 파일을 덮어쓰면
 원래 baseline이 아니므로 기존 파일을 보존한다.
 
-원시 표본: [before.json](experiments/study-generation/results/before.json),
-[after.json](experiments/study-generation/results/after.json).
-회귀 결과: [regression.json](experiments/study-generation/results/regression.json),
-[로그](experiments/study-generation/results/regression.txt).
+원시 표본: [before.json](../../../experiments/study-generation/results/before.json),
+[after.json](../../../experiments/study-generation/results/after.json).
+회귀 결과: [regression.json](../../../experiments/study-generation/results/regression.json),
+[로그](../../../experiments/study-generation/results/regression.txt).
 
 회귀: 대학 기능 378개 중 377개 통과·1개 건너뜀, 서버 16개 통과. 추가 파이프라인 28개와
 PDF/자료 16개 검사는 이 전체 검사에 포함한다. 최종 스키마 변경 후 해당 28개도 재확인했다.

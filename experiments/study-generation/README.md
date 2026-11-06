@@ -1,7 +1,7 @@
 # Study generation optimization evidence
 
-See [detailed record](../../STUDY_GENERATION_OPTIMIZATION_RESULTS.md) and
-[report memo](../../STUDY_GENERATION_OPTIMIZATION_REPORT_MEMO.md).
+See [detailed record](../../docs/optimization/study-generation/STUDY_GENERATION_OPTIMIZATION_RESULTS.md) and
+[report memo](../../docs/optimization/study-generation/STUDY_GENERATION_OPTIMIZATION_REPORT_MEMO.md).
 
 `benchmark.py` drives the real StudySession/SQLite pipeline with deterministic host
 fixtures, 30 final questions and 30 samples for one-file/four-file workloads. It

@@ -11,11 +11,11 @@
 모듈은 중간/큰 입력 모두에서 호출·직렬화 비용을 포함해 중앙값 20% 이상 빨라지고, 95%
 쌍별 반복 구간이 개선 방향이며 출력이 같아야 한다. 해당 전체 흐름은 중앙값과 95% 구간이
 5% 이상 악화되지 않아야 한다. 기존 기능 회귀와 실험 검사도 통과해야 한다. 이 조건은
-[PARTIAL_PLAN.md](experiments/rust-core/PARTIAL_PLAN.md)에 정리했다.
+[PARTIAL_PLAN.md](../../../experiments/rust-core/PARTIAL_PLAN.md)에 정리했다.
 
 활동·개요 파서의 적용 범위는 명시적 실험 실행 경로다. 기본 Python 진입점과 운영 브랜치는
 변경하지 않았다. Rust 설치나 DLL이 없거나 예전 ABI이면 Python으로 실행한다. 전체 앱을
-Rust로 바꾸는 자동 승인은 하지 않는다. [partial-decision.json](experiments/rust-core/results/partial-decision.json)이
+Rust로 바꾸는 자동 승인은 하지 않는다. [partial-decision.json](../../../experiments/rust-core/results/partial-decision.json)이
 모듈별 현재 판정을 담고 있다.
 
 ## 파서와 지문 계산
@@ -121,8 +121,8 @@ backend 설치는 요청 스레드를 시작하기 전에 한 번 수행하며 �
 명시적 실행은 일반 명령과 같은 읽기/저장 효과가 있으므로 위 마지막 명령을 측정 재현 전용
 읽기 명령으로 오해하지 않는다. 회귀 재현 방법은 실험 README를 따른다.
 
-원시 시간·프로파일·p95·CI: [partial-benchmark.json](experiments/rust-core/results/partial-benchmark.json).
-검사: [partial-regression.json](experiments/rust-core/results/partial-regression.json),
-[partial-tests.json](experiments/rust-core/results/partial-tests.json).
+원시 시간·프로파일·p95·CI: [partial-benchmark.json](../../../experiments/rust-core/results/partial-benchmark.json).
+검사: [partial-regression.json](../../../experiments/rust-core/results/partial-regression.json),
+[partial-tests.json](../../../experiments/rust-core/results/partial-tests.json).
 한계: Windows x64 GNU에서 검증했으며 다른 OS·배포 번들·현재 두 모듈 조합의 최대 메모리는
 아직 비교하지 않았다. `turtleneck`에는 반영하거나 푸시하지 않았다.

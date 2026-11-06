@@ -141,7 +141,7 @@ TLS `--ensure --resource-id`는 파일 요청을 좁히면서도 변경/TTL 조�
   권한 철회와 사용자 분리까지 해당 변경에 맞춰 검사한다.
 - 효과가 없으면 되돌린다. 바이트 감소율·호스트 대기 감소·전체 준비 시간을 각각 보고한다.
 
-측정 근거: [기존 실자료 기록](experiments/study-generation/results/live-java.json),
-[이번 제안 크기/목표 계산](experiments/study-generation/results/next-proposal-audit.json).
+측정 근거: [기존 실자료 기록](../../../experiments/study-generation/results/live-java.json),
+[이번 제안 크기/목표 계산](../../../experiments/study-generation/results/next-proposal-audit.json).
 재현: `python experiments/study-generation/proposal_audit.py` — 임시 fixture만 사용하며
 실제 AI 호출·학교 접속·운영 DB 변경을 하지 않는다. 이번 변경은 메모와 제안 측정 스크립트뿐이다.

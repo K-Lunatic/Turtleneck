@@ -490,4 +490,5 @@ Claude Code는 `claude plugin marketplace update turtleneck` 후
 <p align="center">
   <strong>한 번에 다 외우지 않아도 괜찮아요. 저장하고, 차근차근 이어가면 됩니다.</strong><br>
   <sub>README 구성은 <a href="https://github.com/DietrichGebert/ponytail">Ponytail</a>의 간결한 소개 방식에서 참고했습니다.</sub>
+  <br><a href="docs/optimization/README.md">개발·최적화 메모 모음</a>
 </p>

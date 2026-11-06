@@ -1,0 +1,134 @@
+{
+  "note": "Historical artifact manifests are unchanged; this map describes current document relocation.",
+  "documents": [
+    {
+      "workspace": ".publish-tls/RUST_MIGRATION_REPORT_MEMO.md",
+      "from": "RUST_MIGRATION_REPORT_MEMO.md",
+      "to": "docs/optimization/rust/RUST_MIGRATION_REPORT_MEMO.md",
+      "before_sha256": "40f21852bd554f14df1d73c92f4fdb48395540d6fe97e8ad71934dd012a6d98f",
+      "after_sha256": "d37212cc75505d80afe918c646a7f3ca7353eb5540b9c729ce0fba4fbb030443",
+      "before_git_blob_sha256": "d37212cc75505d80afe918c646a7f3ca7353eb5540b9c729ce0fba4fbb030443"
+    },
+    {
+      "workspace": ".publish-tls/RUST_MIGRATION_RESULTS.md",
+      "from": "RUST_MIGRATION_RESULTS.md",
+      "to": "docs/optimization/rust/RUST_MIGRATION_RESULTS.md",
+      "before_sha256": "bbb747f7297dfd635dafd8817477d2274bf4f9c86f334970008a23a1c8ab08af",
+      "after_sha256": "95b917277c4b70b4086e76b6a042324df17f0d92d0de631d7e7dc2c3b1cb61b0",
+      "before_git_blob_sha256": "c28f418737c91a80ac5686e6b44794a3841b45e6ad060d4dec98586968e542b1"
+    },
+    {
+      "workspace": ".publish-tls/RUST_PARTIAL_REPORT_MEMO.md",
+      "from": "RUST_PARTIAL_REPORT_MEMO.md",
+      "to": "docs/optimization/rust/RUST_PARTIAL_REPORT_MEMO.md",
+      "before_sha256": "3a66b3013c90695e5819820041093dbf60a245739620b5afaa790995aad6374d",
+      "after_sha256": "ba4ab51fd05cbd4e9008222fcbbd5c9c35f80191b81813a4564c244e73be6747",
+      "before_git_blob_sha256": "ba4ab51fd05cbd4e9008222fcbbd5c9c35f80191b81813a4564c244e73be6747"
+    },
+    {
+      "workspace": ".publish-tls/RUST_PARTIAL_RESULTS.md",
+      "from": "RUST_PARTIAL_RESULTS.md",
+      "to": "docs/optimization/rust/RUST_PARTIAL_RESULTS.md",
+      "before_sha256": "c8ba736bcdd66a87b634d88ac3ad870ae5614e02d0a40d81727d69b4647764bf",
+      "after_sha256": "78b768994f39a12d763c7f4ecde5b36467d527594d144e36a6c515aa45d54738",
+      "before_git_blob_sha256": "fb5cc1e14e3df8c70643f048308b739fdf0ea0eea7a323e0092e7e4490229101"
+    },
+    {
+      "workspace": ".publish-tls/STUDY_GENERATION_NEXT_OPTIMIZATION_MEMO.md",
+      "from": "STUDY_GENERATION_NEXT_OPTIMIZATION_MEMO.md",
+      "to": "docs/optimization/study-generation/STUDY_GENERATION_NEXT_OPTIMIZATION_MEMO.md",
+      "before_sha256": "fab8d8db4f32d8d838bd4596369f546a07d3c131c14d20c0ef9878ffeafe9ece",
+      "after_sha256": "5d5b70867e46f50375f8a78d4ba8ca8c1c1dbc07c2c93471bea40be885180f2e",
+      "before_git_blob_sha256": "fab8d8db4f32d8d838bd4596369f546a07d3c131c14d20c0ef9878ffeafe9ece"
+    },
+    {
+      "workspace": ".publish-tls/STUDY_GENERATION_NEXT_OPTIMIZATION_REPORT_MEMO.md",
+      "from": "STUDY_GENERATION_NEXT_OPTIMIZATION_REPORT_MEMO.md",
+      "to": "docs/optimization/study-generation/STUDY_GENERATION_NEXT_OPTIMIZATION_REPORT_MEMO.md",
+      "before_sha256": "c9caea60df357afb2fb15d7fe5121142dc459ee75f545a46047f6878cc4b607c",
+      "after_sha256": "c9caea60df357afb2fb15d7fe5121142dc459ee75f545a46047f6878cc4b607c",
+      "before_git_blob_sha256": "c9caea60df357afb2fb15d7fe5121142dc459ee75f545a46047f6878cc4b607c"
+    },
+    {
+      "workspace": ".publish-tls/STUDY_GENERATION_NEXT_OPTIMIZATION_RESULTS.md",
+      "from": "STUDY_GENERATION_NEXT_OPTIMIZATION_RESULTS.md",
+      "to": "docs/optimization/study-generation/STUDY_GENERATION_NEXT_OPTIMIZATION_RESULTS.md",
+      "before_sha256": "1989ba56cdb33d4ce56ba6746f22dd38918955b27b911f722bf3a4a79f9d7b79",
+      "after_sha256": "903f3fe3dc60a33fb7147849e1ed029ae928b83021b239f6221fe938e65a55ad",
+      "before_git_blob_sha256": "1989ba56cdb33d4ce56ba6746f22dd38918955b27b911f722bf3a4a79f9d7b79"
+    },
+    {
+      "workspace": ".publish-tls/STUDY_GENERATION_OPTIMIZATION_REPORT_MEMO.md",
+      "from": "STUDY_GENERATION_OPTIMIZATION_REPORT_MEMO.md",
+      "to": "docs/optimization/study-generation/STUDY_GENERATION_OPTIMIZATION_REPORT_MEMO.md",
+      "before_sha256": "33396256fed331d666cf7a304aafdce6858963279bf01eaad4c185eb8f57e0a2",
+      "after_sha256": "de8c9d6d8a22587e7025b6e6480a43136a8317a5c47cd352642ce842c0b74bf6",
+      "before_git_blob_sha256": "de8c9d6d8a22587e7025b6e6480a43136a8317a5c47cd352642ce842c0b74bf6"
+    },
+    {
+      "workspace": ".publish-tls/STUDY_GENERATION_OPTIMIZATION_RESULTS.md",
+      "from": "STUDY_GENERATION_OPTIMIZATION_RESULTS.md",
+      "to": "docs/optimization/study-generation/STUDY_GENERATION_OPTIMIZATION_RESULTS.md",
+      "before_sha256": "752746dfa23bfdd4063cbed7ca08e71f3fbf20ada72610b3ca0982fcc2db5adb",
+      "after_sha256": "8ddbb1fa16eb40ca925e52265b54d6fdc82999c2e66e033237a0692d78502f1b",
+      "before_git_blob_sha256": "9ba4d5681811a8de5198438cbd6db3733fc461e718c817e3ac91a00f193ec137"
+    },
+    {
+      "workspace": ".publish-tls/STUDY_GENERATION_REMAINING_REPORT_MEMO.md",
+      "from": "STUDY_GENERATION_REMAINING_REPORT_MEMO.md",
+      "to": "docs/optimization/study-generation/STUDY_GENERATION_REMAINING_REPORT_MEMO.md",
+      "before_sha256": "0dc10e43a24a49b9152b34f5231a95bd10d9bd70a3bacc89a151195618d812d4",
+      "after_sha256": "0dc10e43a24a49b9152b34f5231a95bd10d9bd70a3bacc89a151195618d812d4",
+      "before_git_blob_sha256": "0dc10e43a24a49b9152b34f5231a95bd10d9bd70a3bacc89a151195618d812d4"
+    },
+    {
+      "workspace": ".publish-tls/STUDY_GENERATION_REMAINING_RESULTS.md",
+      "from": "STUDY_GENERATION_REMAINING_RESULTS.md",
+      "to": "docs/optimization/study-generation/STUDY_GENERATION_REMAINING_RESULTS.md",
+      "before_sha256": "ed6a06e6565790e6f6083fbc37f42a1659d33c4ce56f73de6f0a3f66d45d000f",
+      "after_sha256": "d8d14922593538bdd5dca84a018e831a1cee3dd95df8097e68c6ec51ae54ff63",
+      "before_git_blob_sha256": "ed6a06e6565790e6f6083fbc37f42a1659d33c4ce56f73de6f0a3f66d45d000f"
+    },
+    {
+      "workspace": ".publish-tls/TLS_OPTIMIZATION_MEMO.md",
+      "from": "TLS_OPTIMIZATION_MEMO.md",
+      "to": "docs/optimization/tls/TLS_OPTIMIZATION_MEMO.md",
+      "before_sha256": "d1b56e9b0c0ab726b99c6e11d893c221c9cc25955ca688af18524d3c499fb6fa",
+      "after_sha256": "edab95810ac1eff531b4a29ebd4afc199daaea937793f423313e593cd98622d4",
+      "before_git_blob_sha256": "edab95810ac1eff531b4a29ebd4afc199daaea937793f423313e593cd98622d4"
+    },
+    {
+      "workspace": ".publish-tls/TLS_OPTIMIZATION_REPORT_MEMO.md",
+      "from": "TLS_OPTIMIZATION_REPORT_MEMO.md",
+      "to": "docs/optimization/tls/TLS_OPTIMIZATION_REPORT_MEMO.md",
+      "before_sha256": "9751d179bb3c089f59fcc3d57daecec1115a0445ee1ed8ea36bd3965a7b50063",
+      "after_sha256": "57cb93735f32c74a4308a861f4a4a4ceee932bc1eab65af6970c78c95cf32c33",
+      "before_git_blob_sha256": "9751d179bb3c089f59fcc3d57daecec1115a0445ee1ed8ea36bd3965a7b50063"
+    },
+    {
+      "workspace": ".publish-tls/TLS_OPTIMIZATION_RESULTS.md",
+      "from": "TLS_OPTIMIZATION_RESULTS.md",
+      "to": "docs/optimization/tls/TLS_OPTIMIZATION_RESULTS.md",
+      "before_sha256": "240bf98aa8bdb1c36d610cbd40aaf8d13e1cbf45c10f0b52d4793a0aa28a6852",
+      "after_sha256": "3ff8444a8302eb8a72089ff4eae451fa905fe279548eaee75e60426e1c5ee0af",
+      "before_git_blob_sha256": "cc1e38fba0925b9226639e4b09ab864eaaaeb7ebcf11dfb6bb84b66010671907"
+    },
+    {
+      "workspace": ".publish-tls/TLS_OPTIMIZATION_STAGE6_REPORT_MEMO.md",
+      "from": "TLS_OPTIMIZATION_STAGE6_REPORT_MEMO.md",
+      "to": "docs/optimization/tls/TLS_OPTIMIZATION_STAGE6_REPORT_MEMO.md",
+      "before_sha256": "ef75cf4bfcd13026039ad6bb27cc87769aca79a1d8e28b31b9776cb814383ff3",
+      "after_sha256": "c666d16b110623ef8d78967dcae42f83c789dc0ebe1b0dbea9cec7c4491593a9",
+      "before_git_blob_sha256": "ef75cf4bfcd13026039ad6bb27cc87769aca79a1d8e28b31b9776cb814383ff3"
+    },
+    {
+      "workspace": ".publish-tls/TLS_OPTIMIZATION_STAGE6_RESULTS.md",
+      "from": "TLS_OPTIMIZATION_STAGE6_RESULTS.md",
+      "to": "docs/optimization/tls/TLS_OPTIMIZATION_STAGE6_RESULTS.md",
+      "before_sha256": "9b49b18c0c40c262f00731f40fdb360ce496708543d11ea311ad00fe16858a70",
+      "after_sha256": "d96874190cf6e289b78ea33c20749c5e0c7315f533fa9048ff01ee3dc88ae5b9",
+      "before_git_blob_sha256": "9b49b18c0c40c262f00731f40fdb360ce496708543d11ea311ad00fe16858a70"
+    }
+  ],
+  "base_commit": "0c3bb2add56e81e4b94d02bbbb24a83771e34b64"
+}

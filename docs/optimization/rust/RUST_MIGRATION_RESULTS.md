@@ -19,10 +19,10 @@
 판정 도구를 실험 브랜치에 남기며 원격 푸시는 하지 않는다. 기존 9단계 HTML 조건부 요청은
 사용자 요청에 따라 폐기한 상태이며 이번 실험과 연결하지 않는다.
 
-측정 전에 고정한 조건은 [PLAN.md](experiments/rust-core/PLAN.md)에 있다. 활동 목록 파서의
+측정 전에 고정한 조건은 [PLAN.md](../../../experiments/rust-core/PLAN.md)에 있다. 활동 목록 파서의
 출력·오류·URL·제한 문구가 같아야 하며, 대표 목록 확인과 전체 메타데이터 동기화가 **각각
 중앙값 20% 이상 단축**되고 95% 반복측정 구간도 개선 방향이어야 다음 전환을 허용한다.
-1차 [decision.json](experiments/rust-core/results/decision.json)의 `allow_expansion`은 false다.
+1차 [decision.json](../../../experiments/rust-core/results/decision.json)의 `allow_expansion`은 false다.
 이는 전면 확대용 기존 기준이며, 후속 부분 채택은 별도 `partial-decision.json`으로 판단한다.
 
 ## 구현 범위
@@ -40,7 +40,7 @@
 Release 빌드, Python 3.11.9, Windows x64 GNU 환경에서 30쌍씩 순서를 번갈아 측정했다.
 작은 입력은 한 표본에서 여러 번 실행하고 1회당 시간으로 환산했다. 테스트 입력 준비,
 임시 DB 복사와 결과 검사는 타이머 밖이다. 원시 표본·p95·CPU 표본·쌍별 부트스트랩 구간은
-[benchmark.json](experiments/rust-core/results/benchmark.json)에 있다.
+[benchmark.json](../../../experiments/rust-core/results/benchmark.json)에 있다.
 
 | 조건 | Python 중앙값 | Rust 경로 중앙값 | 시간 단축 |
 | --- | ---: | ---: | ---: |
@@ -94,15 +94,15 @@ OS 공통의 정확한 private allocation 지표로 해석하지 않는다.
 - 기존 회귀 382개와 추가 14개 검사가 통과했다. 건너뛴 2개는 기존의 macOS PDFKit·선택적 PDF
   추출 의존성 검사다.
 
-증거: [native 검사](experiments/rust-core/results/native-regression.json),
-[어댑터 검사](experiments/rust-core/results/adapter-tests.json),
-[판정 검사](experiments/rust-core/results/gate-tests.json),
-[Rust 로그](experiments/rust-core/results/rust-tests.txt),
-[빌드 환경·바이너리 해시](experiments/rust-core/results/environment.json).
+증거: [native 검사](../../../experiments/rust-core/results/native-regression.json),
+[어댑터 검사](../../../experiments/rust-core/results/adapter-tests.json),
+[판정 검사](../../../experiments/rust-core/results/gate-tests.json),
+[Rust 로그](../../../experiments/rust-core/results/rust-tests.txt),
+[빌드 환경·바이너리 해시](../../../experiments/rust-core/results/environment.json).
 
 ## 다음 전환을 위한 구성
 
-[재현 안내](experiments/rust-core/README.md)에 빌드·동등성·provider 회귀·반복 측정 명령을
+[재현 안내](../../../experiments/rust-core/README.md)에 빌드·동등성·provider 회귀·반복 측정 명령을
 정리했다. `assess.py`는 필수 흐름 누락, 회귀 실패, 출력 불일치 또는 성능 기준 미달이면
 확대를 허용하지 않는다. 단독 마이크로벤치마크만 통과해도 확대하지 않는다.
 

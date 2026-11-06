@@ -58,7 +58,7 @@
 | 동기화 상태 100키 중 1개 변경 | **200→1행** |
 | 6시간 만료·강제 확인·파일 권한 확인 | HTTP 요청 수 동일 |
 
-7단계만 적용하면 새 캐시를 저장하면서 DB 쓰기가 늘 수 있어 8단계와 함께 비교했다. 12개 모의 HTTP 조건 모두 학업 정보가 일치했고, NULL 전환·상태·권한·삭제·계정 분리도 검사했다. 원시 파일: [최종 실측](tls-optimization-stage78-results/live.json), [동일 입력 비교](tls-optimization-stage78-results/offline.json), [회귀 검사](tls-optimization-stage78-results/tests.json).
+7단계만 적용하면 새 캐시를 저장하면서 DB 쓰기가 늘 수 있어 8단계와 함께 비교했다. 12개 모의 HTTP 조건 모두 학업 정보가 일치했고, NULL 전환·상태·권한·삭제·계정 분리도 검사했다. 원시 파일: [최종 실측](../../../tls-optimization-stage78-results/live.json), [동일 입력 비교](../../../tls-optimization-stage78-results/offline.json), [회귀 검사](../../../tls-optimization-stage78-results/tests.json).
 
 7·8단계 최종 회귀 검사: **384개 중 382개 통과·실패 0개·환경 의존 검사 2개 건너뜀**. 신규 검사 15개를 포함하며 대학 기능 366개와 서버 16개가 통과했다.
 
