@@ -1,0 +1,103 @@
+{
+  "measurement": "live warm notice reread and isolated local DB snapshot rewrite",
+  "courses_in_preflight": 9,
+  "authentication_setup": {
+    "requests": 5,
+    "requests_by_kind": {
+      "page": 3,
+      "post": 2
+    },
+    "response_body_bytes": 30645,
+    "response_body_bytes_by_kind": {
+      "page": 18187,
+      "post": 12458
+    },
+    "statuses": {
+      "303": 2,
+      "200": 3
+    },
+    "peak_open_requests": 1,
+    "peak_requests_per_second": 3,
+    "elapsed_seconds": 6.797
+  },
+  "preparation": {
+    "requests": 18,
+    "requests_by_kind": {
+      "page": 18
+    },
+    "response_body_bytes": 202530,
+    "response_body_bytes_by_kind": {
+      "page": 202530
+    },
+    "statuses": {
+      "200": 18
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 4.875
+  },
+  "prepared_notice_records": 7,
+  "cacheable_articles": 7,
+  "before": {
+    "requests": 8,
+    "requests_by_kind": {
+      "page": 8
+    },
+    "response_body_bytes": 85605,
+    "response_body_bytes_by_kind": {
+      "page": 85605
+    },
+    "statuses": {
+      "200": 8
+    },
+    "peak_open_requests": 1,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 2.344
+  },
+  "after": {
+    "requests": 8,
+    "requests_by_kind": {
+      "page": 8
+    },
+    "response_body_bytes": 85611,
+    "response_body_bytes_by_kind": {
+      "page": 85611
+    },
+    "statuses": {
+      "200": 8
+    },
+    "peak_open_requests": 1,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 2.172
+  },
+  "reused_notice_bodies": 0,
+  "notice_results_equal": true,
+  "database": {
+    "record_counts": {
+      "courses": 9,
+      "assignments": 24,
+      "lectures": 19,
+      "notices": 24,
+      "activities": 0,
+      "resources": 60
+    },
+    "before": {
+      "changed_rows": 180,
+      "elapsed_seconds": 0.006046
+    },
+    "after": {
+      "changed_rows": 1,
+      "elapsed_seconds": 0.002983
+    },
+    "learning_records_equal": true
+  },
+  "source_db_bytes_unchanged": true,
+  "notes": [
+    "Notice comparison is a warm provider reread, excluding authentication/preflight/preparation.",
+    "It is not a forced refresh, a file-permission check or a six-hour expired refresh.",
+    "Same cached course page, same account; sequential single samples. No original file downloads.",
+    "Local DB writes are measured only on temporary SQLite backup copies.",
+    "Modified-row counts are not physical disk bytes, page writes or school-server DB load.",
+    "Only aggregate counters and equality flags are retained; source user DB is untouched."
+  ]
+}

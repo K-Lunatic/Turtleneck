@@ -1,0 +1,20 @@
+{
+  "skills/university-agent/providers/moodle_provider.py": "5d3aed8e6eabf4d64db18c17a05763c299cec4031d3eddd89ff44ea02fbef5ad",
+  "skills/university-agent/references/provider-contract.md": "98b9abe458a319f20fee7617d10b94943b9d74a1e3b8e1d9e2a041bb6e8642dd",
+  "skills/university-agent/scripts/benchmark_tls_notices_storage.py": "9aff9482d5874cbc3ed3e714603adaa0d4c8d0c922ab4081d29cf24618321d20",
+  "skills/university-agent/scripts/benchmark_tls_notices_storage_live.py": "79548b4b67c4d3fd8ce49a0d5603ca5fd3de33b407ba656ee3cd071aefdaeb99",
+  "skills/university-agent/scripts/sync_tls.py": "25603261aa7810a15cca187469ff63fd319ac001b7f463d902a09138aaf0d742",
+  "skills/university-agent/SKILL.md": "eacb86f7ad47128afeace570343e028c0a40bde7f54b94032184e8faefe48a17",
+  "skills/university-agent/storage/local_db.py": "3d774ab8aed27679ca33be95292a4a82bd095c7cb3194072c6d6b505b46c2014",
+  "skills/university-agent/tests/test_notice_storage_optimization.py": "93b62ead2e0380007d2a345041c585e976b9dda81310a97e0efd74a3e7ba5907",
+  "tls-optimization-stage78-results/changes.patch": "363395196362d7326202a37aa56981cce20d29b048b8fe66383a6f1edad3e416",
+  "tls-optimization-stage78-results/live.json": "aa8888f0610318767332b73ad5174a8cb76ea29af918689a24d2ad798ff60fff",
+  "tls-optimization-stage78-results/live_initial.json": "210c3db12ba7fa2ab749e40cb4a7f404e2155b8569a397ecead8302442a71315",
+  "tls-optimization-stage78-results/offline.json": "309f647036e97af1d83a8c043bb4edfa3144a40115786f05cd95ffdd68007e76",
+  "tls-optimization-stage78-results/stage06_sources.zip": "47d391c5c49c1841ece5edcf55616cc409ea11fd43b82e8be7462319f01ff485",
+  "tls-optimization-stage78-results/stage78_sources.zip": "af8b4277b36e2027195d00a578ecc2f4dca7e4ac0190e89e06899c6dd945f402",
+  "tls-optimization-stage78-results/tests.json": "6dedd2e7b57d0b40b7a0df7b69db18fe3d28ab2ed1a635e3f4e0ff90cc37b84c",
+  "tls-optimization-stage78-results/tests.txt": "42cdbdb48a2f62b04738f209212609edb637d8b1ee7d535243b9daac0874108e",
+  "TLS_OPTIMIZATION_STAGE6_REPORT_MEMO.md": "ef75cf4bfcd13026039ad6bb27cc87769aca79a1d8e28b31b9776cb814383ff3",
+  "TLS_OPTIMIZATION_STAGE6_RESULTS.md": "9b49b18c0c40c262f00731f40fdb360ce496708543d11ea311ad00fe16858a70"
+}

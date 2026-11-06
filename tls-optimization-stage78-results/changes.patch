@@ -1,0 +1,181 @@
+--- stage06/providers/moodle_provider.py
++++ stage78/providers/moodle_provider.py
+@@ -14,10 +14,38 @@
+ from concurrent.futures import ThreadPoolExecutor
+ 
+ from providers.moodle_session import MoodleSession, LoginError, DownloadRestricted, RequestBackoff, check_download_url, check_download_origin
++from features import sync_policy
+ 
+ 
+ class ResourceUnavailable(ValueError):
+     """The current response cannot establish a usable original; not a prohibition."""
++
++
++def notice_listing_fingerprints(html):
++    """Visible row changes invalidate a body cache; TTL still catches body-only edits."""
++    fingerprints = {}
++    tables = re.findall(r'<table\b[^>]*>(.*?)</table>', html, re.I | re.S)
++    ignored_headers = {'번호', '조회', '조회수', '읽음', '댓글', '댓글수', '추천수', 'views', 'hits', 'no.'}
++    for table in tables or [html]:
++        headers = [''.join(_plain_text(cell).split()).casefold()
++                   for cell in re.findall(r'<th\b[^>]*>(.*?)</th>', table, re.I | re.S)]
++        for row in re.findall(r'<tr\b[^>]*>(.*?)</tr>', table, re.I | re.S):
++            identifiers = set(re.findall(r'/mod/ubboard/article\.php\?id=\d+(?:&amp;|&)bwid=(\d+)', row))
++            if len(identifiers) != 1:
++                continue
++            cells = re.findall(r'<td\b([^>]*)>(.*?)</td>', row, re.I | re.S)
++            text = []
++            for index, (attrs, cell) in enumerate(cells):
++                # TLS gives view counts the same CSS class as dates; use observed headers too.
++                if len(headers) == len(cells) and headers[index] in ignored_headers:
++                    continue
++                if re.search(r'\bclass=["\'][^"\']*\b(?:hits?|views?|bcount|readcount|replies|comments?)\b', attrs, re.I):
++                    continue
++                text.append(_plain_text(cell))
++            text = ' '.join(' '.join(text).split())
++            if text:
++                fingerprints[next(iter(identifiers))] = hashlib.sha256(text.encode('utf-8')).hexdigest()
++    return fingerprints
+ 
+ 
+ def validate_permission(permission, user_id, resource_id):
+@@ -868,12 +896,14 @@
+         from providers.lecture_media import download_media
+         return download_media(self.session, plan, target, progress)
+ 
+-    def get_notices(self, user_id: str) -> list[dict[str, Any]]:
+-        parallel = self._parallel_courses('get_notices', user_id)
++    def get_notices(self, user_id: str, *, existing_notices=None, notice_cache=None, force_details=False) -> list[dict[str, Any]]:
++        parallel = self._parallel_courses('get_notices', user_id, existing_notices=existing_notices,
++                                          notice_cache=notice_cache, force_details=force_details)
+         if parallel is not None:
+             return parallel
+         result: list[dict[str, Any]] = []
+         seen: set[str] = set()
++        previous = {item['id']: item for item in existing_notices or []}
+         for course in self.get_courses(user_id):
+             course_html = self._course_page(course)
+             for href, title in self._course_activity_links(course):
+@@ -882,11 +912,22 @@
+                     continue
+                 seen.add(match.group(1))
+                 board_html = self.session.get(f"/mod/ubboard/view.php?id={match.group(1)}")
++                fingerprints = notice_listing_fingerprints(board_html)
+                 for article_href, _ in self._links(board_html):
+                     article = re.search(r"/mod/ubboard/article\.php\?id=(\d+)(?:&amp;|&)bwid=(\d+)", article_href)
+                     if not article or article.group(2) in seen:
+                         continue
+                     seen.add(article.group(2))
++                    identifier = f'tls-notice-{article.group(2)}'
++                    fingerprint = fingerprints.get(article.group(2))
++                    checked = (notice_cache or {}).get(identifier, {})
++                    cached = previous.get(identifier)
++                    if (not force_details and isinstance(checked, dict) and cached
++                            and cached.get('courseId') == course['id'] and fingerprint
++                            and fingerprint == checked.get('fingerprint')
++                            and sync_policy.fresh(checked.get('checked_at'), sync_policy.NOTICE_TTL)):
++                        result.append({**cached, '_notice_check': checked, '_notice_reused': True})
++                        continue
+                     if self.progress:
+                         self.progress(f"{course['name']}의 공지를 살펴보고 있어요…")
+                     detail = self.session.get(article_href)
+@@ -894,6 +935,8 @@
+                     content = _match_text(detail, r'<div[^>]+class=["\'][^"\']*text_to_html[^"\']*["\'][^>]*>(.*?)</div>')
+                     text = _plain_text(detail)
+                     result.append({"id": f"tls-notice-{article.group(2)}", "externalId": article.group(2), "courseId": course["id"], "title": article_title or f"TLS notice {article.group(2)}", "content": content, "publishedAt": _find_datetime(text, ("작성일", "게시일", "등록일")) or "1970-01-01T00:00:00+09:00", "source": "tls"})
++                    if notice_cache is not None:
++                        result[-1]['_notice_check'] = {'fingerprint': fingerprint, 'checked_at': sync_policy.now().isoformat()}
+             result.extend(self._course_overviews(course, course_html))
+         return result
+ 
+--- stage06/scripts/sync_tls.py
++++ stage78/scripts/sync_tls.py
+@@ -464,9 +464,32 @@
+     if changed:
+         persist(db_path, user_id, username, courses, activities=activities, refreshed_course_ids=changed)
+     if notices_scope:
+-        notices = provider.for_courses(user_id, notices_scope).get_notices(user_id)
++        with closing(LocalDatabase(db_path, read_only=True)) as database:
++            previous_notices = database.get_notices(user_id)
++        try:
++            notice_cache = json.loads(state.get('notice_detail_checks', '{}'))
++        except (TypeError, ValueError):
++            notice_cache = {}
++        if not isinstance(notice_cache, dict):
++            notice_cache = {}
++        notices = provider.for_courses(user_id, notices_scope).get_notices(
++            user_id, existing_notices=previous_notices, notice_cache=notice_cache,
++            force_details=force or bool(args.resource_id) or not args.metadata_only or bool(
++                sync_policy.due_courses(state, 'notice', notices_scope, sync_policy.NOTICE_TTL)))
++        retained_notice_ids = {item['id'] for item in previous_notices
++                               if item['courseId'] in ids - notices_scope}
++        notice_cache = {key: value for key, value in notice_cache.items() if key in retained_notice_ids}
++        reused_notice_courses = set()
++        for notice in notices:
++            if notice.pop('_notice_reused', False):
++                reused_notice_courses.add(notice['courseId'])
++            checked = notice.pop('_notice_check', None)
++            if checked is not None:
++                notice_cache[notice['id']] = checked
+         persist(db_path, user_id, username, courses, notices=notices, refreshed_course_ids=notices_scope)
+-        _mark_checks(db_path, user_id, 'notice', notices_scope, ids, scope)
++        with closing(LocalDatabase(db_path)) as database:
++            database.merge_sync_state(user_id, {'notice_detail_checks': json.dumps(notice_cache, sort_keys=True)})
++        _mark_checks(db_path, user_id, 'notice', notices_scope - reused_notice_courses, ids, scope)
+     if resources_scope:
+         file_root = db_path.parent / 'files'
+         with closing(LocalDatabase(db_path, read_only=True)) as database:
+--- stage06/storage/local_db.py
++++ stage78/storage/local_db.py
+@@ -147,11 +147,16 @@
+         if self.read_only:
+             raise sqlite3.OperationalError("readonly database")
+         now = datetime.now(timezone.utc).isoformat()
++        previous = self.get_sync_state(user_id)
+         with self.connection:
+-            self.connection.execute("DELETE FROM sync_state WHERE user_id=?", (user_id,))
++            removed = previous.keys() - state.keys()
++            if removed:
++                marks = ','.join('?' for _ in removed)
++                self.connection.execute(f"DELETE FROM sync_state WHERE user_id=? AND state_key IN ({marks})", [user_id, *removed])
+             self.connection.executemany(
+-                "INSERT INTO sync_state(user_id, state_key, state_value, updated_at) VALUES (?, ?, ?, ?)",
+-                [(user_id, key, value, now) for key, value in state.items()])
++                "INSERT INTO sync_state(user_id, state_key, state_value, updated_at) VALUES (?, ?, ?, ?) "
++                "ON CONFLICT(user_id,state_key) DO UPDATE SET state_value=excluded.state_value, updated_at=excluded.updated_at",
++                [(user_id, key, value, now) for key, value in state.items() if previous.get(key) != value or key not in previous])
+ 
+     def merge_sync_state(self, user_id: str, state: dict[str, str]) -> None:
+         """Update one sync feature without erasing another feature's state."""
+@@ -207,23 +212,23 @@
+             else:
+                 db.execute(f"DELETE FROM course_activities WHERE user_id=? AND course_id IN ({course_marks})", [user_id, *course_ids])
+         for course in courses:
+-            db.execute("INSERT INTO courses(id, external_id, name, professor, semester, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, professor=excluded.professor, semester=excluded.semester, updated_at=excluded.updated_at", (course["id"], course.get("externalId", course["id"]), course["name"], course.get("professor"), course.get("semester"), course.get("source", "tls"), now))
++            db.execute("INSERT INTO courses(id, external_id, name, professor, semester, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, professor=excluded.professor, semester=excluded.semester, updated_at=excluded.updated_at WHERE courses.name IS NOT excluded.name OR courses.professor IS NOT excluded.professor OR courses.semester IS NOT excluded.semester", (course["id"], course.get("externalId", course["id"]), course["name"], course.get("professor"), course.get("semester"), course.get("source", "tls"), now))
+             db.execute("INSERT OR IGNORE INTO enrollments(user_id, course_id) VALUES (?, ?)", (user_id, course["id"]))
+         for item in assignments:
+-            db.execute("INSERT INTO assignments(id, external_id, course_id, title, description, due_at, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, description=excluded.description, due_at=excluded.due_at, updated_at=excluded.updated_at", (item["id"], item.get("externalId", item["id"]), item["courseId"], item["title"], item.get("description"), item["dueAt"], item.get("source", "tls"), now))
+-            db.execute("INSERT INTO assignment_submissions(assignment_id, user_id, submission_status, submitted_at, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(assignment_id, user_id) DO UPDATE SET submission_status=excluded.submission_status, submitted_at=excluded.submitted_at, updated_at=excluded.updated_at", (item["id"], user_id, item.get("submissionStatus", "UNKNOWN"), item.get("submittedAt"), now))
++            db.execute("INSERT INTO assignments(id, external_id, course_id, title, description, due_at, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, description=excluded.description, due_at=excluded.due_at, updated_at=excluded.updated_at WHERE assignments.course_id IS NOT excluded.course_id OR assignments.title IS NOT excluded.title OR assignments.description IS NOT excluded.description OR assignments.due_at IS NOT excluded.due_at", (item["id"], item.get("externalId", item["id"]), item["courseId"], item["title"], item.get("description"), item["dueAt"], item.get("source", "tls"), now))
++            db.execute("INSERT INTO assignment_submissions(assignment_id, user_id, submission_status, submitted_at, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(assignment_id, user_id) DO UPDATE SET submission_status=excluded.submission_status, submitted_at=excluded.submitted_at, updated_at=excluded.updated_at WHERE assignment_submissions.submission_status IS NOT excluded.submission_status OR assignment_submissions.submitted_at IS NOT excluded.submitted_at", (item["id"], user_id, item.get("submissionStatus", "UNKNOWN"), item.get("submittedAt"), now))
+             if item.get("source", "tls") == "tls" and item.get("submissionStatus") in {"SUBMITTED", "LATE"}:
+                 db.execute("DELETE FROM context_bookmarks WHERE user_id=? AND assignment_id=?", (user_id, item["id"]))
+         for item in lectures:
+-            db.execute("INSERT INTO lectures(id, external_id, course_id, title, duration_seconds, available_from, available_until, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, duration_seconds=excluded.duration_seconds, available_from=excluded.available_from, available_until=excluded.available_until, updated_at=excluded.updated_at", (item["id"], item.get("externalId", item["id"]), item["courseId"], item["title"], item["durationSeconds"], item.get("availableFrom"), item.get("availableUntil"), item.get("source", "tls"), now))
+-            db.execute("INSERT INTO lecture_progress(lecture_id, user_id, watched_seconds, watch_progress, completed, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(lecture_id, user_id) DO UPDATE SET watched_seconds=excluded.watched_seconds, watch_progress=excluded.watch_progress, completed=excluded.completed, updated_at=excluded.updated_at", (item["id"], user_id, item["watchedSeconds"], item["watchProgress"], int(item["completed"]), now))
++            db.execute("INSERT INTO lectures(id, external_id, course_id, title, duration_seconds, available_from, available_until, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, duration_seconds=excluded.duration_seconds, available_from=excluded.available_from, available_until=excluded.available_until, updated_at=excluded.updated_at WHERE lectures.course_id IS NOT excluded.course_id OR lectures.title IS NOT excluded.title OR lectures.duration_seconds IS NOT excluded.duration_seconds OR lectures.available_from IS NOT excluded.available_from OR lectures.available_until IS NOT excluded.available_until", (item["id"], item.get("externalId", item["id"]), item["courseId"], item["title"], item["durationSeconds"], item.get("availableFrom"), item.get("availableUntil"), item.get("source", "tls"), now))
++            db.execute("INSERT INTO lecture_progress(lecture_id, user_id, watched_seconds, watch_progress, completed, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(lecture_id, user_id) DO UPDATE SET watched_seconds=excluded.watched_seconds, watch_progress=excluded.watch_progress, completed=excluded.completed, updated_at=excluded.updated_at WHERE lecture_progress.watched_seconds IS NOT excluded.watched_seconds OR lecture_progress.watch_progress IS NOT excluded.watch_progress OR lecture_progress.completed IS NOT excluded.completed", (item["id"], user_id, item["watchedSeconds"], item["watchProgress"], int(item["completed"]), now))
+         for item in activities or []:
+-            db.execute("INSERT INTO course_activities(id, user_id, course_id, section_id, section_name, external_id, type, title, url, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET course_id=excluded.course_id, section_id=excluded.section_id, section_name=excluded.section_name, external_id=excluded.external_id, type=excluded.type, title=excluded.title, url=excluded.url, source=excluded.source, updated_at=excluded.updated_at",
++            db.execute("INSERT INTO course_activities(id, user_id, course_id, section_id, section_name, external_id, type, title, url, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, id) DO UPDATE SET course_id=excluded.course_id, section_id=excluded.section_id, section_name=excluded.section_name, external_id=excluded.external_id, type=excluded.type, title=excluded.title, url=excluded.url, source=excluded.source, updated_at=excluded.updated_at WHERE course_activities.course_id IS NOT excluded.course_id OR course_activities.section_id IS NOT excluded.section_id OR course_activities.section_name IS NOT excluded.section_name OR course_activities.external_id IS NOT excluded.external_id OR course_activities.type IS NOT excluded.type OR course_activities.title IS NOT excluded.title OR course_activities.url IS NOT excluded.url OR course_activities.source IS NOT excluded.source",
+                        (item["id"], user_id, item["courseId"], item.get("sectionId"), item.get("sectionName"), item["externalId"], item["type"], item["title"], item["url"], item.get("source", "tls"), now))
+         for item in notices or []:
+-            db.execute("INSERT INTO notices(id, external_id, course_id, title, content, published_at, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, content=excluded.content, published_at=excluded.published_at, updated_at=excluded.updated_at", (item["id"], item.get("externalId", item["id"]), item.get("courseId"), item["title"], item.get("content", ""), item["publishedAt"], item.get("source", "tls"), now))
++            db.execute("INSERT INTO notices(id, external_id, course_id, title, content, published_at, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, content=excluded.content, published_at=excluded.published_at, updated_at=excluded.updated_at WHERE notices.course_id IS NOT excluded.course_id OR notices.title IS NOT excluded.title OR notices.content IS NOT excluded.content OR notices.published_at IS NOT excluded.published_at", (item["id"], item.get("externalId", item["id"]), item.get("courseId"), item["title"], item.get("content", ""), item["publishedAt"], item.get("source", "tls"), now))
+         for item in resources or []:
+-            db.execute("INSERT INTO resources(id, external_id, course_id, title, file_name, extension, mime_type, remote_path, local_path, downloaded_at, download_status, download_reason, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, file_name=excluded.file_name, extension=excluded.extension, mime_type=excluded.mime_type, remote_path=excluded.remote_path, local_path=excluded.local_path, downloaded_at=excluded.downloaded_at, download_status=excluded.download_status, download_reason=excluded.download_reason, updated_at=excluded.updated_at", (item["id"], item.get("externalId", item["id"]), item["courseId"], item["title"], item["fileName"], item["extension"], item.get("mimeType"), item["remotePath"], item.get("localPath"), item.get("downloadedAt"), item.get("downloadStatus", "DOWNLOADED" if item.get("localPath") else "NOT_DOWNLOADED"), item.get("downloadReason"), item.get("source", "tls"), now))
++            db.execute("INSERT INTO resources(id, external_id, course_id, title, file_name, extension, mime_type, remote_path, local_path, downloaded_at, download_status, download_reason, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET course_id=excluded.course_id, title=excluded.title, file_name=excluded.file_name, extension=excluded.extension, mime_type=excluded.mime_type, remote_path=excluded.remote_path, local_path=excluded.local_path, downloaded_at=excluded.downloaded_at, download_status=excluded.download_status, download_reason=excluded.download_reason, updated_at=excluded.updated_at WHERE resources.course_id IS NOT excluded.course_id OR resources.title IS NOT excluded.title OR resources.file_name IS NOT excluded.file_name OR resources.extension IS NOT excluded.extension OR resources.mime_type IS NOT excluded.mime_type OR resources.remote_path IS NOT excluded.remote_path OR resources.local_path IS NOT excluded.local_path OR resources.downloaded_at IS NOT excluded.downloaded_at OR resources.download_status IS NOT excluded.download_status OR resources.download_reason IS NOT excluded.download_reason", (item["id"], item.get("externalId", item["id"]), item["courseId"], item["title"], item["fileName"], item["extension"], item.get("mimeType"), item["remotePath"], item.get("localPath"), item.get("downloadedAt"), item.get("downloadStatus", "DOWNLOADED" if item.get("localPath") else "NOT_DOWNLOADED"), item.get("downloadReason"), item.get("source", "tls"), now))
+         db.commit()
+ 
+     def get_courses(self, user_id: str) -> list[dict[str, Any]]:

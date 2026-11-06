@@ -35,6 +35,16 @@ Nonselected files are never downloaded by a selected request. Resource processin
 uses one flat two-worker pool rather than nested per-course/file pools. Database writes remain serial.
 The local sync commits completed assignment/lecture/notice stages before fetching more data.
 A later failure does not undo earlier stages; the run still reports failure, not full completion.
+During a normal metadata refresh, notice bodies younger than 6 hours can be reused when
+the observed board row fingerprint is unchanged. Visible title/date/author changes cause
+detail reads; view/reply counters and row numbering do not. Unknown row formats fall back
+to detail reads. Body-only edits are caught by the original 6-hour full check, whose timestamp
+is not advanced by a reused body. Forced checks and file-permission checks always reread bodies.
+This does not add a background board poll; the existing invocation/scope policy still applies.
+TLS snapshot UPSERTs update content rows only when their stored values differ (including NULL
+transitions), preserving unchanged content timestamps. The user import timestamp still advances.
+Sync-state replacement removes missing keys and writes only changed/new values. SQL statements
+may still run to compare values; reduced modified-row counts are not physical disk-write counts.
 Successful scopes keep their individual check times. A process-owned lock serializes
 manual, scheduled and gateway syncs sharing a database; process death releases ownership.
 The lock file retains only a scope hash and failure/cooldown metadata, never credentials.

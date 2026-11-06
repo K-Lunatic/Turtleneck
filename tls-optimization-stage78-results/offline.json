@@ -1,0 +1,1169 @@
+{
+  "baseline": "stage 0-6",
+  "after": "stage 0-8",
+  "http_replay": [
+    {
+      "scenario": "course_changed_2_notices",
+      "notices_in_target_course": 2,
+      "stage06": {
+        "requests": 20,
+        "requests_by_kind": {
+          "page": 18,
+          "post": 2
+        },
+        "response_body_bytes": 6320,
+        "response_body_bytes_by_kind": {
+          "page": 6240,
+          "post": 80
+        },
+        "statuses": {
+          "200": 20
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 20,
+        "elapsed_seconds": 0.328,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 646,
+          "sql_statements": 1189,
+          "write_statements_attempted": 660
+        }
+      },
+      "stage07": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 6152,
+        "response_body_bytes_by_kind": {
+          "page": 6072,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 670,
+          "sql_statements": 1245,
+          "write_statements_attempted": 673
+        }
+      },
+      "stage08": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 6152,
+        "response_body_bytes_by_kind": {
+          "page": 6072,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.328,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 12,
+          "sql_statements": 1177,
+          "write_statements_attempted": 599
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "course_changed_20_notices",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10652,
+        "response_body_bytes_by_kind": {
+          "page": 10572,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 664,
+          "sql_statements": 1207,
+          "write_statements_attempted": 678
+        }
+      },
+      "stage07": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 8952,
+        "response_body_bytes_by_kind": {
+          "page": 8872,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.343,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 688,
+          "sql_statements": 1263,
+          "write_statements_attempted": 691
+        }
+      },
+      "stage08": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 8952,
+        "response_body_bytes_by_kind": {
+          "page": 8872,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 12,
+          "sql_statements": 1195,
+          "write_statements_attempted": 617
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "course_changed_100_notices",
+      "notices_in_target_course": 100,
+      "stage06": {
+        "requests": 118,
+        "requests_by_kind": {
+          "page": 116,
+          "post": 2
+        },
+        "response_body_bytes": 30012,
+        "response_body_bytes_by_kind": {
+          "page": 29932,
+          "post": 80
+        },
+        "statuses": {
+          "200": 118
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 118,
+        "elapsed_seconds": 0.359,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 744,
+          "sql_statements": 1287,
+          "write_statements_attempted": 758
+        }
+      },
+      "stage07": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 21432,
+        "response_body_bytes_by_kind": {
+          "page": 21352,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.375,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 768,
+          "sql_statements": 1343,
+          "write_statements_attempted": 771
+        }
+      },
+      "stage08": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 21432,
+        "response_body_bytes_by_kind": {
+          "page": 21352,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.359,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 12,
+          "sql_statements": 1275,
+          "write_statements_attempted": 697
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "new_notice",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 39,
+        "requests_by_kind": {
+          "page": 37,
+          "post": 2
+        },
+        "response_body_bytes": 10798,
+        "response_body_bytes_by_kind": {
+          "page": 10718,
+          "post": 80
+        },
+        "statuses": {
+          "200": 39
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 39,
+        "elapsed_seconds": 0.36,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 665,
+          "sql_statements": 1208,
+          "write_statements_attempted": 679
+        }
+      },
+      "stage07": {
+        "requests": 19,
+        "requests_by_kind": {
+          "page": 17,
+          "post": 2
+        },
+        "response_body_bytes": 9098,
+        "response_body_bytes_by_kind": {
+          "page": 9018,
+          "post": 80
+        },
+        "statuses": {
+          "200": 19
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 19,
+        "elapsed_seconds": 0.36,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 689,
+          "sql_statements": 1264,
+          "write_statements_attempted": 692
+        }
+      },
+      "stage08": {
+        "requests": 19,
+        "requests_by_kind": {
+          "page": 17,
+          "post": 2
+        },
+        "response_body_bytes": 9098,
+        "response_body_bytes_by_kind": {
+          "page": 9018,
+          "post": 80
+        },
+        "statuses": {
+          "200": 19
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 19,
+        "elapsed_seconds": 0.328,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 14,
+          "sql_statements": 1197,
+          "write_statements_attempted": 619
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "edited_row",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10622,
+        "response_body_bytes_by_kind": {
+          "page": 10542,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 664,
+          "sql_statements": 1207,
+          "write_statements_attempted": 678
+        }
+      },
+      "stage07": {
+        "requests": 19,
+        "requests_by_kind": {
+          "page": 17,
+          "post": 2
+        },
+        "response_body_bytes": 9006,
+        "response_body_bytes_by_kind": {
+          "page": 8926,
+          "post": 80
+        },
+        "statuses": {
+          "200": 19
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 19,
+        "elapsed_seconds": 0.359,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 688,
+          "sql_statements": 1263,
+          "write_statements_attempted": 691
+        }
+      },
+      "stage08": {
+        "requests": 19,
+        "requests_by_kind": {
+          "page": 17,
+          "post": 2
+        },
+        "response_body_bytes": 9006,
+        "response_body_bytes_by_kind": {
+          "page": 8926,
+          "post": 80
+        },
+        "statuses": {
+          "200": 19
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 19,
+        "elapsed_seconds": 0.375,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 14,
+          "sql_statements": 1196,
+          "write_statements_attempted": 618
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "read_counter_only",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10672,
+        "response_body_bytes_by_kind": {
+          "page": 10592,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.422,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 664,
+          "sql_statements": 1207,
+          "write_statements_attempted": 678
+        }
+      },
+      "stage07": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 8972,
+        "response_body_bytes_by_kind": {
+          "page": 8892,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.422,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 688,
+          "sql_statements": 1263,
+          "write_statements_attempted": 691
+        }
+      },
+      "stage08": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 8972,
+        "response_body_bytes_by_kind": {
+          "page": 8892,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.328,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 12,
+          "sql_statements": 1195,
+          "write_statements_attempted": 617
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "removed_notice",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 37,
+        "requests_by_kind": {
+          "page": 35,
+          "post": 2
+        },
+        "response_body_bytes": 10415,
+        "response_body_bytes_by_kind": {
+          "page": 10335,
+          "post": 80
+        },
+        "statuses": {
+          "200": 37
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 37,
+        "elapsed_seconds": 0.391,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 664,
+          "sql_statements": 1206,
+          "write_statements_attempted": 677
+        }
+      },
+      "stage07": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 8799,
+        "response_body_bytes_by_kind": {
+          "page": 8719,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 688,
+          "sql_statements": 1262,
+          "write_statements_attempted": 690
+        }
+      },
+      "stage08": {
+        "requests": 18,
+        "requests_by_kind": {
+          "page": 16,
+          "post": 2
+        },
+        "response_body_bytes": 8799,
+        "response_body_bytes_by_kind": {
+          "page": 8719,
+          "post": 80
+        },
+        "statuses": {
+          "200": 18
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 18,
+        "elapsed_seconds": 0.375,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 14,
+          "sql_statements": 1195,
+          "write_statements_attempted": 617
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "six_hours_due",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 83,
+        "requests_by_kind": {
+          "page": 83
+        },
+        "response_body_bytes": 15401,
+        "response_body_bytes_by_kind": {
+          "page": 15401
+        },
+        "statuses": {
+          "200": 83
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 83,
+        "elapsed_seconds": 0.969,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 422,
+          "sql_statements": 797,
+          "write_statements_attempted": 423
+        }
+      },
+      "stage07": {
+        "requests": 83,
+        "requests_by_kind": {
+          "page": 83
+        },
+        "response_body_bytes": 15401,
+        "response_body_bytes_by_kind": {
+          "page": 15401
+        },
+        "statuses": {
+          "200": 83
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 83,
+        "elapsed_seconds": 0.89,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 446,
+          "sql_statements": 853,
+          "write_statements_attempted": 436
+        }
+      },
+      "stage08": {
+        "requests": 83,
+        "requests_by_kind": {
+          "page": 83
+        },
+        "response_body_bytes": 15401,
+        "response_body_bytes_by_kind": {
+          "page": 15401
+        },
+        "statuses": {
+          "200": 83
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 83,
+        "elapsed_seconds": 1.016,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 10,
+          "sql_statements": 799,
+          "write_statements_attempted": 377
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "forced",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 115,
+        "requests_by_kind": {
+          "page": 99,
+          "post": 16
+        },
+        "response_body_bytes": 17120,
+        "response_body_bytes_by_kind": {
+          "page": 16480,
+          "post": 640
+        },
+        "statuses": {
+          "200": 115
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 98,
+        "elapsed_seconds": 1.406,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 664,
+          "sql_statements": 1207,
+          "write_statements_attempted": 678
+        }
+      },
+      "stage07": {
+        "requests": 115,
+        "requests_by_kind": {
+          "page": 99,
+          "post": 16
+        },
+        "response_body_bytes": 17120,
+        "response_body_bytes_by_kind": {
+          "page": 16480,
+          "post": 640
+        },
+        "statuses": {
+          "200": 115
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 94,
+        "elapsed_seconds": 1.454,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 688,
+          "sql_statements": 1263,
+          "write_statements_attempted": 691
+        }
+      },
+      "stage08": {
+        "requests": 115,
+        "requests_by_kind": {
+          "page": 99,
+          "post": 16
+        },
+        "response_body_bytes": 17120,
+        "response_body_bytes_by_kind": {
+          "page": 16480,
+          "post": 640
+        },
+        "statuses": {
+          "200": 115
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 98,
+        "elapsed_seconds": 1.422,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 17,
+          "sql_statements": 1200,
+          "write_statements_attempted": 622
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "file_permission_check",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10652,
+        "response_body_bytes_by_kind": {
+          "page": 10572,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.406,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 693,
+          "sql_statements": 1267,
+          "write_statements_attempted": 694
+        }
+      },
+      "stage07": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10652,
+        "response_body_bytes_by_kind": {
+          "page": 10572,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.437,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 717,
+          "sql_statements": 1323,
+          "write_statements_attempted": 707
+        }
+      },
+      "stage08": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10652,
+        "response_body_bytes_by_kind": {
+          "page": 10572,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.359,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 15,
+          "sql_statements": 1243,
+          "write_statements_attempted": 620
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "unknown_markup",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10692,
+        "response_body_bytes_by_kind": {
+          "page": 10612,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.359,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 664,
+          "sql_statements": 1207,
+          "write_statements_attempted": 678
+        }
+      },
+      "stage07": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10692,
+        "response_body_bytes_by_kind": {
+          "page": 10612,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 688,
+          "sql_statements": 1263,
+          "write_statements_attempted": 691
+        }
+      },
+      "stage08": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10692,
+        "response_body_bytes_by_kind": {
+          "page": 10612,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 14,
+          "sql_statements": 1197,
+          "write_statements_attempted": 619
+        }
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "cold_cache",
+      "notices_in_target_course": 20,
+      "stage06": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10652,
+        "response_body_bytes_by_kind": {
+          "page": 10572,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 654,
+          "sql_statements": 1202,
+          "write_statements_attempted": 673
+        }
+      },
+      "stage07": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10652,
+        "response_body_bytes_by_kind": {
+          "page": 10572,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.344,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 685,
+          "sql_statements": 1262,
+          "write_statements_attempted": 690
+        }
+      },
+      "stage08": {
+        "requests": 38,
+        "requests_by_kind": {
+          "page": 36,
+          "post": 2
+        },
+        "response_body_bytes": 10652,
+        "response_body_bytes_by_kind": {
+          "page": 10572,
+          "post": 80
+        },
+        "statuses": {
+          "200": 38
+        },
+        "peak_open_requests": 1,
+        "peak_requests_per_second": 38,
+        "elapsed_seconds": 0.359,
+        "login_calls": 1,
+        "failed": false,
+        "database": {
+          "changed_rows": 14,
+          "sql_statements": 1197,
+          "write_statements_attempted": 619
+        }
+      },
+      "learning_records_equal": true
+    }
+  ],
+  "sqlite": [
+    {
+      "scenario": "unchanged_snapshot",
+      "records_per_kind": 20,
+      "repetitions": 5,
+      "before": {
+        "changed_rows": 142,
+        "sql_statements": 151,
+        "median_seconds": 0.003731,
+        "elapsed_samples": [
+          0.003861,
+          0.003731,
+          0.003715,
+          0.003552,
+          0.004957
+        ]
+      },
+      "after": {
+        "changed_rows": 1,
+        "sql_statements": 151,
+        "median_seconds": 0.003294,
+        "elapsed_samples": [
+          0.003387,
+          0.004257,
+          0.003097,
+          0.002992,
+          0.003294
+        ]
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "one_submission_changed",
+      "records_per_kind": 20,
+      "repetitions": 5,
+      "before": {
+        "changed_rows": 142,
+        "sql_statements": 152,
+        "median_seconds": 0.003723,
+        "elapsed_samples": [
+          0.003723,
+          0.003818,
+          0.003853,
+          0.003519,
+          0.003576
+        ]
+      },
+      "after": {
+        "changed_rows": 2,
+        "sql_statements": 152,
+        "median_seconds": 0.003073,
+        "elapsed_samples": [
+          0.003073,
+          0.003535,
+          0.003043,
+          0.003204,
+          0.002985
+        ]
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "one_resource_restricted",
+      "records_per_kind": 20,
+      "repetitions": 5,
+      "before": {
+        "changed_rows": 142,
+        "sql_statements": 151,
+        "median_seconds": 0.003626,
+        "elapsed_samples": [
+          0.003744,
+          0.003661,
+          0.003626,
+          0.003558,
+          0.003442
+        ]
+      },
+      "after": {
+        "changed_rows": 2,
+        "sql_statements": 151,
+        "median_seconds": 0.003235,
+        "elapsed_samples": [
+          0.0033,
+          0.003006,
+          0.003135,
+          0.003235,
+          0.003366
+        ]
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "unchanged_snapshot",
+      "records_per_kind": 1000,
+      "repetitions": 5,
+      "before": {
+        "changed_rows": 7002,
+        "sql_statements": 7011,
+        "median_seconds": 0.055182,
+        "elapsed_samples": [
+          0.058169,
+          0.052892,
+          0.055714,
+          0.055182,
+          0.053713
+        ]
+      },
+      "after": {
+        "changed_rows": 1,
+        "sql_statements": 7011,
+        "median_seconds": 0.038915,
+        "elapsed_samples": [
+          0.038824,
+          0.03975,
+          0.038613,
+          0.040448,
+          0.038915
+        ]
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "one_submission_changed",
+      "records_per_kind": 1000,
+      "repetitions": 5,
+      "before": {
+        "changed_rows": 7002,
+        "sql_statements": 7012,
+        "median_seconds": 0.053422,
+        "elapsed_samples": [
+          0.054512,
+          0.052694,
+          0.057929,
+          0.053422,
+          0.05257
+        ]
+      },
+      "after": {
+        "changed_rows": 2,
+        "sql_statements": 7012,
+        "median_seconds": 0.039731,
+        "elapsed_samples": [
+          0.039731,
+          0.039563,
+          0.045893,
+          0.038786,
+          0.040092
+        ]
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "one_resource_restricted",
+      "records_per_kind": 1000,
+      "repetitions": 5,
+      "before": {
+        "changed_rows": 7002,
+        "sql_statements": 7011,
+        "median_seconds": 0.053571,
+        "elapsed_samples": [
+          0.069845,
+          0.05975,
+          0.053472,
+          0.053426,
+          0.053571
+        ]
+      },
+      "after": {
+        "changed_rows": 2,
+        "sql_statements": 7011,
+        "median_seconds": 0.038984,
+        "elapsed_samples": [
+          0.040934,
+          0.038984,
+          0.038919,
+          0.038651,
+          0.039912
+        ]
+      },
+      "learning_records_equal": true
+    },
+    {
+      "scenario": "unchanged_state",
+      "keys": 100,
+      "before": {
+        "changed_rows": 200
+      },
+      "after": {
+        "changed_rows": 0
+      }
+    },
+    {
+      "scenario": "one_state_key_changed",
+      "keys": 100,
+      "before": {
+        "changed_rows": 200
+      },
+      "after": {
+        "changed_rows": 1
+      }
+    }
+  ],
+  "notes": [
+    "HTTP is offline replay with mocked login; timings are not live network speed.",
+    "SQLite counters measure modified rows via total_changes, not physical page writes or server DB load.",
+    "Conditional UPSERTs still execute SQL and read/compare rows; statement counts need not decrease.",
+    "The user sync timestamp is always written. Unchanged content timestamps are retained.",
+    "Notice cache is warm except cold_cache; six-hour body refresh and permission reads stay full."
+  ]
+}

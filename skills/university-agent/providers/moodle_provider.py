@@ -14,10 +14,38 @@ from urllib.error import HTTPError, URLError
 from concurrent.futures import ThreadPoolExecutor
 
 from providers.moodle_session import MoodleSession, LoginError, DownloadRestricted, RequestBackoff, check_download_url, check_download_origin
+from features import sync_policy
 
 
 class ResourceUnavailable(ValueError):
     """The current response cannot establish a usable original; not a prohibition."""
+
+
+def notice_listing_fingerprints(html):
+    """Visible row changes invalidate a body cache; TTL still catches body-only edits."""
+    fingerprints = {}
+    tables = re.findall(r'<table\b[^>]*>(.*?)</table>', html, re.I | re.S)
+    ignored_headers = {'번호', '조회', '조회수', '읽음', '댓글', '댓글수', '추천수', 'views', 'hits', 'no.'}
+    for table in tables or [html]:
+        headers = [''.join(_plain_text(cell).split()).casefold()
+                   for cell in re.findall(r'<th\b[^>]*>(.*?)</th>', table, re.I | re.S)]
+        for row in re.findall(r'<tr\b[^>]*>(.*?)</tr>', table, re.I | re.S):
+            identifiers = set(re.findall(r'/mod/ubboard/article\.php\?id=\d+(?:&amp;|&)bwid=(\d+)', row))
+            if len(identifiers) != 1:
+                continue
+            cells = re.findall(r'<td\b([^>]*)>(.*?)</td>', row, re.I | re.S)
+            text = []
+            for index, (attrs, cell) in enumerate(cells):
+                # TLS gives view counts the same CSS class as dates; use observed headers too.
+                if len(headers) == len(cells) and headers[index] in ignored_headers:
+                    continue
+                if re.search(r'\bclass=["\'][^"\']*\b(?:hits?|views?|bcount|readcount|replies|comments?)\b', attrs, re.I):
+                    continue
+                text.append(_plain_text(cell))
+            text = ' '.join(' '.join(text).split())
+            if text:
+                fingerprints[next(iter(identifiers))] = hashlib.sha256(text.encode('utf-8')).hexdigest()
+    return fingerprints
 
 
 def validate_permission(permission, user_id, resource_id):
@@ -868,12 +896,14 @@ class MoodleTLSProvider:
         from providers.lecture_media import download_media
         return download_media(self.session, plan, target, progress)
 
-    def get_notices(self, user_id: str) -> list[dict[str, Any]]:
-        parallel = self._parallel_courses('get_notices', user_id)
+    def get_notices(self, user_id: str, *, existing_notices=None, notice_cache=None, force_details=False) -> list[dict[str, Any]]:
+        parallel = self._parallel_courses('get_notices', user_id, existing_notices=existing_notices,
+                                          notice_cache=notice_cache, force_details=force_details)
         if parallel is not None:
             return parallel
         result: list[dict[str, Any]] = []
         seen: set[str] = set()
+        previous = {item['id']: item for item in existing_notices or []}
         for course in self.get_courses(user_id):
             course_html = self._course_page(course)
             for href, title in self._course_activity_links(course):
@@ -882,11 +912,22 @@ class MoodleTLSProvider:
                     continue
                 seen.add(match.group(1))
                 board_html = self.session.get(f"/mod/ubboard/view.php?id={match.group(1)}")
+                fingerprints = notice_listing_fingerprints(board_html)
                 for article_href, _ in self._links(board_html):
                     article = re.search(r"/mod/ubboard/article\.php\?id=(\d+)(?:&amp;|&)bwid=(\d+)", article_href)
                     if not article or article.group(2) in seen:
                         continue
                     seen.add(article.group(2))
+                    identifier = f'tls-notice-{article.group(2)}'
+                    fingerprint = fingerprints.get(article.group(2))
+                    checked = (notice_cache or {}).get(identifier, {})
+                    cached = previous.get(identifier)
+                    if (not force_details and isinstance(checked, dict) and cached
+                            and cached.get('courseId') == course['id'] and fingerprint
+                            and fingerprint == checked.get('fingerprint')
+                            and sync_policy.fresh(checked.get('checked_at'), sync_policy.NOTICE_TTL)):
+                        result.append({**cached, '_notice_check': checked, '_notice_reused': True})
+                        continue
                     if self.progress:
                         self.progress(f"{course['name']}의 공지를 살펴보고 있어요…")
                     detail = self.session.get(article_href)
@@ -894,6 +935,8 @@ class MoodleTLSProvider:
                     content = _match_text(detail, r'<div[^>]+class=["\'][^"\']*text_to_html[^"\']*["\'][^>]*>(.*?)</div>')
                     text = _plain_text(detail)
                     result.append({"id": f"tls-notice-{article.group(2)}", "externalId": article.group(2), "courseId": course["id"], "title": article_title or f"TLS notice {article.group(2)}", "content": content, "publishedAt": _find_datetime(text, ("작성일", "게시일", "등록일")) or "1970-01-01T00:00:00+09:00", "source": "tls"})
+                    if notice_cache is not None:
+                        result[-1]['_notice_check'] = {'fingerprint': fingerprint, 'checked_at': sync_policy.now().isoformat()}
             result.extend(self._course_overviews(course, course_html))
         return result
 

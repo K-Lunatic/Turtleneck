@@ -464,9 +464,32 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
     if changed:
         persist(db_path, user_id, username, courses, activities=activities, refreshed_course_ids=changed)
     if notices_scope:
-        notices = provider.for_courses(user_id, notices_scope).get_notices(user_id)
+        with closing(LocalDatabase(db_path, read_only=True)) as database:
+            previous_notices = database.get_notices(user_id)
+        try:
+            notice_cache = json.loads(state.get('notice_detail_checks', '{}'))
+        except (TypeError, ValueError):
+            notice_cache = {}
+        if not isinstance(notice_cache, dict):
+            notice_cache = {}
+        notices = provider.for_courses(user_id, notices_scope).get_notices(
+            user_id, existing_notices=previous_notices, notice_cache=notice_cache,
+            force_details=force or bool(args.resource_id) or not args.metadata_only or bool(
+                sync_policy.due_courses(state, 'notice', notices_scope, sync_policy.NOTICE_TTL)))
+        retained_notice_ids = {item['id'] for item in previous_notices
+                               if item['courseId'] in ids - notices_scope}
+        notice_cache = {key: value for key, value in notice_cache.items() if key in retained_notice_ids}
+        reused_notice_courses = set()
+        for notice in notices:
+            if notice.pop('_notice_reused', False):
+                reused_notice_courses.add(notice['courseId'])
+            checked = notice.pop('_notice_check', None)
+            if checked is not None:
+                notice_cache[notice['id']] = checked
         persist(db_path, user_id, username, courses, notices=notices, refreshed_course_ids=notices_scope)
-        _mark_checks(db_path, user_id, 'notice', notices_scope, ids, scope)
+        with closing(LocalDatabase(db_path)) as database:
+            database.merge_sync_state(user_id, {'notice_detail_checks': json.dumps(notice_cache, sort_keys=True)})
+        _mark_checks(db_path, user_id, 'notice', notices_scope - reused_notice_courses, ids, scope)
     if resources_scope:
         file_root = db_path.parent / 'files'
         with closing(LocalDatabase(db_path, read_only=True)) as database:

@@ -109,6 +109,8 @@ Successful checks are reused by scope: activity lists for 5 minutes, assignment/
 
 For selected file requests, unchanged courses with fresh resource checks resolve only the selected resources; other records keep their previous data and resource-check ages. Changed/expired/forced scopes and unknown IDs still use full resource detail checks. A selected success is recorded per resource, not as a new successful check of the whole course.
 
+Normal metadata checks may reuse notice bodies under 6 hours old when visible board rows are unchanged. View counts and row numbers are excluded; title/date changes trigger reads. Unknown markup, forced/expired checks and file-permission checks reread bodies. Reuse never advances the original full notice-check time; a body-only edit can remain unseen until the next scheduled full check. Content rows now keep `updated_at` until their values change, while the user's import time still advances. Use scope check timestamps to establish freshness.
+
 ### Local write permissions (every installation)
 
 Before any local mutation, check the execution environment's permitted write roots against the configured data directory (default `~/.university-agent`; Everytime also uses `~/.everytime` or `EVERYTIME_DB`; applies on Windows too). Academic reads remain unprivileged. Saves, assignment/bookmark mutations, TLS sync/downloads, attachment copies, study events and exam servers write there: when it is outside the allowed roots, use the host's approval mechanism for that exact command. Never disable the sandbox, broaden global permissions, chmod the DB, or move the user's storage automatically. If approval is unavailable or denied, stop and explain that local saving needs permission.
