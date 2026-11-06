@@ -1,0 +1,913 @@
+--- a/skills/university-agent/providers/moodle_session.py
++++ b/skills/university-agent/providers/moodle_session.py
+@@ -17,6 +17,7 @@
+ from typing import Any
+ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
+ from urllib.request import Request, build_opener, HTTPRedirectHandler, HTTPCookieProcessor, HTTPSHandler
++from providers.request_metrics import MetricsHandler, current_metrics
+ 
+ 
+ class LoginError(RuntimeError):
+@@ -92,6 +93,7 @@
+         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+         if redirected is not None:
+             redirected.allowed_origin = getattr(req, 'allowed_origin', None)
++            redirected.metrics_kind = getattr(req, 'metrics_kind', 'page')
+         return redirected
+ 
+ 
+@@ -110,15 +112,28 @@
+ 
+ 
+ class MoodleSession:
+-    def __init__(self, base_url: str = "https://tls.kku.ac.kr"):
++    def __init__(self, base_url: str = "https://tls.kku.ac.kr", *, metrics=None):
+         self.base_url = base_url.rstrip("/")
++        self.metrics = metrics if metrics is not None else current_metrics.get()
+         self.cookies = CookieJar()
+         self._request_limiter = _RequestLimiter()
+         self._build_opener()
+         self.logged_in = False
+ 
+     def _build_opener(self) -> None:
+-        self.opener = build_opener(HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(), HTTPSHandler(context=_default_ssl_context()))
++        handlers = [HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(), HTTPSHandler(context=_default_ssl_context())]
++        if self.metrics is not None:
++            handlers.append(MetricsHandler(self.metrics))
++        self.opener = build_opener(*handlers)
++
++    def _open(self, request, *, kind):
++        request.metrics_kind = kind
++        try:
++            return self.opener.open(request, timeout=30)
++        except Exception:
++            if self.metrics is not None:
++                self.metrics.failed()
++            raise
+ 
+     def restore_cookies(self, cookies: CookieJar) -> None:
+         self.cookies = cookies
+@@ -141,7 +156,7 @@
+ 
+     def fork(self):
+         """Independent cookie jar/opener per read worker; login remains single-threaded."""
+-        child = MoodleSession(self.base_url)
++        child = MoodleSession(self.base_url, metrics=self.metrics)
+         for cookie in self.cookies:
+             child.cookies.set_cookie(copy(cookie))
+         child._request_limiter = self._request_limiter
+@@ -181,7 +196,7 @@
+         request = Request(url, data=data, headers=headers, method="POST" if data is not None else "GET")
+         request.allowed_origin = allowed_origin
+         self._request_limiter.wait()
+-        response = self.opener.open(request, timeout=30)
++        response = self._open(request, kind='post' if data is not None else 'page')
+         try:
+             check_download_origin(response.geturl(), allowed_origin)
+             if data is None:
+@@ -257,7 +272,7 @@
+         request = Request(url, data=payload, headers=headers, method="POST")
+         request.allowed_origin = allowed_origin
+         self._request_limiter.wait()
+-        response = self.opener.open(request, timeout=30)
++        response = self._open(request, kind='post')
+         try:
+             check_download_origin(response.geturl(), allowed_origin)
+             html = self._decode(response)
+@@ -301,7 +316,7 @@
+             request = Request(url, headers={"User-Agent": "UniversityAgent/0.1", "Accept-Encoding": "identity" if max_bytes is not None else "gzip, deflate", **(conditional or {})})
+             request.allowed_origin = allowed_origin
+             self._request_limiter.wait()
+-            response = self.opener.open(request, timeout=30)
++            response = self._open(request, kind='file')
+         except HTTPError as error:
+             if error.code != 304:
+                 error.close()
+--- a/skills/university-agent/providers/moodle_provider.py
++++ b/skills/university-agent/providers/moodle_provider.py
+@@ -727,11 +727,23 @@
+             def collect(course):
+                 child = MoodleTLSProvider(self.session.fork(), self.progress)
+                 child._courses = [course]
+-                return course["id"], child._activity_fingerprint(child._course_page(course))
++                page = child._course_page(course)
++                return course, page, child._activity_fingerprint(page)
+ 
+             with ThreadPoolExecutor(max_workers=min(self.MAX_READ_WORKERS, len(selected))) as pool:
+-                fingerprints = dict(pool.map(collect, selected))
++                fingerprints = {}
++                for course, page, fingerprint in pool.map(collect, selected):
++                    self._course_pages[str(course['externalId'])] = page
++                    fingerprints[course['id']] = fingerprint
+         return {"courseIds": [course["id"] for course in courses], "fingerprints": fingerprints}
++
++    def for_courses(self, user_id: str, course_ids: set[str]):
++        """Scope detail reads while retaining this sync's already fetched pages."""
++        child = MoodleTLSProvider(self.session, self.progress)
++        child._courses = [course for course in self.get_courses(user_id) if course['id'] in course_ids]
++        child._course_pages = self._course_pages.copy()
++        child._activity_links = self._activity_links.copy()
++        return child
+ 
+     def activity_fingerprints(self, user_id: str) -> dict[str, str]:
+         """Return fingerprints for course pages already fetched during a full sync."""
+--- a/skills/university-agent/scripts/sync_tls.py
++++ b/skills/university-agent/scripts/sync_tls.py
+@@ -28,6 +28,7 @@
+ from features.guidance import resource_unavailable_reason
+ from features.autonomous_course_watch import refresh as refresh_autonomous_course
+ from providers.tls_auth import resume_saved_session
++from providers.request_metrics import RequestMetrics, measure_requests
+ 
+ 
+ def _cached_resources(db_path: Path, user_id: str, file_root: Path) -> dict[str, dict[str, object]]:
+@@ -116,8 +117,21 @@
+     return item
+ 
+ 
+-def persist(db_path, user_id, username, courses, *, assignments=None, lectures=None, notices=None, resources=None, activities=None):
++def persist(db_path, user_id, username, courses, *, assignments=None, lectures=None, notices=None, resources=None, activities=None, refreshed_course_ids=None):
+     with closing(LocalDatabase(db_path)) as database:
++        if refreshed_course_ids is not None:
++            retained = {course['id'] for course in courses} - refreshed_course_ids
++
++            def merge(items, previous):
++                if items is None:
++                    return None
++                return [item for item in previous if item.get('courseId') in retained] + items
++
++            assignments = merge(assignments, [x for x in database.get_assignments(user_id) if x.get('source') != 'manual'])
++            lectures = merge(lectures, database.get_lectures(user_id))
++            notices = merge(notices, database.get_notices(user_id))
++            resources = merge(resources, database.get_resources(user_id, include_permissions=False))
++            activities = merge(activities, database.get_activities(user_id))
+         database.upsert_tls_snapshot(user_id, courses,
+             assignments if assignments is not None else [x for x in database.get_assignments(user_id) if x.get('source') != 'manual'],
+             lectures if lectures is not None else database.get_lectures(user_id), username, None,
+@@ -155,18 +169,36 @@
+     return False
+ 
+ 
++def _changed_course_ids(state: dict[str, str], result: dict) -> set[str] | None:
++    """None requires a full refresh; an empty set can still mean unenrollment."""
++    if state.get('resource_response_version') != MoodleTLSProvider.RESOURCE_RESPONSE_VERSION:
++        return None
++    try:
++        saved_courses = json.loads(state['course_ids'])
++        saved_fingerprints = json.loads(state['course_fingerprints'])
++        if (not isinstance(saved_courses, list) or not all(isinstance(value, str) for value in saved_courses)
++                or not isinstance(saved_fingerprints, dict)):
++            return None
++        return {course_id for course_id in result['courseIds']
++                if course_id not in saved_courses or not result['fingerprints'].get(course_id)
++                or saved_fingerprints.get(course_id) != result['fingerprints'][course_id]}
++    except (KeyError, TypeError, ValueError):
++        return None
++
++
+ def _preflight_changed(state: dict[str, str], result: dict, *, needs_data: bool) -> bool:
+-    if needs_data or state.get('resource_response_version') != MoodleTLSProvider.RESOURCE_RESPONSE_VERSION:
++    changed = _changed_course_ids(state, result)
++    if needs_data or changed is None or changed:
+         return True
+-    try:
+-        saved_courses = json.loads(state.get('course_ids', '[]'))
+-        saved_fingerprints = json.loads(state.get('course_fingerprints', '{}'))
+-    except (TypeError, ValueError):
+-        return True
+-    if sorted(saved_courses) != sorted(result.get('courseIds', [])):
+-        return True
+-    return any(saved_fingerprints.get(course_id) != fingerprint
+-               for course_id, fingerprint in result.get('fingerprints', {}).items())
++    return set(json.loads(state['course_ids'])) != set(result['courseIds'])
++
++
++def _requested_course_ids(db_path, user_id, resource_ids):
++    with closing(LocalDatabase(db_path, read_only=True)) as database:
++        resources = {item['id']: item for item in database.get_resources(user_id, include_permissions=False)}
++    if any(identifier not in resources for identifier in resource_ids):
++        return None
++    return {resources[identifier]['courseId'] for identifier in resource_ids}
+ 
+ 
+ def _save_sync_state(db_path: Path, user_id: str, provider: MoodleTLSProvider) -> None:
+@@ -234,6 +266,16 @@
+ 
+ 
+ def main() -> None:
++    metrics = RequestMetrics() if '--metrics' in sys.argv else None
++    with measure_requests(metrics):
++        try:
++            _main()
++        finally:
++            if metrics is not None:
++                print('TLS_METRICS ' + json.dumps(metrics.snapshot(), sort_keys=True), file=sys.stderr)
++
++
++def _main() -> None:
+     parser = argparse.ArgumentParser(description="Sync KKU TLS data into the local SQLite database")
+     parser.add_argument('--connect', action='store_true', help='Open a private native terminal for account connection')
+     parser.add_argument('--metadata-only', action='store_true', help='Refresh records without downloading new file contents')
+@@ -241,6 +283,7 @@
+     parser.add_argument('--ensure', action='store_true', help='Check course activity changes first and sync only when needed')
+     parser.add_argument('--full', action='store_true', help='Skip the preflight and force a complete sync')
+     parser.add_argument('--resource-id', action='append', default=[], help='With --ensure, force data refresh when this resource is not local')
++    parser.add_argument('--metrics', action='store_true', help='Print private aggregate HTTP request counters to stderr')
+     args = parser.parse_args()
+     if args.academic_only and (args.ensure or args.full or args.resource_id or args.connect):
+         parser.error('--academic-only는 다른 동기화 범위나 연결 모드와 함께 사용할 수 없습니다.')
+@@ -311,44 +354,54 @@
+             print(f'최신 상태 확인 완료 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · {monotonic() - started:.1f}초', flush=True)
+             return
+         cached_resources = _cached_resources(db_path, user_id, file_root)
++        refreshed_course_ids = None
+         if smart_sync:
+             if saved_state:
+                 print("새 자료가 있는지 빠르게 확인하고 있어요…", flush=True)
+                 preflight = provider.preflight(user_id)
++                needs_data = _resource_needs_data(db_path, user_id, args.resource_id)
+                 if not _preflight_changed(saved_state, preflight,
+-                                          needs_data=_resource_needs_data(db_path, user_id, args.resource_id)):
++                                          needs_data=needs_data):
+                     print("새로 가져올 내용이 없어요. 저장된 학교 정보를 그대로 사용할게요.", flush=True)
+                     return
++                refreshed_course_ids = _changed_course_ids(saved_state, preflight)
++                if needs_data and refreshed_course_ids is not None:
++                    requested_courses = _requested_course_ids(db_path, user_id, args.resource_id)
++                    refreshed_course_ids = (refreshed_course_ids | requested_courses
++                                            if requested_courses is not None else None)
+                 print("새 자료나 변경된 내용이 있어 필요한 정보를 가져올게요.", flush=True)
+             else:
+                 print("처음 연결이라 학교 정보를 한 번에 준비할게요.", flush=True)
+         _progress(1, 5, "수강 과목을 확인하는 중이에요…")
+         stage_started = monotonic()
+         courses = provider.get_courses(user_id)
++        collector = provider if refreshed_course_ids is None else provider.for_courses(user_id, refreshed_course_ids)
++        if refreshed_course_ids is not None:
++            print(f'변경된 과목 {len(collector.get_courses(user_id))}개만 상세 확인해요.', flush=True)
+         print(f"과목 {len(courses)}개를 찾았어요. · {monotonic() - stage_started:.1f}초", flush=True)
+         _progress(2, 5, "과제와 마감일을 살펴보는 중이에요…")
+         stage_started = monotonic()
+-        assignments = provider.get_assignments(user_id)
++        assignments = collector.get_assignments(user_id)
+         print(f"과제 {len(assignments)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
+         # Assignment reads already warm the shared course-page cache in the parallel provider.
+         # Parse the activity map after that work so it does not become a serial network gate.
+-        catalog_reader = getattr(provider, 'get_activity_catalog', None)
++        catalog_reader = getattr(collector, 'get_activity_catalog', None)
+         activities = catalog_reader(user_id) if catalog_reader else None
+         print(f"강의실 활동 {len(activities or [])}개를 분류했어요. 새 유형도 놓치지 않을게요.", flush=True)
+-        persist(db_path, user_id, username, courses, assignments=assignments, activities=activities)
++        persist(db_path, user_id, username, courses, assignments=assignments, activities=activities, refreshed_course_ids=refreshed_course_ids)
+         _progress(3, 5, "강의 시청 상태를 확인하는 중이에요…")
+         stage_started = monotonic()
+-        lectures = provider.get_lectures(user_id)
+-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, activities=activities)
++        lectures = collector.get_lectures(user_id)
++        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, activities=activities, refreshed_course_ids=refreshed_course_ids)
+         print(f"강의 {len(lectures)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
+         _progress(4, 5, "새 공지를 살펴보는 중이에요…")
+         stage_started = monotonic()
+-        notices = provider.get_notices(user_id)
+-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, activities=activities)
++        notices = collector.get_notices(user_id)
++        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, activities=activities, refreshed_course_ids=refreshed_course_ids)
+         print(f"공지 {len(notices)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
+         _progress(5, 5, "강의 자료를 확인하는 중이에요…")
+         stage_started = monotonic()
+-        resources = provider.get_resources(user_id, notices=notices, existing_resources=cached_resources,
++        resources = collector.get_resources(user_id, notices=notices, existing_resources=cached_resources,
+                                            progress=lambda message: print(message, flush=True),
+                                            download_new_files=not args.metadata_only,
+                                            resource_ids=set(args.resource_id) if args.resource_id else None,
+@@ -374,7 +427,9 @@
+             print(f"{course_names.get(item['courseId'], '과목')} · {item['title']} · {resource_unavailable_reason(item)}", flush=True)
+             continue
+         store_resource(file_root, item)
+-    persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, resources=resources, activities=activities)
++    persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, resources=resources, activities=activities, refreshed_course_ids=refreshed_course_ids)
++    if collector is not provider:
++        provider._course_pages.update(collector._course_pages)
+     _save_sync_state(db_path, user_id, provider)
+     elapsed = round(monotonic() - started, 1)
+     print(f"터틀넥 준비 완료 · 과목 {len(courses)}개 · 활동 {len(activities)}개 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · 공지 {len(notices)}개 · 자료 {len(resources)}개 · 제한으로 건너뜀 {prohibited}개 · {elapsed}초", flush=True)
+--- /dev/null
++++ b/skills/university-agent/providers/request_metrics.py
+@@ -0,0 +1,98 @@
++"""Opt-in HTTP counters; never retain URLs, headers, credentials or bodies."""
++from collections import Counter, deque
++from contextlib import contextmanager
++from contextvars import ContextVar
++import threading
++import time
++from urllib.request import BaseHandler
++
++
++current_metrics = ContextVar('tls_request_metrics', default=None)
++
++
++@contextmanager
++def measure_requests(metrics):
++    token = current_metrics.set(metrics)
++    try:
++        yield metrics
++    finally:
++        current_metrics.reset(token)
++
++
++class RequestMetrics:
++    def __init__(self):
++        self.lock = threading.Lock()
++        self.local = threading.local()
++        self.started = time.monotonic()
++        self.requests = Counter()
++        self.statuses = Counter()
++        self.body_bytes = Counter()
++        self.active = self.peak = self.peak_rps = 0
++        self.arrivals = deque()
++
++    def start(self, kind):
++        with self.lock:
++            now = time.monotonic()
++            self.requests[kind] += 1
++            self.active += 1
++            self.peak = max(self.peak, self.active)
++            self.arrivals.append(now)
++            while self.arrivals and self.arrivals[0] <= now - 1:
++                self.arrivals.popleft()
++            self.peak_rps = max(self.peak_rps, len(self.arrivals))
++            token = [False]
++            self.local.pending = token
++            return token
++
++    def finish(self, token, status):
++        with self.lock:
++            if token is not None and not token[0]:
++                token[0] = True
++                self.active -= 1
++                self.statuses[str(status)] += 1
++
++    def failed(self):
++        self.finish(getattr(self.local, 'pending', None), 'transport_error')
++
++    def received(self, kind, size):
++        with self.lock:
++            self.body_bytes[kind] += size
++
++    def snapshot(self):
++        with self.lock:
++            return {
++                'requests': sum(self.requests.values()), 'requests_by_kind': dict(self.requests),
++                'response_body_bytes': sum(self.body_bytes.values()),
++                'response_body_bytes_by_kind': dict(self.body_bytes), 'statuses': dict(self.statuses),
++                'peak_open_requests': self.peak, 'peak_requests_per_second': self.peak_rps,
++                'elapsed_seconds': round(time.monotonic() - self.started, 4),
++            }
++
++
++class MetricsHandler(BaseHandler):
++    # Observe redirects and HTTP errors before urllib handles them.
++    handler_order = 490
++
++    def __init__(self, metrics):
++        self.metrics = metrics
++
++    def http_request(self, request):
++        request._metrics_token = self.metrics.start(getattr(request, 'metrics_kind', 'page'))
++        return request
++
++    https_request = http_request
++
++    def http_response(self, request, response):
++        self.metrics.finish(request._metrics_token, response.code)
++        read = response.read
++        kind = getattr(request, 'metrics_kind', 'page')
++
++        def measured_read(*args, **kwargs):
++            data = read(*args, **kwargs)
++            self.metrics.received(kind, len(data))
++            return data
++
++        response.read = measured_read
++        return response
++
++    https_response = http_response
+--- /dev/null
++++ b/skills/university-agent/tests/test_tls_optimization.py
+@@ -0,0 +1,292 @@
++"""Deterministic HTTP replay and regressions; never contact TLS or load credentials."""
++from contextlib import closing, redirect_stdout, redirect_stderr
++from email.message import Message
++from io import BytesIO, StringIO
++import importlib.util
++import json
++import os
++from pathlib import Path
++import shutil
++import sys
++import tempfile
++import unittest
++from unittest.mock import patch
++from urllib.error import URLError, HTTPError
++from urllib.parse import urlsplit
++from urllib.request import BaseHandler, build_opener
++from urllib.response import addinfourl
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(ROOT), str(ROOT / 'scripts')]
++import sync_tls
++from providers.moodle_provider import MoodleTLSProvider
++from providers.moodle_session import MoodleSession
++from providers.request_metrics import RequestMetrics, current_metrics, measure_requests
++from storage.local_db import LocalDatabase
++
++
++def fixture_pages(count=8):
++    pages = {'/local/ubion/user/': ''.join(
++        f'<a href="/course/view.php?id={i}">테스트 과목 {i}</a>' for i in range(1, count + 1))}
++    for i in range(1, count + 1):
++        number = i * 100
++        activities = [('assign', 1, '과제 A'), ('assign', 2, '과제 B'),
++                      ('vod', 3, '강의 A'), ('vod', 4, '강의 B'),
++                      ('ubboard', 5, '공지사항'), ('ubfile', 8, '자료 A'), ('ubfile', 9, '자료 B')]
++        pages[f'/course/view.php?id={i}'] = '<ul><li id="section-1" class="section" aria-label="1주차"><ul>' + ''.join(
++            f'<li class="activity"><a href="/mod/{kind}/view.php?id={number + offset}">{title}</a></li>'
++            for kind, offset, title in activities) + '</ul></li></ul>'
++        for offset in (1, 2):
++            pages[f'/mod/assign/view.php?id={number + offset}'] = '<p>마감일: 2026-11-20 23:59</p><p>제출 안 함</p>'
++        for offset in (3, 4):
++            pages[f'/mod/vod/viewer.php?id={number + offset}'] = (
++                '<span class="playtime">10:00</span><script>var is_progress = 50; var is_complete = 0;</script>')
++        pages[f'/mod/ubboard/view.php?id={number + 5}'] = ''.join(
++            f'<a href="/mod/ubboard/article.php?id={number + 5}&amp;bwid={number + offset}">공지</a>'
++            for offset in (6, 7))
++        for offset in (6, 7):
++            pages[f'/mod/ubboard/article.php?id={number + 5}&bwid={number + offset}'] = (
++                '<div class="subject"><h3>테스트 공지</h3></div>'
++                '<div class="text_to_html">테스트 공지 본문</div><p>작성일: 2026-11-01 12:00</p>')
++        for offset in (8, 9):
++            pages[f'/mod/ubfile/view.php?id={number + offset}'] = (
++                f'<iframe src="/local/ubdoc/?id={number + offset}&amp;tp=m&amp;pg=ubfile"></iframe>')
++            pages[f'/local/ubdoc/download.php?id={number + offset}&tp=m&pg=ubfile'] = b'%PDF-fixture-original'
++    pages['/local/ubdoc/worker.php'] = '{"state_code":"100","file_download":"1"}'
++    return pages
++
++
++class FixtureTransport(BaseHandler):
++    handler_order = 400
++
++    def __init__(self, pages):
++        self.pages = pages
++
++    def https_open(self, request):
++        parts = urlsplit(request.full_url)
++        key = parts.path + ('?' + parts.query if parts.query else '')
++        if key not in self.pages:
++            raise AssertionError('Unexpected replay request: ' + key)
++        value = self.pages[key]
++        if isinstance(value, Exception):
++            raise value
++        code, extra = 200, {}
++        if isinstance(value, tuple):
++            code, value, extra = value
++        headers = Message()
++        headers['Content-Type'] = 'application/pdf' if isinstance(value, bytes) else 'text/html; charset=utf-8'
++        for name, content in extra.items():
++            if name in headers:
++                headers.replace_header(name, content)
++            else:
++                headers[name] = content
++        response = addinfourl(BytesIO(value if isinstance(value, bytes) else value.encode('utf-8')),
++                              headers, request.full_url, code)
++        response.msg = 'fixture'
++        return response
++
++
++def replay_opener(pages):
++    return patch('providers.moodle_session.build_opener',
++                 side_effect=lambda *handlers: build_opener(*handlers, FixtureTransport(pages)))
++
++
++def run_sync(module, pages, db_path, *arguments):
++    metrics = RequestMetrics()
++    with replay_opener(pages):
++        session = MoodleSession(metrics=metrics)
++        session.logged_in = True
++        session._request_limiter.gap = 0
++        with patch.object(sys, 'argv', ['sync_tls.py', *arguments]), \
++             patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(db_path), 'UNIVERSITY_AGENT_USER_ID': 'fixture'}), \
++             patch.object(module, '_login_with_retries', return_value=('fixture', session)), \
++             redirect_stdout(StringIO()), redirect_stderr(StringIO()):
++            module.main()
++    return metrics.snapshot()
++
++
++def snapshot(path):
++    with closing(LocalDatabase(path, read_only=True)) as database:
++        result = {}
++        for name in ('courses', 'assignments', 'lectures', 'notices', 'resources', 'activities'):
++            rows = getattr(database, 'get_' + name)('fixture')
++            # Timestamps differ by run; compare every returned data field otherwise.
++            result[name] = sorted([{key: value for key, value in row.items()
++                                    if key not in ('updatedAt', 'updated_at', 'lastSyncedAt')}
++                                   for row in rows], key=lambda row: row['id'])
++        return result
++
++
++def load_baseline(directory):
++    modules = {}
++    for name in ('moodle_provider', 'sync_tls'):
++        spec = importlib.util.spec_from_file_location('tls_baseline_' + name, Path(directory) / (name + '.py'))
++        module = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(module)
++        modules[name] = module
++    modules['sync_tls'].MoodleTLSProvider = modules['moodle_provider'].MoodleTLSProvider
++    return modules
++
++
++class TLSOptimizationTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp.cleanup)
++        self.seed = Path(self.temp.name) / 'seed.db'
++        self.pages = fixture_pages()
++        run_sync(sync_tls, self.pages, self.seed, '--full', '--metadata-only')
++
++    def copy_seed(self, name='case.db'):
++        path = Path(self.temp.name) / name
++        shutil.copyfile(self.seed, path)
++        return path
++
++    def test_one_changed_course_reuses_pages_and_preserves_other_courses(self):
++        pages = dict(self.pages)
++        pages['/course/view.php?id=1'] = pages['/course/view.php?id=1'].replace('과제 A', '변경된 과제 A')
++        path = self.copy_seed()
++        metrics = run_sync(sync_tls, pages, path, '--ensure', '--metadata-only')
++        full_path = self.copy_seed('full.db')
++        run_sync(sync_tls, pages, full_path, '--full', '--metadata-only')
++        self.assertEqual(snapshot(path), snapshot(full_path))
++        self.assertEqual(metrics['requests'], 20)  # 1 list + 8 course pages + 11 detail requests
++        self.assertNotIn('file', metrics['requests_by_kind'])
++
++    def test_no_changes_and_status_only_have_same_preflight_cost(self):
++        pages = dict(self.pages)
++        pages['/mod/assign/view.php?id=101'] = '<p>제출 완료</p>'
++        pages['/mod/vod/viewer.php?id=103'] = '<script>var is_progress=100; var is_complete=1;</script>'
++        path = self.copy_seed()
++        metrics = run_sync(sync_tls, pages, path, '--ensure', '--metadata-only')
++        self.assertEqual(metrics['requests'], 9)
++        # Academic-only explicitly refreshes states even without activity-list changes.
++        metrics = run_sync(sync_tls, pages, path, '--academic-only')
++        self.assertEqual(metrics['requests'], 41)
++        data = snapshot(path)
++        self.assertEqual(next(x for x in data['assignments'] if x['id'] == 'tls-assignment-101')['submissionStatus'], 'SUBMITTED')
++        self.assertTrue(next(x for x in data['lectures'] if x['id'] == 'tls-lecture-103')['completed'])
++
++    def test_removed_course_prunes_enrollment_without_detail_requests(self):
++        pages = dict(self.pages)
++        pages['/local/ubion/user/'] = pages['/local/ubion/user/'].replace(
++            '<a href="/course/view.php?id=8">테스트 과목 8</a>', '')
++        path = self.copy_seed()
++        metrics = run_sync(sync_tls, pages, path, '--ensure', '--metadata-only')
++        self.assertEqual(metrics['requests'], 8)
++        data = snapshot(path)
++        self.assertEqual(len(data['courses']), 7)
++        for name in ('assignments', 'lectures', 'notices', 'resources', 'activities'):
++            self.assertFalse(any(row['courseId'] == 'tls-course-8' for row in data[name]))
++
++    def test_deleted_activities_removed_only_in_changed_course(self):
++        pages = dict(self.pages)
++        pages['/course/view.php?id=1'] = ''
++        path = self.copy_seed()
++        run_sync(sync_tls, pages, path, '--ensure', '--metadata-only')
++        for name in ('assignments', 'lectures', 'notices', 'resources', 'activities'):
++            rows = snapshot(path)[name]
++            self.assertTrue(rows)
++            self.assertFalse(any(row['courseId'] == 'tls-course-1' for row in rows))
++
++    def test_new_course_is_collected_and_existing_data_retained(self):
++        path = self.copy_seed()
++        metrics = run_sync(sync_tls, fixture_pages(9), path, '--ensure', '--metadata-only')
++        self.assertEqual(metrics['requests'], 21)
++        self.assertEqual(len(snapshot(path)['assignments']), 18)
++
++    def test_requested_missing_file_scopes_known_course_and_downloads_only_target(self):
++        path = self.copy_seed()
++        metrics = run_sync(sync_tls, self.pages, path, '--ensure', '--resource-id', 'tls-resource-108')
++        self.assertEqual(metrics['requests'], 21)
++        self.assertEqual(metrics['requests_by_kind']['file'], 1)
++        self.assertEqual(len(snapshot(path)['resources']), 16)
++        self.assertEqual(sum(row['downloadStatus'] == 'DOWNLOADED' for row in snapshot(path)['resources']), 1)
++
++    def test_failure_does_not_advance_fingerprints(self):
++        pages = dict(self.pages)
++        pages['/course/view.php?id=1'] += '<li class="activity">변경</li>'
++        pages['/mod/assign/view.php?id=101'] = URLError('fixture failure')
++        path = self.copy_seed()
++        before = sync_tls._saved_sync_state(path, 'fixture')
++        with self.assertRaises(SystemExit):
++            run_sync(sync_tls, pages, path, '--ensure', '--metadata-only')
++        self.assertEqual(sync_tls._saved_sync_state(path, 'fixture'), before)
++        self.assertEqual(snapshot(path), snapshot(self.seed))
++
++    def test_incompatible_cache_falls_back_to_full_detail_reads(self):
++        path = self.copy_seed()
++        with closing(LocalDatabase(path)) as database:
++            database.merge_sync_state('fixture', {'resource_response_version': 'obsolete'})
++        metrics = run_sync(sync_tls, self.pages, path, '--ensure', '--metadata-only')
++        self.assertEqual(metrics['requests'], 97)
++
++    def test_corrupt_course_cache_falls_back_to_full_refresh(self):
++        result = {'courseIds': ['tls-course-1'], 'fingerprints': {'tls-course-1': 'same'}}
++        for courses in ('null', '{}', '[[]]', '[1]', 'invalid'):
++            state = {'resource_response_version': MoodleTLSProvider.RESOURCE_RESPONSE_VERSION,
++                     'course_ids': courses, 'course_fingerprints': '{"tls-course-1":"same"}'}
++            self.assertIsNone(sync_tls._changed_course_ids(state, result))
++            self.assertTrue(sync_tls._preflight_changed(state, result, needs_data=False))
++
++    def test_late_failure_preserves_other_courses_and_old_fingerprints(self):
++        pages = dict(self.pages)
++        pages['/course/view.php?id=1'] = pages['/course/view.php?id=1'].replace('과제 A', '변경된 과제 A')
++        pages['/mod/ubboard/view.php?id=105'] = URLError('fixture late failure')
++        path = self.copy_seed()
++        state = sync_tls._saved_sync_state(path, 'fixture')
++        with self.assertRaises(SystemExit):
++            run_sync(sync_tls, pages, path, '--ensure', '--metadata-only')
++        self.assertEqual(sync_tls._saved_sync_state(path, 'fixture'), state)
++        for name, rows in snapshot(path).items():
++            if name == 'courses':
++                continue
++            self.assertEqual([row for row in rows if row['courseId'] != 'tls-course-1'],
++                             [row for row in snapshot(self.seed)[name] if row['courseId'] != 'tls-course-1'])
++
++
++class RequestMetricsTests(unittest.TestCase):
++    def test_metrics_cli_captures_sessions_and_emits_counters_even_on_failure(self):
++        def fail_after_request():
++            session = MoodleSession()
++            session.logged_in = True
++            session.get('/fixture')
++            self.assertIs(session.fork().metrics, session.metrics)
++            raise RuntimeError('fixture failure')
++
++        output = StringIO()
++        with replay_opener({'/fixture': 'body'}), patch.object(sys, 'argv', ['sync_tls.py', '--metrics']), \
++             patch.object(sync_tls, '_main', side_effect=fail_after_request), redirect_stderr(output):
++            with self.assertRaises(RuntimeError):
++                sync_tls.main()
++        result = json.loads(output.getvalue().removeprefix('TLS_METRICS '))
++        self.assertEqual(result['requests'], 1)
++        self.assertEqual(result['response_body_bytes'], 4)
++        self.assertIsNone(current_metrics.get())
++
++    def test_redirect_compression_errors_and_forks_count_real_http_boundaries(self):
++        import gzip
++        body = gzip.compress(b'fixture body' * 50)
++        pages = {'/start': (302, '', {'Location': '/end'}),
++                 '/end': (200, body, {'Content-Encoding': 'gzip', 'Content-Type': 'text/html'}),
++                 '/unchanged': (304, '', {}), '/failed': (429, '', {}),
++                 '/broken': URLError('offline')}
++        metrics = RequestMetrics()
++        with replay_opener(pages):
++            session = MoodleSession(metrics=metrics)
++            session.logged_in = True
++            session._request_limiter.gap = 0
++            self.assertEqual(session.get('/start'), 'fixture body' * 50)
++            self.assertIsNone(session.fork().get_bytes('/unchanged')[0])
++            with self.assertRaises(HTTPError):
++                session.get('/failed')
++            with self.assertRaises(URLError):
++                session.get('/broken')
++        result = metrics.snapshot()
++        self.assertEqual(result['requests'], 5)
++        self.assertEqual(result['response_body_bytes'], len(body))
++        self.assertEqual(result['statuses'], {'302': 1, '200': 1, '304': 1, '429': 1, 'transport_error': 1})
++        self.assertEqual(metrics.active, 0)
++
++
++if __name__ == '__main__':
++    unittest.main()
+--- /dev/null
++++ b/skills/university-agent/scripts/benchmark_tls_sync.py
+@@ -0,0 +1,100 @@
++#!/usr/bin/env python3
++"""Compare archived/current sync against identical offline HTTP fixtures."""
++import argparse
++import hashlib
++import json
++from pathlib import Path
++import shutil
++import sys
++import tempfile
++from unittest.mock import patch
++import zipfile
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(ROOT / 'tests'), str(ROOT), str(ROOT / 'scripts')]
++from test_tls_optimization import fixture_pages, run_sync, snapshot, load_baseline
++import sync_tls
++from providers.moodle_provider import MoodleTLSProvider
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--baseline-archive', type=Path, required=True)
++    parser.add_argument('--output', type=Path, required=True)
++    args = parser.parse_args()
++    results = []
++    with tempfile.TemporaryDirectory() as directory:
++        folder = Path(directory)
++        with zipfile.ZipFile(args.baseline_archive) as archive:
++            # Only the two expected source files are extracted.
++            for name in ('moodle_provider.py', 'sync_tls.py'):
++                (folder / name).write_bytes(archive.read(name))
++        baseline = load_baseline(folder)
++        before = baseline['sync_tls']
++        seed = folder / 'seed.db'
++        original = fixture_pages()
++        run_sync(before, original, seed, '--full', '--metadata-only')
++        cases = [
++            ('unchanged', 0, '--ensure', '--metadata-only'),
++            ('one_course_changed', 1, '--ensure', '--metadata-only'),
++            ('three_courses_changed', 3, '--ensure', '--metadata-only'),
++            ('all_courses_changed', 8, '--ensure', '--metadata-only'),
++            ('status_only_smart_sync', 0, '--ensure', '--metadata-only'),
++            ('status_only_academic_refresh', 0, '--academic-only'),
++            ('requested_missing_file', 0, '--ensure', '--resource-id', 'tls-resource-108'),
++            ('course_added', 0, '--ensure', '--metadata-only'),
++            ('course_removed', 0, '--ensure', '--metadata-only'),
++        ]
++        for name, changed_count, *arguments in cases:
++            pages = dict(original)
++            for i in range(1, changed_count + 1):
++                pages[f'/course/view.php?id={i}'] = pages[f'/course/view.php?id={i}'].replace('과제 A', '변경된 과제 A')
++            if name.startswith('status_only'):
++                pages['/mod/assign/view.php?id=101'] = '<p>제출 완료</p>'
++                pages['/mod/vod/viewer.php?id=103'] = '<script>var is_progress=100; var is_complete=1;</script>'
++            if name == 'course_added':
++                pages = fixture_pages(9)
++            if name == 'course_removed':
++                pages['/local/ubion/user/'] = pages['/local/ubion/user/'].replace(
++                    '<a href="/course/view.php?id=8">테스트 과목 8</a>', '')
++            row = {'scenario': name}
++            data = {}
++            for label, module in (('before', before), ('after_stage1', before), ('after', sync_tls)):
++                path = folder / 'case.db'
++                shutil.copyfile(seed, path)
++                if label == 'after_stage1':
++                    with patch.object(baseline['moodle_provider'].MoodleTLSProvider, 'preflight', MoodleTLSProvider.preflight):
++                        row[label] = run_sync(module, pages, path, *arguments)
++                else:
++                    row[label] = run_sync(module, pages, path, *arguments)
++                data[label] = snapshot(path)
++                # Run-specific download timestamps are not semantic differences.
++                for resource in data[label]['resources']:
++                    resource.pop('downloadedAt', None)
++            assert data['before'] == data['after_stage1'] == data['after'], name + ': result mismatch'
++            row['same_result'] = True
++            row['requests_reduction_percent'] = round(
++                (1 - row['after']['requests'] / row['before']['requests']) * 100, 2)
++            row['body_bytes_reduction_percent'] = round(
++                (1 - row['after']['response_body_bytes'] / row['before']['response_body_bytes']) * 100, 2)
++            results.append(row)
++        hashes = {name: hashlib.sha256((folder / (name + '.py')).read_bytes()).hexdigest()
++                  for name in ('moodle_provider', 'sync_tls')}
++    report = {
++        'measurement': 'offline HTTP replay, not live TLS traffic',
++        'fixture': {'courses': 8, 'assignments_per_course': 2, 'lectures_per_course': 2,
++                    'boards_per_course': 1, 'articles_per_course': 2, 'resources_per_course': 2},
++        'notes': ['Shared urllib instrumentation includes redirects, HTTP errors and raw consumed body bytes.',
++                  'Fixture timing has no network latency or rate limiter; do not use it as a live speed estimate.',
++                  'Login/session verification is excluded; no real accounts are accessed.',
++                  'Smart sync intentionally does not detect status-only changes; academic refresh does.',
++                  'Every scenario asserts equal stored results for all three implementations.'],
++        'baseline_sha256': hashes, 'results': results,
++    }
++    args.output.parent.mkdir(parents=True, exist_ok=True)
++    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
++    print(json.dumps(report, ensure_ascii=False, indent=2))
++
++
++if __name__ == '__main__':
++    main()
+--- /dev/null
++++ b/skills/university-agent/scripts/benchmark_tls_live.py
+@@ -0,0 +1,118 @@
++"""Two controlled read-only TLS runs. Persist aggregate measurements only."""
++from contextlib import closing, redirect_stdout, redirect_stderr
++from io import StringIO
++import hashlib
++import json
++import os
++from pathlib import Path
++import shutil
++import sqlite3
++import sys
++import tempfile
++from unittest.mock import patch
++import zipfile
++
++ROOT = Path(__file__).resolve().parents[1]
++REPO = ROOT.parents[1]
++sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'tests')]
++import sync_tls
++from providers.credentials import load
++from providers.moodle_provider import MoodleTLSProvider
++from providers.moodle_session import MoodleSession
++from providers.request_metrics import RequestMetrics
++from storage.local_db import LocalDatabase
++from test_tls_optimization import load_baseline
++
++
++def main():
++    auth_metrics = RequestMetrics()
++    username, password = load()
++    session = MoodleSession(metrics=auth_metrics)
++    session.login(username, password)
++    del password
++    source = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent' / 'university.db'))
++    original_hash = hashlib.sha256(source.read_bytes()).hexdigest()
++    with tempfile.TemporaryDirectory(prefix='turtleneck-live-measure-') as directory:
++        folder = Path(directory)
++        with zipfile.ZipFile(REPO / 'tls-optimization-results/baseline_sources.zip') as archive:
++            for name in ('moodle_provider.py', 'sync_tls.py'):
++                (folder / name).write_bytes(archive.read(name))
++        before = load_baseline(folder)['sync_tls']
++        seed = folder / 'seed.db'
++        with closing(sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True)) as original, \
++             closing(sqlite3.connect(seed)) as target:
++            original.backup(target)
++        setup_metrics = RequestMetrics()
++        setup_session = session.fork()
++        setup_session.metrics = setup_metrics
++        setup_session._build_opener()
++        provider = MoodleTLSProvider(setup_session)
++        preflight = provider.preflight(username)
++        if not preflight['courseIds']:
++            raise RuntimeError('No courses available for measurement')
++        selected = preflight['courseIds'][0]
++        forced = dict(preflight['fingerprints'])
++        forced[selected] = 'controlled-refresh-required'
++        # Same starting state for both runs; no actual TLS course is modified.
++        with closing(LocalDatabase(seed)) as database:
++            database.save_sync_state(username, {
++                'course_ids': json.dumps(preflight['courseIds']),
++                'course_fingerprints': json.dumps(forced),
++                'resource_response_version': MoodleTLSProvider.RESOURCE_RESPONSE_VERSION,
++            })
++        report = {
++            'measurement': 'live TLS, controlled one-course fingerprint mismatch',
++            'metadata_only': True, 'courses': len(preflight['courseIds']),
++            'authentication_setup': auth_metrics.snapshot(), 'preflight_setup': setup_metrics.snapshot(),
++            'notes': ['Both runs start from the same private DB backup and use the same authenticated account.',
++                      'Only a local fingerprint is altered to force one course refresh. TLS is not modified.',
++                      'Authentication and setup preflight are separate from compared sync measurements.',
++                      'Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.',
++                      'No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.',
++                      'Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.'],
++        }
++        data = {}
++        seed_data = None
++        for label, module in (('before', before), ('after', sync_tls)):
++            path = folder / 'case.db'
++            shutil.copyfile(seed, path)
++            metrics = RequestMetrics()
++            child = session.fork()
++            child.metrics = metrics
++            child._build_opener()
++            with patch.object(sys, 'argv', ['sync_tls.py', '--ensure', '--metadata-only']), \
++                 patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': username}), \
++                 patch.object(module, '_login_with_retries', return_value=(username, child)), \
++                 redirect_stdout(StringIO()), redirect_stderr(StringIO()):
++                module.main()
++            report[label] = metrics.snapshot()
++            # Only equality flags and counts leave this private temporary directory.
++            with closing(LocalDatabase(path, read_only=True)) as database:
++                data[label] = {kind: getattr(database, 'get_' + kind)(username)
++                               for kind in ('assignments', 'lectures', 'notices', 'resources', 'activities')}
++            if label == 'after':
++                with closing(LocalDatabase(seed, read_only=True)) as database:
++                    seed_data = {kind: getattr(database, 'get_' + kind)(username) for kind in data[label]}
++        def normalized(rows, selected_only):
++            return sorted([{key: value for key, value in row.items()
++                            if key not in ('updatedAt', 'updated_at', 'downloadedAt')}
++                           for row in rows if (row.get('courseId') == selected) == selected_only],
++                          key=lambda row: row['id'])
++        report['selected_course_results_equal'] = {
++            kind: normalized(data['before'][kind], True) == normalized(data['after'][kind], True)
++            for kind in data['before']}
++        report['unselected_records_preserved'] = {
++            kind: normalized(seed_data[kind], False) == normalized(data['after'][kind], False)
++            for kind in seed_data}
++        report['selected_course_record_counts'] = {
++            kind: sum(row.get('courseId') == selected for row in rows) for kind, rows in data['after'].items()}
++    report['source_db_bytes_unchanged'] = hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
++    for key in ('requests', 'response_body_bytes', 'elapsed_seconds'):
++        report[key + '_reduction_percent'] = round((1 - report['after'][key] / report['before'][key]) * 100, 2)
++    output = REPO / 'tls-optimization-results/live.json'
++    output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
++    print(json.dumps(report, ensure_ascii=False, indent=2))
++
++
++if __name__ == '__main__':
++    main()

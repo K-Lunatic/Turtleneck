@@ -1,0 +1,97 @@
+{
+  "measurement": "live TLS academic refresh, warm reuse, forced refresh",
+  "authentication_setup": {
+    "requests": 5,
+    "requests_by_kind": {
+      "page": 3,
+      "post": 2
+    },
+    "response_body_bytes": 30663,
+    "response_body_bytes_by_kind": {
+      "page": 18196,
+      "post": 12467
+    },
+    "statuses": {
+      "303": 2,
+      "200": 3
+    },
+    "peak_open_requests": 1,
+    "peak_requests_per_second": 3,
+    "elapsed_seconds": 2.11
+  },
+  "preparation": {
+    "requests": 57,
+    "requests_by_kind": {
+      "page": 57
+    },
+    "response_body_bytes": 520507,
+    "response_body_bytes_by_kind": {
+      "page": 520507
+    },
+    "statuses": {
+      "200": 57
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 18.609,
+    "login_entry_calls": 1
+  },
+  "before": {
+    "requests": 57,
+    "requests_by_kind": {
+      "page": 57
+    },
+    "response_body_bytes": 520427,
+    "response_body_bytes_by_kind": {
+      "page": 520427
+    },
+    "statuses": {
+      "200": 57
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 7,
+    "elapsed_seconds": 14.719,
+    "login_entry_calls": 1
+  },
+  "after_reuse": {
+    "requests": 0,
+    "requests_by_kind": {},
+    "response_body_bytes": 0,
+    "response_body_bytes_by_kind": {},
+    "statuses": {},
+    "peak_open_requests": 0,
+    "peak_requests_per_second": 0,
+    "elapsed_seconds": 0.031,
+    "login_entry_calls": 0
+  },
+  "after_force": {
+    "requests": 57,
+    "requests_by_kind": {
+      "page": 57
+    },
+    "response_body_bytes": 520497,
+    "response_body_bytes_by_kind": {
+      "page": 520497
+    },
+    "statuses": {
+      "200": 57
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 18.703,
+    "login_entry_calls": 1
+  },
+  "reuse_preserves_data_and_timestamp": true,
+  "forced_results_equal": true,
+  "record_counts": {
+    "assignments": 30,
+    "lectures": 19
+  },
+  "source_db_bytes_unchanged": true,
+  "notes": [
+    "Authentication and preparation excluded from compared runs; same authenticated cookies.",
+    "Warm reuse measured within 15 minutes of success. Forced refresh always reads current status.",
+    "Sequential single samples; server content and latency can vary. No file downloads.",
+    "Only aggregate counters and equality flags are retained; source DB is read-only."
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "measurement": "live TLS, controlled one-course fingerprint mismatch",
+  "metadata_only": true,
+  "courses": 9,
+  "authentication_setup": {
+    "requests": 5,
+    "requests_by_kind": {
+      "page": 3,
+      "post": 2
+    },
+    "response_body_bytes": 30685,
+    "response_body_bytes_by_kind": {
+      "page": 18207,
+      "post": 12478
+    },
+    "statuses": {
+      "303": 2,
+      "200": 3
+    },
+    "peak_open_requests": 1,
+    "peak_requests_per_second": 3,
+    "elapsed_seconds": 4.625
+  },
+  "preflight_setup": {
+    "requests": 10,
+    "requests_by_kind": {
+      "page": 10
+    },
+    "response_body_bytes": 116959,
+    "response_body_bytes_by_kind": {
+      "page": 116959
+    },
+    "statuses": {
+      "200": 10
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 5,
+    "elapsed_seconds": 2.578
+  },
+  "notes": [
+    "Both runs start from the same private DB backup and use the same authenticated account.",
+    "Only a local fingerprint is altered to force one course refresh. TLS is not modified.",
+    "Authentication and setup preflight are separate from compared sync measurements.",
+    "Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.",
+    "No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.",
+    "Two live runs are sequential; changing server content and network conditions affect byte/time comparisons."
+  ],
+  "before": {
+    "requests": 294,
+    "requests_by_kind": {
+      "page": 271,
+      "post": 23
+    },
+    "response_body_bytes": 1125750,
+    "response_body_bytes_by_kind": {
+      "page": 1118978,
+      "post": 6772
+    },
+    "statuses": {
+      "200": 202,
+      "303": 46,
+      "302": 23,
+      "301": 23
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 10,
+    "elapsed_seconds": 67.297
+  },
+  "after": {
+    "requests": 18,
+    "requests_by_kind": {
+      "page": 18
+    },
+    "response_body_bytes": 202623,
+    "response_body_bytes_by_kind": {
+      "page": 202623
+    },
+    "statuses": {
+      "200": 18
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 5,
+    "elapsed_seconds": 8.031
+  },
+  "selected_course_results_equal": {
+    "assignments": true,
+    "lectures": true,
+    "notices": true,
+    "resources": true,
+    "activities": true
+  },
+  "unselected_records_preserved": {
+    "assignments": true,
+    "lectures": true,
+    "notices": true,
+    "resources": true,
+    "activities": true
+  },
+  "selected_course_record_counts": {
+    "assignments": 0,
+    "lectures": 0,
+    "notices": 7,
+    "resources": 0,
+    "activities": 3
+  },
+  "source_db_bytes_unchanged": true,
+  "requests_reduction_percent": 93.88,
+  "response_body_bytes_reduction_percent": 82.0,
+  "elapsed_seconds_reduction_percent": 88.07
+}

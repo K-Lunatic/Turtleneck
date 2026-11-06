@@ -12,7 +12,7 @@ from providers.credentials import (
     save,
     save_session,
 )
-from providers.moodle_session import MoodleSession, LoginError
+from providers.moodle_session import MoodleSession, LoginError, RequestBackoff
 
 
 def resume_saved_session(base_url: str, requested_username: str | None = None):
@@ -26,6 +26,8 @@ def resume_saved_session(base_url: str, requested_username: str | None = None):
         if session.resume():
             return username, session
         clear_session(username)
+    except RequestBackoff:
+        raise
     except LoginError:
         clear_session(username)
     except (OSError, KeyError, TypeError, ValueError):

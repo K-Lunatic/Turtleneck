@@ -374,13 +374,17 @@ class ProjectTests(ProjectTestBase):
         self.assertEqual(path.read_bytes(), b'%PDF-cached')
 
     def test_moodle_requests_have_timeout(self):
+        from providers.moodle_session import RequestBackoff
         session = MoodleSession()
         session.logged_in = True
-        with patch.object(session.opener, 'open', side_effect=TimeoutError) as request:
+        with patch.object(session.opener, 'open', side_effect=TimeoutError) as request, \
+             patch.object(session._request_limiter, 'pause'):
             for fetch in (session.get, session.get_bytes):
-                with self.assertRaises(TimeoutError):
+                request.reset_mock()
+                with self.assertRaises(RequestBackoff):
                     fetch('/course/view.php?id=1')
                 self.assertEqual(request.call_args.kwargs['timeout'], 30)
+                self.assertEqual(request.call_count, 3)
 
     def test_html_probe_does_not_transfer_redirected_pdf(self):
         session = MoodleSession(); session.logged_in = True

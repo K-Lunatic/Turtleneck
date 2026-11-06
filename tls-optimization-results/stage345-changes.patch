@@ -1,0 +1,1317 @@
+--- stage012/skills/university-agent/scripts/academic_watch.py
++++ final/skills/university-agent/scripts/academic_watch.py
+@@ -70,7 +70,7 @@
+ 
+ 
+ def run_sync(*, academic_only=False) -> tuple[bool, str]:
+-    mode = ['--academic-only'] if academic_only else ['--ensure', '--metadata-only']
++    mode = ['--academic-only', '--force'] if academic_only else ['--ensure', '--metadata-only']
+     try:
+         result = subprocess.run([sys.executable, str(Path(__file__).with_name("sync_tls.py")), *mode],
+                                 capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=120)
+--- stage012/skills/university-agent/providers/moodle_provider.py
++++ final/skills/university-agent/providers/moodle_provider.py
+@@ -13,7 +13,7 @@
+ from urllib.error import HTTPError, URLError
+ from concurrent.futures import ThreadPoolExecutor
+ 
+-from providers.moodle_session import MoodleSession, LoginError, DownloadRestricted, check_download_url, check_download_origin
++from providers.moodle_session import MoodleSession, LoginError, DownloadRestricted, RequestBackoff, check_download_url, check_download_origin
+ 
+ 
+ class ResourceUnavailable(ValueError):
+@@ -951,8 +951,10 @@
+             return {**record, **_resource_http_error(error)}
+         except ResourceUnavailable as error:
+             return {**record, 'downloadReason': str(error)}
++        except RequestBackoff:
++            raise
+         except (URLError, TimeoutError):
+-            return {**record, 'downloadReason': '학교와 연결이 끊기거나 응답이 늦어 이 자료를 확인하지 못했어요.'}
++            return {**record, '_checkFailed': True, 'downloadReason': '학교와 연결이 끊기거나 응답이 늦어 이 자료를 확인하지 못했어요.'}
+         cached = (existing_resources or {}).get(resource_id)
+         reusable = bool(cached and cached.get("localPath") and Path(cached["localPath"]).is_file()
+             and cached.get("remotePath") == href and cached.get("mimeType") not in {"text/html", "application/xhtml+xml"})
+@@ -975,8 +977,10 @@
+             return {**record, 'downloadStatus': 'PROHIBITED', 'downloadReason': str(error)}
+         except HTTPError as error:
+             return {**record, **_resource_http_error(error)}
++        except RequestBackoff:
++            raise
+         except (URLError, TimeoutError):
+-            return {**record, 'downloadReason': '자료를 받는 중 연결이 끊기거나 응답이 늦었어요. 잠시 후 다시 확인해 주세요.'}
++            return {**record, '_checkFailed': True, 'downloadReason': '자료를 받는 중 연결이 끊기거나 응답이 늦었어요. 잠시 후 다시 확인해 주세요.'}
+         if content is None and reusable:
+             return reused
+         if not content:
+--- stage012/skills/university-agent/providers/moodle_session.py
++++ final/skills/university-agent/providers/moodle_session.py
+@@ -3,6 +3,7 @@
+ 
+ import gzip
+ import json
++import random
+ import re
+ import ssl
+ import sys
+@@ -10,13 +11,15 @@
+ import time
+ import zlib
+ from copy import copy
+-from urllib.error import HTTPError
++from urllib.error import HTTPError, URLError
++from email.utils import parsedate_to_datetime
++from datetime import datetime, timezone
+ from http.cookiejar import CookieJar
+ from html.parser import HTMLParser
+ from pathlib import Path
+ from typing import Any
+ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
+-from urllib.request import Request, build_opener, HTTPRedirectHandler, HTTPCookieProcessor, HTTPSHandler
++from urllib.request import Request, build_opener, BaseHandler, HTTPRedirectHandler, HTTPCookieProcessor, HTTPSHandler
+ from providers.request_metrics import MetricsHandler, current_metrics
+ 
+ 
+@@ -28,20 +31,65 @@
+     pass
+ 
+ 
++class RequestBackoff(URLError):
++    def __init__(self, seconds):
++        self.seconds = max(0, seconds)
++        super().__init__('학교 요청을 잠시 쉬어야 해요. 대기 시간이 지난 후 다시 확인해 주세요.')
++
++
++def _retry_after(value):
++    if not value:
++        return 0
++    try:
++        if value.strip().isdigit():
++            return int(value)
++        parsed = parsedate_to_datetime(value)
++        if parsed.tzinfo is None:
++            parsed = parsed.replace(tzinfo=timezone.utc)
++        return max(0, (parsed - datetime.now(timezone.utc)).total_seconds())
++    except (TypeError, ValueError, OverflowError):
++        return 0
++
++
+ class _RequestLimiter:
+     """Keep parallel reads bounded per logged-in account."""
+-    def __init__(self, gap: float = 0.08):
++    def __init__(self, gap: float = 0.25):
+         self.gap = gap
+         self.next_at = 0.0
+         self.lock = threading.Lock()
++        self.deferred_until = 0.0
+ 
+     def wait(self) -> None:
++        while True:
++            with self.lock:
++                now = time.monotonic()
++                if self.deferred_until > now:
++                    raise RequestBackoff(self.deferred_until - now)
++                delay = self.next_at - now
++                if delay <= 0:
++                    self.next_at = now + self.gap
++                    return
++            time.sleep(delay)
++
++    def pause(self, seconds, *, deferred=False):
+         with self.lock:
+-            now = time.monotonic()
+-            delay = max(0.0, self.next_at - now)
+-            self.next_at = max(now, self.next_at) + self.gap
+-        if delay:
+-            time.sleep(delay)
++            if deferred:
++                self.deferred_until = max(self.deferred_until, time.monotonic() + seconds)
++            else:
++                self.next_at = max(self.next_at, time.monotonic() + seconds)
++
++
++class _RateLimitHandler(BaseHandler):
++    handler_order = 480
++
++    def __init__(self, limiter):
++        self.limiter = limiter
++
++    def http_request(self, request):
++        self.limiter.wait()
++        return request
++
++    https_request = http_request
+ 
+ 
+ def _default_ssl_context() -> ssl.SSLContext:
+@@ -112,28 +160,49 @@
+ 
+ 
+ class MoodleSession:
+-    def __init__(self, base_url: str = "https://tls.kku.ac.kr", *, metrics=None):
++    def __init__(self, base_url: str = "https://tls.kku.ac.kr", *, metrics=None, _limiter=None):
+         self.base_url = base_url.rstrip("/")
+         self.metrics = metrics if metrics is not None else current_metrics.get()
+         self.cookies = CookieJar()
+-        self._request_limiter = _RequestLimiter()
++        self._request_limiter = _limiter if _limiter is not None else _RequestLimiter()
+         self._build_opener()
+         self.logged_in = False
+ 
+     def _build_opener(self) -> None:
+-        handlers = [HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(), HTTPSHandler(context=_default_ssl_context())]
++        handlers = [HTTPCookieProcessor(self.cookies), _DownloadRedirectHandler(),
++                    _RateLimitHandler(self._request_limiter), HTTPSHandler(context=_default_ssl_context())]
+         if self.metrics is not None:
+             handlers.append(MetricsHandler(self.metrics))
+         self.opener = build_opener(*handlers)
+ 
+     def _open(self, request, *, kind):
+         request.metrics_kind = kind
+-        try:
+-            return self.opener.open(request, timeout=30)
+-        except Exception:
+-            if self.metrics is not None:
+-                self.metrics.failed()
+-            raise
++        retry_safe = request.get_method() == 'GET' or getattr(request, 'retry_safe', False)
++        for attempt in range(3):
++            try:
++                return self.opener.open(request, timeout=30)
++            except Exception as error:
++                if self.metrics is not None:
++                    self.metrics.failed()
++                if isinstance(error, RequestBackoff):
++                    raise
++                if isinstance(error, HTTPError):
++                    if error.code not in (429, 502, 503, 504):
++                        raise
++                    server_delay = _retry_after(error.headers.get('Retry-After') if error.headers else None)
++                    error.close()
++                elif isinstance(error, (URLError, TimeoutError, ConnectionError)):
++                    if isinstance(getattr(error, 'reason', error), ssl.SSLError):
++                        raise
++                    server_delay = 0
++                else:
++                    raise
++                delay = max(server_delay, 2 ** attempt + random.uniform(0, 0.25))
++                if not retry_safe or attempt == 2 or delay > 5:
++                    delay = max(server_delay, 60)
++                    self._request_limiter.pause(delay, deferred=True)
++                    raise RequestBackoff(delay) from error
++                self._request_limiter.pause(delay)
+ 
+     def restore_cookies(self, cookies: CookieJar) -> None:
+         self.cookies = cookies
+@@ -156,10 +225,9 @@
+ 
+     def fork(self):
+         """Independent cookie jar/opener per read worker; login remains single-threaded."""
+-        child = MoodleSession(self.base_url, metrics=self.metrics)
++        child = MoodleSession(self.base_url, metrics=self.metrics, _limiter=self._request_limiter)
+         for cookie in self.cookies:
+             child.cookies.set_cookie(copy(cookie))
+-        child._request_limiter = self._request_limiter
+         child.logged_in = self.logged_in
+         return child
+ 
+@@ -181,7 +249,7 @@
+     def _decode(cls, response: Any) -> str:
+         return cls._decode_bytes(response.read(), response).decode("utf-8", errors="replace")
+ 
+-    def _request(self, path: str, *, data: bytes | None = None, referer: str | None = None, allowed_origin=None, page_only=False) -> tuple[str, Any]:
++    def _request(self, path: str, *, data: bytes | None = None, referer: str | None = None, allowed_origin=None, page_only=False, retry_safe=False) -> tuple[str, Any]:
+         url = urljoin(f"{self.base_url}/", path.lstrip("/"))
+         check_download_origin(url, allowed_origin)
+         if data is None:
+@@ -195,7 +263,7 @@
+             headers.update({"Content-Type": "application/x-www-form-urlencoded", "Origin": self.base_url, "Referer": referer or url})
+         request = Request(url, data=data, headers=headers, method="POST" if data is not None else "GET")
+         request.allowed_origin = allowed_origin
+-        self._request_limiter.wait()
++        request.retry_safe = retry_safe
+         response = self._open(request, kind='post' if data is not None else 'page')
+         try:
+             check_download_origin(response.geturl(), allowed_origin)
+@@ -271,7 +339,6 @@
+         }
+         request = Request(url, data=payload, headers=headers, method="POST")
+         request.allowed_origin = allowed_origin
+-        self._request_limiter.wait()
+         response = self._open(request, kind='post')
+         try:
+             check_download_origin(response.geturl(), allowed_origin)
+@@ -297,7 +364,7 @@
+         fields = {key: values[0] for key, values in query.items()}
+         html, _ = self._request('/local/ubdoc/worker.php',
+             data=urlencode({**fields, 'job': 'checkState', 'item': '', 'fid': ''}).encode(),
+-            referer=viewer_url, allowed_origin='tls.kku.ac.kr')
++            referer=viewer_url, allowed_origin='tls.kku.ac.kr', retry_safe=True)
+         try:
+             value = json.loads(html)
+         except ValueError as error:
+@@ -315,7 +382,6 @@
+         try:
+             request = Request(url, headers={"User-Agent": "UniversityAgent/0.1", "Accept-Encoding": "identity" if max_bytes is not None else "gzip, deflate", **(conditional or {})})
+             request.allowed_origin = allowed_origin
+-            self._request_limiter.wait()
+             response = self._open(request, kind='file')
+         except HTTPError as error:
+             if error.code != 304:
+--- stage012/server/app.py
++++ final/server/app.py
+@@ -24,7 +24,8 @@
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ sys.path.insert(0, str(ROOT / 'skills/university-agent'))
+-from providers.moodle_session import MoodleSession
++from providers.moodle_session import MoodleSession, RequestBackoff
++from features import sync_policy
+ from providers.moodle_provider import MoodleTLSProvider
+ from storage.local_db import LocalDatabase
+ from features.assignments import get_assignments
+@@ -89,8 +90,22 @@
+ 
+     def sync_worker(self, user, account):
+         db = None
++        guard = None
+         rerun = False
++        scope = sync_policy.scope_key(getattr(account['session'], 'base_url', 'https://tls.kku.ac.kr'), user)
+         try:
++            guard = sync_policy.SyncLock(self.db_path(user))
++            guard.__enter__()
++            if guard.remaining(scope):
++                raise RequestBackoff(guard.remaining(scope))
++            if not guard.state(scope).get('failed') and account.get('availableSections') == ['courses', 'assignments', 'lectures', 'notices']:
++                db = LocalDatabase(self.db_path(user), read_only=True)
++                state = db.get_sync_state(user)
++                db.close()
++                db = None
++                if state.get('sync_scope') == scope and sync_policy.fresh(state.get('gateway_checked_at'), 60):
++                    return
++            guard.record(scope, failed=True)
+             provider = MoodleTLSProvider(account['session'])
+             records = {'courses': provider.get_courses(user)}
+             for field in ('assignments', 'lectures', 'notices'):
+@@ -107,13 +122,21 @@
+                 with self.lock:
+                     account['syncedAt'] = datetime.now(timezone.utc).isoformat()
+                     account['availableSections'] = list(records)
+-        except Exception:
++            db = LocalDatabase(self.db_path(user))
++            db.merge_sync_state(user, {'gateway_checked_at': sync_policy.now().isoformat(), 'sync_scope': scope})
++            guard.record(scope)
++        except Exception as error:
++            if guard is not None and guard.file is not None and not guard.file.closed:
++                delay = error.seconds if isinstance(error, RequestBackoff) else 0
++                guard.record(scope, failed=True, delay=max(delay, guard.remaining(scope)))
+             # Never return exception text: upstream errors can contain URLs or personal data.
+             with self.lock:
+                 account['error'] = 'TLS 동기화 실패. 서버가 응답하지 않거나 로그인이 만료됐을 수 있습니다. 다시 연결해 주세요.'
+         finally:
+             if db:
+                 db.close()
++            if guard is not None and guard.file is not None and not guard.file.closed:
++                guard.__exit__()
+             with self.lock:
+                 account['running'] = False
+                 account['stage'] = None
+--- stage012/skills/university-agent/scripts/sync_tls.py
++++ final/skills/university-agent/scripts/sync_tls.py
+@@ -22,13 +22,14 @@
+     sys.path.insert(0, str(ROOT))
+ 
+ from providers.moodle_provider import MoodleTLSProvider
+-from providers.moodle_session import LoginError, MoodleSession
+-from providers.credentials import CredentialInputRequired, load, resolve, save, save_session
++from providers.moodle_session import LoginError, MoodleSession, RequestBackoff
++from providers.credentials import CredentialInputRequired, load, load_username, resolve, save, save_session
+ from storage.local_db import LocalDatabase
+ from features.guidance import resource_unavailable_reason
+ from features.autonomous_course_watch import refresh as refresh_autonomous_course
+ from providers.tls_auth import resume_saved_session
+ from providers.request_metrics import RequestMetrics, measure_requests
++from features import sync_policy
+ 
+ 
+ def _cached_resources(db_path: Path, user_id: str, file_root: Path) -> dict[str, dict[str, object]]:
+@@ -275,166 +276,207 @@
+                 print('TLS_METRICS ' + json.dumps(metrics.snapshot(), sort_keys=True), file=sys.stderr)
+ 
+ 
++def _mark_checks(db_path, user_id, kind, refreshed, course_ids, scope):
++    with closing(LocalDatabase(db_path)) as database:
++        previous = sync_policy.checks(database.get_sync_state(user_id), kind)
++        previous = {key: value for key, value in previous.items() if key in course_ids}
++        checked = sync_policy.now().isoformat()
++        previous.update(dict.fromkeys(refreshed, checked))
++        update = {kind + '_course_checks': json.dumps(previous), 'sync_scope': scope}
++        if set(course_ids) <= set(refreshed):
++            update[kind + '_checked_at'] = checked
++        database.merge_sync_state(user_id, update)
++
++
++def _can_reuse(args, state, scope, db_path, user_id, requested_at):
++    if state.get('sync_scope') != scope:
++        return False
++    since = requested_at if args.force or args.full else None
++    if args.academic_only:
++        return sync_policy.fresh(state.get('academic_checked_at'), sync_policy.ACADEMIC_TTL, since=since)
++    if state.get('resource_response_version') != MoodleTLSProvider.RESOURCE_RESPONSE_VERSION:
++        return False
++    if not sync_policy.fresh(state.get('catalog_checked_at'), sync_policy.CATALOG_TTL, since=since):
++        return False
++    if state.get('autonomous_course_watch_url') and (
++            state.get('autonomous_course_check_status') not in ('OK', 'CHANGED') or
++            not sync_policy.fresh(state.get('autonomous_course_checked_at'), sync_policy.CATALOG_TTL, since=since)):
++        return False
++    try:
++        course_ids = json.loads(state['course_ids'])
++        if not isinstance(course_ids, list) or not all(isinstance(value, str) for value in course_ids):
++            return False
++    except (KeyError, TypeError, ValueError):
++        return False
++    if args.resource_id:
++        if _resource_needs_data(db_path, user_id, args.resource_id):
++            return False
++        targets = _requested_course_ids(db_path, user_id, args.resource_id)
++        return targets is not None and not any(sync_policy.due_courses(
++            state, kind, targets, sync_policy.CATALOG_TTL, since=requested_at) for kind in ('notice', 'resource'))
++    required = [('academic', sync_policy.ACADEMIC_TTL), ('notice', sync_policy.NOTICE_TTL),
++                ('resource', sync_policy.RESOURCE_TTL)]
++    if not args.metadata_only:
++        required.append(('file', sync_policy.RESOURCE_TTL))
++    return not any(sync_policy.due_courses(state, kind, course_ids, ttl, since=since) for kind, ttl in required)
++
++
+ def _main() -> None:
+     parser = argparse.ArgumentParser(description="Sync KKU TLS data into the local SQLite database")
+     parser.add_argument('--connect', action='store_true', help='Open a private native terminal for account connection')
+     parser.add_argument('--metadata-only', action='store_true', help='Refresh records without downloading new file contents')
+-    parser.add_argument('--academic-only', action='store_true', help='Always refresh assignment/watch status using saved credentials; skip notices and files')
+-    parser.add_argument('--ensure', action='store_true', help='Check course activity changes first and sync only when needed')
+-    parser.add_argument('--full', action='store_true', help='Skip the preflight and force a complete sync')
+-    parser.add_argument('--resource-id', action='append', default=[], help='With --ensure, force data refresh when this resource is not local')
++    parser.add_argument('--academic-only', action='store_true', help='Check assignment/watch status; reuse a successful check for up to 15 minutes')
++    parser.add_argument('--ensure', action='store_true', help='Check course changes and refresh only required scopes')
++    parser.add_argument('--full', action='store_true', help='Force a complete refresh')
++    parser.add_argument('--force', action='store_true', help='Bypass successful-check ages; still respect active syncs and server cooldowns')
++    parser.add_argument('--resource-id', action='append', default=[], help='Prepare the requested original file after checking current permissions')
+     parser.add_argument('--metrics', action='store_true', help='Print private aggregate HTTP request counters to stderr')
+     args = parser.parse_args()
+     if args.academic_only and (args.ensure or args.full or args.resource_id or args.connect):
+         parser.error('--academic-only는 다른 동기화 범위나 연결 모드와 함께 사용할 수 없습니다.')
+     if args.ensure and args.full:
+         parser.error('--ensure와 --full은 함께 사용할 수 없습니다.')
+-    smart_sync = args.ensure or not args.full
+-    if args.metadata_only and not args.ensure:
+-        smart_sync = False
+     if args.connect:
+         try:
+             open_connection_terminal()
+-        except (OSError, subprocess.SubprocessError) as exc:
+-            raise SystemExit('연결창을 자동으로 열지 못했어요. 직접 터미널에서 실행해 주세요: ' + subprocess.list2cmdline([sys.executable, str(Path(__file__).resolve())])) from exc
++        except (OSError, subprocess.SubprocessError) as error:
++            raise SystemExit('연결창을 자동으로 열지 못했어요. 직접 터미널에서 sync_tls.py를 실행해 주세요.') from error
+         return
+-    try:
+-        username, session = _login_with_retries(
+-            os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr"),
+-            os.environ.get("TLS_USERNAME"),
+-            stored_only=args.academic_only,
+-        )
+-    except CredentialInputRequired as error:
+-        raise SystemExit(str(error) + '\n연결창 열기: ' + subprocess.list2cmdline([sys.executable, str(Path(__file__).resolve()), '--connect'])) from error
+-    except RuntimeError as error:
++    db_path = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent' / 'university.db'))
++    base_url = os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr')
++    requested_at = sync_policy.now()
++    try:
++        local_username = os.environ.get('TLS_USERNAME') or load_username()
++    except (OSError, KeyError, TypeError, ValueError):
++        local_username = None
++    scope = sync_policy.scope_key(base_url, local_username) if local_username else None
++    try:
++        with sync_policy.SyncLock(db_path) as guard:
++            try:
++                previous_scope = scope
++                previous_failure = bool(guard.state(scope).get('failed')) if scope else False
++                if scope:
++                    remaining = guard.remaining(scope)
++                    if remaining:
++                        raise RequestBackoff(remaining)
++                    user_id = os.environ.get('UNIVERSITY_AGENT_USER_ID', local_username)
++                    state = _saved_sync_state(db_path, user_id)
++                    if not guard.state(scope).get('failed') and _can_reuse(args, state, scope, db_path, user_id, requested_at):
++                        print('최근에 성공한 학교 확인 결과를 재사용했어요. 기존 확인 시각을 유지해요.')
++                        return
++                    guard.record(scope, failed=True)
++                username, session = _login_with_retries(base_url, os.environ.get('TLS_USERNAME'), stored_only=args.academic_only)
++                user_id = os.environ.get('UNIVERSITY_AGENT_USER_ID', username)
++                scope = sync_policy.scope_key(base_url, username)
++                if guard.remaining(scope):
++                    raise RequestBackoff(guard.remaining(scope))
++                retry_failed = previous_failure if scope == previous_scope else bool(guard.state(scope).get('failed'))
++                guard.record(scope, failed=True)
++                _perform_sync(args, db_path, user_id, username, session, scope,
++                              retry_failed=retry_failed)
++                guard.record(scope)
++            except BaseException as error:
++                if scope:
++                    delay = error.seconds if isinstance(error, RequestBackoff) else 60 if isinstance(error, (URLError, TimeoutError)) else 0
++                    guard.record(scope, failed=True, delay=max(delay, guard.remaining(scope)))
++                raise
++    except RequestBackoff as error:
++        raise SystemExit(f'학교 요청을 잠시 쉬고 있어요. 약 {max(1, int(error.seconds + 0.999))}초 후 다시 확인해 주세요. 기존 기록의 확인 시각은 갱신하지 않았어요.') from error
++    except LoginError as error:
++        raise SystemExit('학교에 연결하지 못했어요. 아이디와 비밀번호를 확인해 주세요.') from error
++    except (sync_policy.SyncBusy, CredentialInputRequired, RuntimeError) as error:
+         raise SystemExit(str(error)) from error
+-    user_id = os.environ.get("UNIVERSITY_AGENT_USER_ID", username)
+-    db_path = Path(os.environ.get("UNIVERSITY_AGENT_DB", Path.home() / ".university-agent" / "university.db"))
+-    file_root = db_path.parent / "files"
++    except (URLError, TimeoutError) as error:
++        raise SystemExit('학교 확인이 끝나지 않았어요. 기존 기록은 보존했으며 잠시 후 다시 확인할 수 있어요.') from error
++
++
++def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_failed=False):
+     started = monotonic()
+-    try:
+-        print("터틀넥이 학교 자료를 살펴볼 준비를 하고 있어요…", flush=True)
+-        print("연결됐어요. 이제 필요한 내용만 차근차근 가져올게요.", flush=True)
+-        provider = MoodleTLSProvider(session)
+-        provider.progress = lambda message: print(message, flush=True)
+-        saved_state = _saved_sync_state(db_path, user_id)
+-        autonomous_url = saved_state.get("autonomous_course_watch_url")
+-        if autonomous_url:
+-            print("선택한 자율강좌의 새 토픽과 활동을 확인하는 중이에요…", flush=True)
+-            watch = refresh_autonomous_course(
+-                provider, user_id, autonomous_url,
+-                {"fingerprint": saved_state.get("autonomous_course_fingerprint")},
+-            )
+-            if not watch["ok"]:
+-                print(watch["reason"], flush=True)
+-                with closing(LocalDatabase(db_path)) as database:
+-                    database.merge_sync_state(user_id, {
+-                        "autonomous_course_checked_at": datetime.now(timezone.utc).isoformat(),
+-                        "autonomous_course_check_status": "FAILED",
+-                        "autonomous_course_check_error": watch["reason"],
+-                    })
++    force = args.full or args.force or retry_failed
++    provider = MoodleTLSProvider(session)
++    provider.progress = lambda message: print(message, flush=True)
++    state = _saved_sync_state(db_path, user_id)
++    if state.get('sync_scope') != scope:
++        force = True
++    if args.academic_only:
++        courses, assignments, lectures = provider.get_academic_snapshot(user_id)
++        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures)
++        ids = {course['id'] for course in courses}
++        _mark_checks(db_path, user_id, 'academic', ids, ids, scope)
++        print(f'과제·시청 상태 확인 완료 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개')
++        return
++    autonomous_url = state.get('autonomous_course_watch_url')
++    if autonomous_url and (force or not sync_policy.fresh(state.get('autonomous_course_checked_at'), sync_policy.CATALOG_TTL)):
++        watch = refresh_autonomous_course(provider, user_id, autonomous_url,
++                                         {'fingerprint': state.get('autonomous_course_fingerprint')})
++        with closing(LocalDatabase(db_path)) as database:
++            update = {'autonomous_course_checked_at': sync_policy.now().isoformat(),
++                      'autonomous_course_check_status': 'CHANGED' if watch.get('changed') else 'OK'}
++            if watch['ok']:
++                update.update(autonomous_course_fingerprint=watch['fingerprint'],
++                              autonomous_course_snapshot=json.dumps(watch['snapshot'], ensure_ascii=False),
++                              autonomous_course_check_error='')
+             else:
+-                with closing(LocalDatabase(db_path)) as database:
+-                    database.merge_sync_state(user_id, {
+-                        "autonomous_course_checked_at": datetime.now(timezone.utc).isoformat(),
+-                        "autonomous_course_check_status": "CHANGED" if watch["changed"] else "OK",
+-                        "autonomous_course_fingerprint": watch["fingerprint"],
+-                        "autonomous_course_snapshot": json.dumps(watch["snapshot"], ensure_ascii=False, sort_keys=True),
+-                        "autonomous_course_check_error": "",
+-                    })
+-                print("자율강좌 구조를 확인했어요. " +
+-                      ("새로운 변경이 있어 로컬 기록을 갱신했어요." if watch["changed"] else "새로운 변경은 없어요."),
+-                      flush=True)
+-        if args.academic_only:
+-            print('과목별 과제와 강의 상태만 새로 확인할게요. 파일은 받지 않아요.', flush=True)
+-            courses, assignments, lectures = provider.get_academic_snapshot(user_id)
+-            persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures)
+-            with closing(LocalDatabase(db_path)) as database:
+-                database.merge_sync_state(user_id, {'academic_checked_at': datetime.now(timezone.utc).isoformat()})
+-            print(f'최신 상태 확인 완료 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · {monotonic() - started:.1f}초', flush=True)
+-            return
+-        cached_resources = _cached_resources(db_path, user_id, file_root)
+-        refreshed_course_ids = None
+-        if smart_sync:
+-            if saved_state:
+-                print("새 자료가 있는지 빠르게 확인하고 있어요…", flush=True)
+-                preflight = provider.preflight(user_id)
+-                needs_data = _resource_needs_data(db_path, user_id, args.resource_id)
+-                if not _preflight_changed(saved_state, preflight,
+-                                          needs_data=needs_data):
+-                    print("새로 가져올 내용이 없어요. 저장된 학교 정보를 그대로 사용할게요.", flush=True)
+-                    return
+-                refreshed_course_ids = _changed_course_ids(saved_state, preflight)
+-                if needs_data and refreshed_course_ids is not None:
+-                    requested_courses = _requested_course_ids(db_path, user_id, args.resource_id)
+-                    refreshed_course_ids = (refreshed_course_ids | requested_courses
+-                                            if requested_courses is not None else None)
+-                print("새 자료나 변경된 내용이 있어 필요한 정보를 가져올게요.", flush=True)
+-            else:
+-                print("처음 연결이라 학교 정보를 한 번에 준비할게요.", flush=True)
+-        _progress(1, 5, "수강 과목을 확인하는 중이에요…")
+-        stage_started = monotonic()
+-        courses = provider.get_courses(user_id)
+-        collector = provider if refreshed_course_ids is None else provider.for_courses(user_id, refreshed_course_ids)
+-        if refreshed_course_ids is not None:
+-            print(f'변경된 과목 {len(collector.get_courses(user_id))}개만 상세 확인해요.', flush=True)
+-        print(f"과목 {len(courses)}개를 찾았어요. · {monotonic() - stage_started:.1f}초", flush=True)
+-        _progress(2, 5, "과제와 마감일을 살펴보는 중이에요…")
+-        stage_started = monotonic()
+-        assignments = collector.get_assignments(user_id)
+-        print(f"과제 {len(assignments)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
+-        # Assignment reads already warm the shared course-page cache in the parallel provider.
+-        # Parse the activity map after that work so it does not become a serial network gate.
+-        catalog_reader = getattr(collector, 'get_activity_catalog', None)
+-        activities = catalog_reader(user_id) if catalog_reader else None
+-        print(f"강의실 활동 {len(activities or [])}개를 분류했어요. 새 유형도 놓치지 않을게요.", flush=True)
+-        persist(db_path, user_id, username, courses, assignments=assignments, activities=activities, refreshed_course_ids=refreshed_course_ids)
+-        _progress(3, 5, "강의 시청 상태를 확인하는 중이에요…")
+-        stage_started = monotonic()
+-        lectures = collector.get_lectures(user_id)
+-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, activities=activities, refreshed_course_ids=refreshed_course_ids)
+-        print(f"강의 {len(lectures)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
+-        _progress(4, 5, "새 공지를 살펴보는 중이에요…")
+-        stage_started = monotonic()
+-        notices = collector.get_notices(user_id)
+-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, activities=activities, refreshed_course_ids=refreshed_course_ids)
+-        print(f"공지 {len(notices)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
+-        _progress(5, 5, "강의 자료를 확인하는 중이에요…")
+-        stage_started = monotonic()
+-        resources = collector.get_resources(user_id, notices=notices, existing_resources=cached_resources,
+-                                           progress=lambda message: print(message, flush=True),
+-                                           download_new_files=not args.metadata_only,
+-                                           resource_ids=set(args.resource_id) if args.resource_id else None,
+-                                           save_file=lambda item: store_resource(file_root, item))
+-        reused = sum(item.get('_reused', False) for item in resources)
+-        print(f"자료 {len(resources)}개를 확인했어요. 기존 파일 {reused}개는 다시 받지 않았어요. · {monotonic() - stage_started:.1f}초", flush=True)
+-    except SocketTimeout as error:
+-        raise SystemExit("학교의 응답이 늦어 잠시 멈췄어요. 이미 저장한 내용은 그대로 남아 있어요. 잠시 후 다시 시도해 주세요.") from error
+-    except LoginError as error:
+-        raise SystemExit('학교에 연결하지 못했어요. 아이디와 비밀번호를 확인하고 다시 연결해 주세요.') from error
+-    except URLError as error:
+-        raise SystemExit('학교와 연결이 끊겨 잠시 멈췄어요. 이미 저장한 내용은 그대로 남아 있어요. 잠시 후 다시 시도해 주세요.') from error
+-    prohibited = 0
+-    course_names = {course["id"]: course["name"] for course in courses}
+-    for item in resources:
+-        if item.get("downloadStatus") == "PROHIBITED":
+-            prohibited += 1
+-            print(f"{course_names.get(item['courseId'], '과목')} · {item['title']}는 내려받기가 금지되어 이번에는 제외했어요.", flush=True)
+-            continue
+-        if item.get("downloadStatus") == "DOWNLOADED" and item.get("localPath"):
+-            continue
+-        if "_content" not in item:
+-            print(f"{course_names.get(item['courseId'], '과목')} · {item['title']} · {resource_unavailable_reason(item)}", flush=True)
+-            continue
+-        store_resource(file_root, item)
+-    persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, resources=resources, activities=activities, refreshed_course_ids=refreshed_course_ids)
+-    if collector is not provider:
+-        provider._course_pages.update(collector._course_pages)
++                update.update(autonomous_course_check_status='FAILED', autonomous_course_check_error=watch['reason'])
++            database.merge_sync_state(user_id, update)
++        if not watch['ok']:
++            raise RuntimeError(watch['reason'])
++    preflight = provider.preflight(user_id)
++    courses = provider.get_courses(user_id)
++    ids = set(preflight['courseIds'])
++    changed = None if force else _changed_course_ids(state, preflight)
++    changed = ids if changed is None else changed
++    academic = changed | sync_policy.due_courses(state, 'academic', ids, sync_policy.ACADEMIC_TTL)
++    notices_scope = changed | sync_policy.due_courses(state, 'notice', ids, sync_policy.NOTICE_TTL)
++    resources_scope = changed | sync_policy.due_courses(state, 'resource', ids, sync_policy.RESOURCE_TTL)
++    if args.resource_id:
++        requested = _requested_course_ids(db_path, user_id, args.resource_id) if db_path.exists() else None
++        requested = ids if requested is None else requested & ids
++        resources_scope |= requested
++        notices_scope |= requested  # Recheck restrictions stated in notices before an explicit download.
++    elif not args.metadata_only:
++        resources_scope |= sync_policy.due_courses(state, 'file', ids, sync_policy.RESOURCE_TTL)
++    if not args.metadata_only:
++        notices_scope |= resources_scope
++    # Reconcile enrollment without discarding data that a later failing read must preserve.
++    persist(db_path, user_id, username, courses, assignments=[], lectures=[], refreshed_course_ids=set())
++    if changed:
++        activities = provider.for_courses(user_id, changed).get_activity_catalog(user_id)
++    if academic:
++        reader = provider.for_courses(user_id, academic)
++        assignments = reader.get_assignments(user_id)
++        persist(db_path, user_id, username, courses, assignments=assignments, refreshed_course_ids=academic)
++        lectures = reader.get_lectures(user_id)
++        persist(db_path, user_id, username, courses, lectures=lectures, refreshed_course_ids=academic)
++        _mark_checks(db_path, user_id, 'academic', academic, ids, scope)
++    if changed:
++        persist(db_path, user_id, username, courses, activities=activities, refreshed_course_ids=changed)
++    if notices_scope:
++        notices = provider.for_courses(user_id, notices_scope).get_notices(user_id)
++        persist(db_path, user_id, username, courses, notices=notices, refreshed_course_ids=notices_scope)
++        _mark_checks(db_path, user_id, 'notice', notices_scope, ids, scope)
++    if resources_scope:
++        file_root = db_path.parent / 'files'
++        with closing(LocalDatabase(db_path, read_only=True)) as database:
++            notices = database.get_notices(user_id)
++        resources = provider.for_courses(user_id, resources_scope).get_resources(
++            user_id, notices=notices, existing_resources=_cached_resources(db_path, user_id, file_root),
++            download_new_files=not args.metadata_only, resource_ids=set(args.resource_id) if args.resource_id else None,
++            save_file=lambda item: store_resource(file_root, item))
++        if any(item.get('_checkFailed') for item in resources):
++            raise URLError('일부 자료의 현재 상태를 확인하지 못했어요.')
++        persist(db_path, user_id, username, courses, resources=resources, refreshed_course_ids=resources_scope)
++        _mark_checks(db_path, user_id, 'resource', resources_scope, ids, scope)
++        if not args.metadata_only and not args.resource_id:
++            complete = {identifier for identifier in resources_scope if all(
++                item.get('downloadStatus') in ('DOWNLOADED', 'PROHIBITED')
++                for item in resources if item['courseId'] == identifier)}
++            _mark_checks(db_path, user_id, 'file', complete, ids, scope)
+     _save_sync_state(db_path, user_id, provider)
+-    elapsed = round(monotonic() - started, 1)
+-    print(f"터틀넥 준비 완료 · 과목 {len(courses)}개 · 활동 {len(activities)}개 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · 공지 {len(notices)}개 · 자료 {len(resources)}개 · 제한으로 건너뜀 {prohibited}개 · {elapsed}초", flush=True)
+-    print("이제 ‘이번 주에 뭐부터 해야 해?’라고 물어보면 우선순위를 정리해 드릴게요.", flush=True)
+-
+-
+-if __name__ == "__main__":
++    with closing(LocalDatabase(db_path)) as database:
++        database.merge_sync_state(user_id, {'catalog_checked_at': sync_policy.now().isoformat(), 'sync_scope': scope})
++    print(f'학교 확인 완료 · 과목 {len(ids)}개 · 과제·시청 상태 {len(academic)}과목 · 공지 {len(notices_scope)}과목 · 자료 {len(resources_scope)}과목 · {monotonic() - started:.1f}초')
++
++
++if __name__ == '__main__':
+     main()
+--- stage012/skills/university-agent/providers/tls_auth.py
++++ final/skills/university-agent/providers/tls_auth.py
+@@ -12,7 +12,7 @@
+     save,
+     save_session,
+ )
+-from providers.moodle_session import MoodleSession, LoginError
++from providers.moodle_session import MoodleSession, LoginError, RequestBackoff
+ 
+ 
+ def resume_saved_session(base_url: str, requested_username: str | None = None):
+@@ -26,6 +26,8 @@
+         if session.resume():
+             return username, session
+         clear_session(username)
++    except RequestBackoff:
++        raise
+     except LoginError:
+         clear_session(username)
+     except (OSError, KeyError, TypeError, ValueError):
+--- /dev/null
++++ final/skills/university-agent/features/sync_policy.py
+@@ -0,0 +1,104 @@
++"""Local sync ownership, successful-check ages and persistent failure cooldowns."""
++from datetime import datetime, timezone
++import hashlib
++import json
++import math
++import os
++from pathlib import Path
++import time
++
++
++CATALOG_TTL = 5 * 60
++ACADEMIC_TTL = 15 * 60
++NOTICE_TTL = 6 * 60 * 60
++RESOURCE_TTL = 24 * 60 * 60
++
++
++def now():
++    return datetime.now(timezone.utc)
++
++
++def scope_key(base_url, username):
++    return hashlib.sha256(json.dumps([base_url.rstrip('/'), username]).encode()).hexdigest()
++
++
++def fresh(value, seconds, *, since=None):
++    try:
++        checked = datetime.fromisoformat(value)
++        age = (now() - checked).total_seconds()
++        return 0 <= age < seconds and (since is None or checked >= since)
++    except (TypeError, ValueError):
++        return False
++
++
++def checks(state, kind):
++    try:
++        result = json.loads(state.get(kind + '_course_checks', '{}'))
++        return result if isinstance(result, dict) else {}
++    except (TypeError, ValueError):
++        return {}
++
++
++def due_courses(state, kind, course_ids, seconds, *, since=None):
++    previous = checks(state, kind)
++    return {identifier for identifier in course_ids if not fresh(previous.get(identifier), seconds, since=since)}
++
++
++class SyncBusy(RuntimeError):
++    pass
++
++
++class SyncLock:
++    """OS-owned lock: a crashed process releases it without deleting a live lock file."""
++    def __init__(self, db_path, *, timeout=120):
++        self.path = Path(str(Path(db_path).resolve()) + '.sync.lock')
++        self.timeout = timeout
++        self.file = None
++
++    def __enter__(self):
++        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
++        descriptor = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
++        self.file = os.fdopen(descriptor, 'r+b', buffering=0)
++        deadline = time.monotonic() + self.timeout
++        try:
++            while True:
++                try:
++                    self.file.seek(0)
++                    if os.name == 'nt':
++                        import msvcrt
++                        msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
++                    else:
++                        import fcntl
++                        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
++                    if os.fstat(descriptor).st_size == 0:
++                        self.file.write(b' ')
++                    return self
++                except OSError:
++                    if time.monotonic() >= deadline:
++                        raise SyncBusy('다른 학교 확인이 진행 중이에요. 완료 후 다시 확인해 주세요.') from None
++                    time.sleep(0.1)
++        except BaseException:
++            self.file.close()
++            raise
++
++    def __exit__(self, *_):
++        self.file.close()
++
++    def state(self, scope):
++        self.file.seek(1)
++        try:
++            data = json.loads(self.file.read(4096))
++            return data if isinstance(data, dict) and data.get('scope') == scope else {}
++        except (ValueError, UnicodeError):
++            return {}
++
++    def remaining(self, scope):
++        value = self.state(scope).get('retry_at', 0)
++        return max(0, value - now().timestamp()) if isinstance(value, (int, float)) and math.isfinite(value) else 0
++
++    def record(self, scope, *, failed=False, delay=0):
++        self.file.seek(1)
++        self.file.truncate()
++        self.file.write(json.dumps({'scope': scope, 'failed': failed,
++                                   'retry_at': now().timestamp() + delay if delay else 0}).encode())
++        self.file.flush()
+--- /dev/null
++++ final/skills/university-agent/tests/test_sync_policy.py
+@@ -0,0 +1,260 @@
++"""Cross-process ownership, freshness boundaries and bounded HTTP retry regressions."""
++from concurrent.futures import ThreadPoolExecutor
++from contextlib import closing, redirect_stderr, redirect_stdout
++from datetime import datetime, timedelta, timezone
++from email.utils import format_datetime
++from io import StringIO
++import json
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import threading
++import time
++import unittest
++from unittest.mock import patch
++from urllib.error import HTTPError
++
++ROOT = Path(__file__).resolve().parents[1]
++sys.path[:0] = [str(ROOT), str(ROOT / 'scripts')]
++from features import sync_policy
++from providers.moodle_session import MoodleSession, RequestBackoff, _retry_after
++from providers.request_metrics import RequestMetrics
++from storage.local_db import LocalDatabase
++from test_tls_optimization import fixture_pages, replay_opener, run_sync, snapshot
++import sync_tls
++
++
++class SyncPolicyTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp.cleanup)
++        self.db = Path(self.temp.name) / 'school.db'
++        self.pages = fixture_pages(2)
++        self.instant = datetime(2026, 11, 5, tzinfo=timezone.utc)
++        self.clock = patch.object(sync_policy, 'now', side_effect=lambda: self.instant)
++        self.clock.start()
++        self.addCleanup(self.clock.stop)
++        run_sync(sync_tls, self.pages, self.db, '--full', '--metadata-only', recheck=False)
++        self.scope = sync_policy.scope_key('https://tls.kku.ac.kr', 'fixture')
++
++    def sync(self, *args, pages=None):
++        return run_sync(sync_tls, pages or self.pages, self.db, *args, recheck=False)
++
++    def test_recent_success_skips_login_and_preserves_original_check_times(self):
++        previous = sync_tls._saved_sync_state(self.db, 'fixture')
++        self.instant += timedelta(minutes=1)
++        result = self.sync('--ensure', '--metadata-only')
++        self.assertEqual((result['requests'], result['login_calls']), (0, 0))
++        self.assertEqual(sync_tls._saved_sync_state(self.db, 'fixture'), previous)
++
++    def test_catalog_boundary_reads_only_lists(self):
++        self.instant += timedelta(minutes=5)
++        result = self.sync('--ensure', '--metadata-only')
++        self.assertEqual(result['requests'], 3)
++
++    def test_interrupted_work_is_not_mistaken_for_recent_success(self):
++        with sync_policy.SyncLock(self.db) as guard:
++            guard.record(self.scope, failed=True)
++        result = self.sync('--ensure', '--metadata-only')
++        self.assertEqual(result['requests'], 25)
++        with sync_policy.SyncLock(self.db) as guard:
++            self.assertFalse(guard.state(self.scope)['failed'])
++
++    def test_academic_boundary_refreshes_hidden_status_without_notice_or_resource_reads(self):
++        self.instant += timedelta(minutes=15)
++        self.pages['/mod/assign/view.php?id=101'] = '<p>제출 완료</p>'
++        result = self.sync('--ensure', '--metadata-only')
++        self.assertEqual(result['requests'], 11)
++        self.assertEqual(snapshot(self.db)['assignments'][0]['submissionStatus'], 'SUBMITTED')
++
++    def test_notice_and_resource_boundaries_refresh_in_place_changes(self):
++        self.instant += timedelta(hours=6)
++        self.pages['/mod/ubboard/article.php?id=105&bwid=106'] = (
++            '<div class="subject"><h3>수정 공지</h3></div><div class="text_to_html">수정된 본문</div>')
++        self.assertEqual(self.sync('--ensure', '--metadata-only')['requests'], 17)
++        self.assertTrue(any(row['title'] == '수정 공지' for row in snapshot(self.db)['notices']))
++        self.instant += timedelta(hours=18)
++        self.pages['/local/ubdoc/worker.php'] = '{"state_code":"100","file_download":"0"}'
++        self.assertEqual(self.sync('--ensure', '--metadata-only')['requests'], 25)
++        self.assertTrue(all(row['downloadStatus'] == 'PROHIBITED' for row in snapshot(self.db)['resources']))
++
++    def test_metadata_success_does_not_satisfy_original_file_request(self):
++        result = self.sync('--ensure', '--resource-id', 'tls-resource-108')
++        self.assertEqual(result['requests_by_kind']['file'], 1)
++        self.assertEqual(sum(row['downloadStatus'] == 'DOWNLOADED' for row in snapshot(self.db)['resources']), 1)
++
++    def test_force_and_force_academic_bypass_success_age(self):
++        self.instant += timedelta(seconds=1)
++        self.assertEqual(self.sync('--academic-only')['requests'], 0)
++        self.assertEqual(self.sync('--academic-only', '--force')['requests'], 11)
++        self.instant += timedelta(seconds=1)
++        self.assertEqual(self.sync('--ensure', '--metadata-only', '--force')['requests'], 25)
++
++    def test_other_account_or_origin_cannot_reuse_success(self):
++        state = sync_tls._saved_sync_state(self.db, 'fixture')
++        from types import SimpleNamespace
++        args = SimpleNamespace(force=False, full=False, academic_only=False, resource_id=[], metadata_only=True)
++        for scope in (sync_policy.scope_key('https://other.invalid', 'fixture'),
++                      sync_policy.scope_key('https://tls.kku.ac.kr', 'other')):
++            self.assertFalse(sync_tls._can_reuse(args, state, scope, self.db, 'fixture', self.instant))
++
++    def test_future_and_malformed_stamps_are_not_fresh(self):
++        for value in (None, 'bad', self.instant.replace(tzinfo=None).isoformat(),
++                      (self.instant + timedelta(seconds=1)).isoformat()):
++            self.assertFalse(sync_policy.fresh(value, 300))
++
++    def test_persistent_cooldown_even_force_skips_login_until_expiry(self):
++        with sync_policy.SyncLock(self.db) as guard:
++            guard.record(self.scope, failed=True, delay=90)
++        result = run_sync(sync_tls, self.pages, self.db, '--full', '--metadata-only', recheck=False, allow_failure=True)
++        self.assertTrue(result['failed'])
++        self.assertEqual((result['requests'], result['login_calls']), (0, 0))
++        with sync_policy.SyncLock(self.db) as guard:
++            self.assertEqual(guard.remaining(self.scope), 90)
++        self.instant += timedelta(seconds=91)
++        self.assertEqual(self.sync('--ensure', '--metadata-only')['requests'], 25)
++        with sync_policy.SyncLock(self.db) as guard:
++            self.assertFalse(guard.state(self.scope)['failed'])
++
++    def test_recent_academic_result_does_not_satisfy_pending_notice_refresh(self):
++        self.instant += timedelta(hours=7)
++        self.assertEqual(self.sync('--academic-only')['requests'], 11)
++        result = self.sync('--ensure', '--metadata-only')
++        self.assertEqual(result['requests'], 9)  # lists + notice detail, no repeated academic reads
++
++
++class ProcessLockTests(unittest.TestCase):
++    def test_os_releases_owner_lock_after_process_death(self):
++        with tempfile.TemporaryDirectory() as directory:
++            db = Path(directory) / 'school.db'
++            code = ('import sys; sys.path.insert(0, sys.argv[1]); '
++                    'from features.sync_policy import SyncLock; '
++                    'lock=SyncLock(sys.argv[2]); lock.__enter__(); '
++                    'print("owned",flush=True); sys.stdin.read()')
++            process = subprocess.Popen([sys.executable, '-u', '-c', code, str(ROOT), str(db)],
++                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++            try:
++                self.assertEqual(process.stdout.readline().strip(), 'owned')
++                with self.assertRaises(sync_policy.SyncBusy):
++                    with sync_policy.SyncLock(db, timeout=0.05):
++                        pass
++                process.terminate()
++                process.wait(timeout=10)
++                with sync_policy.SyncLock(db, timeout=1):
++                    pass
++            finally:
++                if process.poll() is None:
++                    process.terminate()
++                process.communicate(timeout=10)
++
++    def test_two_processes_coalesce_a_catalog_check(self):
++        with tempfile.TemporaryDirectory() as directory:
++            db = Path(directory) / 'school.db'
++            pages = fixture_pages(2)
++            run_sync(sync_tls, pages, db, '--full', '--metadata-only', recheck=False)
++            with closing(LocalDatabase(db)) as database:
++                database.merge_sync_state('fixture', {'catalog_checked_at': '2020-01-01T00:00:00+00:00'})
++            code = '''import sys,json,time
++from pathlib import Path
++sys.path.insert(0, sys.argv[1])
++from test_tls_optimization import fixture_pages,run_sync,sync_tls
++pages=fixture_pages(2)
++body=pages['/local/ubion/user/']
++pages['/local/ubion/user/']=lambda request: (time.sleep(0.4),body)[1]
++print(json.dumps(run_sync(sync_tls,pages,Path(sys.argv[2]),'--ensure','--metadata-only',recheck=False)))
++'''
++            processes = [subprocess.Popen([sys.executable, '-c', code, str(ROOT / 'tests'), str(db)],
++                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8')
++                         for _ in range(2)]
++            results = []
++            for process in processes:
++                output, error = process.communicate(timeout=30)
++                self.assertEqual(process.returncode, 0, error)
++                results.append(json.loads(output))
++            self.assertEqual(sorted(row['requests'] for row in results), [0, 3])
++            self.assertEqual(sorted(row['login_calls'] for row in results), [0, 1])
++
++
++class RetryTests(unittest.TestCase):
++    def test_cookie_probe_backoff_does_not_fall_through_to_password_login(self):
++        from providers import tls_auth
++        with patch.object(tls_auth, 'load_username', return_value='fixture'), \
++             patch.object(tls_auth, 'load_session'), \
++             patch.object(tls_auth, 'MoodleSession') as session, \
++             patch.object(tls_auth, 'load') as password, \
++             patch.object(tls_auth, 'clear_session') as clear:
++            session.return_value.resume.side_effect = RequestBackoff(90)
++            with self.assertRaises(RequestBackoff):
++                tls_auth.authenticated_session(stored_only=True)
++            password.assert_not_called()
++            clear.assert_not_called()
++            session.return_value.login.assert_not_called()
++
++    def session(self, metrics):
++        session = MoodleSession(metrics=metrics)
++        session.logged_in = True
++        session._request_limiter.gap = 0
++        return session
++
++    def test_get_retries_bounded_and_read_only_post_can_recover(self):
++        calls = []
++        def respond(request):
++            calls.append(request.get_method())
++            return (503, '', {}) if len(calls) < 3 else 'ok'
++        metrics = RequestMetrics()
++        with replay_opener({'/read': respond}):
++            session = self.session(metrics)
++            with patch.object(session._request_limiter, 'pause') as pause:
++                self.assertEqual(session.get('/read'), 'ok')
++                self.assertEqual(len(calls), 3)
++                self.assertTrue(1 <= pause.call_args_list[0].args[0] <= 1.25)
++                self.assertTrue(2 <= pause.call_args_list[1].args[0] <= 2.25)
++                calls.clear()
++                self.assertEqual(session._request('/read', data=b'job=checkState', retry_safe=True)[0], 'ok')
++                self.assertEqual(calls, ['POST'] * 3)
++
++    def test_auth_and_write_requests_are_not_replayed(self):
++        for status in (401, 403, 503):
++            metrics = RequestMetrics()
++            with replay_opener({'/write': (status, '', {})}):
++                session = self.session(metrics)
++                with self.assertRaises((HTTPError, RequestBackoff)):
++                    session._request('/write', data=b'fixture')
++            self.assertEqual(metrics.snapshot()['requests'], 1)
++
++    def test_long_retry_after_defers_all_workers_without_sleep_or_extra_request(self):
++        metrics = RequestMetrics()
++        with replay_opener({'/limited': (429, '', {'Retry-After': '90'}), '/other': 'ok'}):
++            session = self.session(metrics)
++            with patch('providers.moodle_session.time.sleep', side_effect=AssertionError('no long sleep')):
++                with self.assertRaises(RequestBackoff) as caught:
++                    session.get('/limited')
++                self.assertGreaterEqual(caught.exception.seconds, 90)
++                with self.assertRaises(RequestBackoff):
++                    session.fork().get('/other')
++        self.assertEqual(metrics.snapshot()['requests'], 1)
++
++    def test_retry_after_http_date_and_invalid_values(self):
++        future = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=90), usegmt=True)
++        self.assertTrue(88 <= _retry_after(future) <= 90)
++        self.assertEqual(_retry_after('bad'), 0)
++        self.assertEqual(_retry_after('120'), 120)
++
++    def test_redirects_and_forks_share_start_spacing(self):
++        starts = []
++        def respond(request):
++            starts.append(time.monotonic())
++            return (302, '', {'Location': '/end'}) if request.full_url.endswith('/start') else 'ok'
++        with replay_opener({'/start': respond, '/end': respond}):
++            session = MoodleSession()
++            session.logged_in = True
++            session.get('/start')
++            session.fork().get('/end')
++            session.get('/end')
++        self.assertEqual(len(starts), 4)
++        self.assertTrue(all(b - a >= 0.24 for a, b in zip(starts, starts[1:])), starts)
++
++
++if __name__ == '__main__':
++    unittest.main()
+--- /dev/null
++++ final/skills/university-agent/scripts/benchmark_tls_policy.py
+@@ -0,0 +1,143 @@
++#!/usr/bin/env python3
++"""Offline comparison of stages 0-2 and 0-5, with explicit freshness scenarios."""
++from datetime import datetime, timedelta, timezone
++import importlib.util
++import json
++from pathlib import Path
++import shutil
++import sys
++import tempfile
++from unittest.mock import patch
++import zipfile
++
++ROOT = Path(__file__).resolve().parents[1]
++REPO = ROOT.parents[1]
++sys.path[:0] = [str(ROOT / 'tests'), str(ROOT), str(ROOT / 'scripts')]
++from test_tls_optimization import fixture_pages, run_sync, snapshot, load_baseline, replay_opener
++from features import sync_policy
++from providers.moodle_session import MoodleSession
++from providers.request_metrics import RequestMetrics
++import sync_tls
++
++
++def load_stage012(directory):
++    with zipfile.ZipFile(REPO / 'tls-optimization-results/stage012_sources.zip') as archive:
++        for name in ('moodle_provider.py', 'sync_tls.py', 'moodle_session.py'):
++            (Path(directory) / name).write_bytes(archive.read(name))
++    modules = load_baseline(directory)
++    spec = importlib.util.spec_from_file_location('stage012_session', Path(directory) / 'moodle_session.py')
++    session = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(session)
++    modules['session'] = session.MoodleSession
++    return modules
++
++
++def totals(runs):
++    return {key: sum(row[key] for row in runs) for key in
++            ('requests', 'response_body_bytes', 'login_calls', 'elapsed_seconds')}
++
++
++def rate_comparison(before_session):
++    rows = {}
++    for label, session_class in (('stage012', before_session), ('stage012345', MoodleSession)):
++        clock = [0.0]
++        def sleep(seconds):
++            clock[0] += seconds
++        with patch('time.monotonic', side_effect=lambda: clock[0]), patch('time.sleep', side_effect=sleep), \
++             replay_opener({'/start': (302, '', {'Location': '/end'}), '/end': 'ok'}, session_class):
++            metrics = RequestMetrics()
++            session = session_class(metrics=metrics)
++            session.logged_in = True
++            for _ in range(6):
++                session.get('/start')
++            rows[label] = metrics.snapshot()
++    assert rows['stage012']['requests'] == rows['stage012345']['requests'] == 12
++    assert rows['stage012345']['peak_requests_per_second'] <= 4
++    return {'method': 'virtual clock, six GETs each followed by one redirect; not live throughput', **rows}
++
++
++def main():
++    start = datetime(2026, 11, 5, tzinfo=timezone.utc)
++    report = {'measurement': 'offline HTTP replay', 'baseline': 'stages 0-1-2',
++              'after': 'stages 0-1-2-3-4-5', 'courses': 8, 'results': []}
++    with tempfile.TemporaryDirectory() as directory:
++        folder = Path(directory)
++        baseline = load_stage012(folder)
++        seed = folder / 'seed.db'
++        original = fixture_pages()
++        with patch.object(sync_policy, 'now', return_value=start):
++            run_sync(sync_tls, original, seed, '--full', '--metadata-only', recheck=False)
++        cases = [
++            ('ten_recent_calls', 60, 10, ['--ensure', '--metadata-only']),
++            ('catalog_due', 300, 1, ['--ensure', '--metadata-only']),
++            ('one_course_changed_after_catalog_age', 300, 1, ['--ensure', '--metadata-only']),
++            ('status_only_default', 900, 1, ['--ensure', '--metadata-only']),
++            ('status_fresh_equivalent', 900, 1, ['--ensure', '--metadata-only']),
++            ('notice_fresh_equivalent', 21600, 1, ['--ensure', '--metadata-only']),
++            ('daily_all_scopes_due', 86400, 1, ['--ensure', '--metadata-only']),
++            ('requested_file', 60, 1, ['--ensure', '--resource-id', 'tls-resource-108']),
++            ('three_calls_during_retry_after', 60, 3, ['--academic-only']),
++        ]
++        for name, age, repeats, arguments in cases:
++            pages = dict(original)
++            if name == 'one_course_changed_after_catalog_age':
++                pages['/course/view.php?id=1'] = pages['/course/view.php?id=1'].replace('과제 A', '변경된 과제 A')
++            if name.startswith('status_'):
++                pages['/mod/assign/view.php?id=101'] = '<p>제출 완료</p>'
++            if name == 'notice_fresh_equivalent':
++                pages['/mod/ubboard/article.php?id=105&bwid=106'] = (
++                    '<div class="subject"><h3>수정 공지</h3></div><div class="text_to_html">수정</div>')
++            if name == 'three_calls_during_retry_after':
++                pages['/local/ubion/user/'] = (429, '', {'Retry-After': '90'})
++            row, data = {'scenario': name, 'seconds_after_success': age, 'calls': repeats}, {}
++            for label, module, session_class in (('before', baseline['sync_tls'], baseline['session']),
++                                                   ('after', sync_tls, MoodleSession)):
++                path = folder / 'case.db'
++                shutil.copyfile(seed, path)
++                # No worker is active; reset only this fixture's cooldown metadata.
++                with sync_policy.SyncLock(path) as guard:
++                    guard.record(sync_policy.scope_key('https://tls.kku.ac.kr', 'fixture'))
++                runs = []
++                with patch.object(sync_policy, 'now', return_value=start + timedelta(seconds=age)):
++                    for _ in range(repeats):
++                        selected = list(arguments)
++                        if label == 'before' and name in ('notice_fresh_equivalent', 'daily_all_scopes_due'):
++                            selected = ['--full', '--metadata-only']
++                        if label == 'after' and name == 'three_calls_during_retry_after':
++                            selected += ['--force']
++                        runs.append(run_sync(module, pages, path, *selected, recheck=False,
++                                             session_class=session_class, allow_failure=True))
++                        if label == 'before' and name == 'status_fresh_equivalent':
++                            runs.append(run_sync(module, pages, path, '--academic-only', recheck=False,
++                                                 session_class=session_class))
++                row[label] = {'totals': totals(runs), 'runs': runs}
++                assert all(run['failed'] == (name == 'three_calls_during_retry_after') for run in runs), name
++                data[label] = snapshot(path)
++                for resource in data[label]['resources']:
++                    resource.pop('downloadedAt', None)
++            row['same_result'] = data['before'] == data['after']
++            if name == 'status_only_default':
++                assert not row['same_result']
++                row['reason'] = 'Before leaves submitted status stale; after refreshes it at the 15-minute boundary.'
++                assert next(x for x in data['after']['assignments'] if x['id'] == 'tls-assignment-101')['submissionStatus'] == 'SUBMITTED'
++            else:
++                assert row['same_result'], name
++            row['request_reduction_percent'] = round((1 - row['after']['totals']['requests'] /
++                                                       row['before']['totals']['requests']) * 100, 2)
++            report['results'].append(row)
++        report['rate_limit'] = rate_comparison(baseline['session'])
++    report['notes'] = [
++        'All cases start from the same successfully checked data. Warm-up is excluded.',
++        'Fixture login is mocked; login_calls records whether authentication was entered.',
++        'No TLS requests or real credentials are used. Offline runtime is not a live speed estimate.',
++        'Fresh-equivalent cases add the old explicit status/full refresh needed to get the same updated data.',
++        'Status-only default comparison intentionally reports increased requests and corrected stale output.',
++        'Actual two-process coalescing and crash recovery are covered by test_sync_policy.py.',
++    ]
++    target = REPO / 'tls-optimization-results/stage345_offline.json'
++    target.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
++    print(json.dumps(report, ensure_ascii=False, indent=2))
++
++
++if __name__ == '__main__':
++    main()
+--- /dev/null
++++ final/skills/university-agent/scripts/benchmark_tls_policy_live.py
+@@ -0,0 +1,89 @@
++"""Measure status refresh/reuse on private DB copies; save aggregate counters only."""
++from contextlib import closing, redirect_stdout, redirect_stderr
++from copy import copy
++from io import StringIO
++import hashlib
++import json
++import os
++from pathlib import Path
++import shutil
++import sqlite3
++import sys
++import tempfile
++from unittest.mock import patch
++
++ROOT = Path(__file__).resolve().parents[1]
++REPO = ROOT.parents[1]
++sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'tests')]
++from benchmark_tls_policy import load_stage012
++from providers.credentials import load
++from providers.moodle_session import MoodleSession
++from providers.request_metrics import RequestMetrics
++from storage.local_db import LocalDatabase
++import sync_tls
++
++
++def main():
++    username, password = load()
++    auth_metrics = RequestMetrics()
++    auth = MoodleSession(metrics=auth_metrics)
++    auth.login(username, password)
++    del password
++    source = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent/university.db'))
++    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
++    report = {'measurement': 'live TLS academic refresh, warm reuse, forced refresh',
++              'authentication_setup': auth_metrics.snapshot()}
++
++    def run(module, session_class, path, force=False):
++        metrics = RequestMetrics()
++        session = session_class(metrics=metrics)
++        for cookie in auth.cookies:
++            session.cookies.set_cookie(copy(cookie))
++        session.logged_in = True
++        with patch.object(sys, 'argv', ['sync_tls.py', '--academic-only', *(['--force'] if force else [])]), \
++             patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': username}), \
++             patch.object(module, '_login_with_retries', return_value=(username, session)) as login, \
++             patch.object(module, 'load_username', return_value=username, create=True), \
++             redirect_stdout(StringIO()), redirect_stderr(StringIO()):
++            module.main()
++        with closing(LocalDatabase(path, read_only=True)) as db:
++            data = {kind: sorted([{key: value for key, value in row.items()
++                                  if key not in ('updatedAt', 'updated_at', 'lastSyncedAt')}
++                                 for row in getattr(db, 'get_' + kind)(username)], key=lambda row: row['id'])
++                    for kind in ('assignments', 'lectures')}
++            stamp = db.get_sync_state(username).get('academic_checked_at')
++        return {**metrics.snapshot(), 'login_entry_calls': login.call_count}, data, stamp
++
++    with tempfile.TemporaryDirectory(prefix='tls-policy-measure-') as directory:
++        folder = Path(directory)
++        old = load_stage012(folder)
++        seed = folder / 'seed.db'
++        with closing(sqlite3.connect(source.resolve().as_uri() + '?mode=ro', uri=True)) as original, \
++             closing(sqlite3.connect(seed)) as target:
++            original.backup(target)
++        report['preparation'], seed_data, seed_stamp = run(sync_tls, MoodleSession, seed, True)
++        data, stamps = {}, {}
++        for label, module, session_class, force in (
++                ('before', old['sync_tls'], old['session'], False),
++                ('after_reuse', sync_tls, MoodleSession, False),
++                ('after_force', sync_tls, MoodleSession, True)):
++            path = folder / (label + '.db')
++            shutil.copyfile(seed, path)
++            report[label], data[label], stamps[label] = run(module, session_class, path, force)
++        report['reuse_preserves_data_and_timestamp'] = data['after_reuse'] == seed_data and stamps['after_reuse'] == seed_stamp
++        report['forced_results_equal'] = data['before'] == data['after_force']
++        report['record_counts'] = {kind: len(rows) for kind, rows in seed_data.items()}
++    report['source_db_bytes_unchanged'] = hashlib.sha256(source.read_bytes()).hexdigest() == source_hash
++    report['notes'] = ['Authentication and preparation excluded from compared runs; same authenticated cookies.',
++                       'Warm reuse measured within 15 minutes of success. Forced refresh always reads current status.',
++                       'Sequential single samples; server content and latency can vary. No file downloads.',
++                       'Only aggregate counters and equality flags are retained; source DB is read-only.']
++    target = REPO / 'tls-optimization-results/stage345_live.json'
++    target.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
++    assert report['source_db_bytes_unchanged'] and report['reuse_preserves_data_and_timestamp']
++    assert report['forced_results_equal'], 'Live statuses changed between sequential runs; inspect aggregate report.'
++    print(json.dumps(report, ensure_ascii=False, indent=2))
++
++
++if __name__ == '__main__':
++    main()

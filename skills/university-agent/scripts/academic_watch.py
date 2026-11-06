@@ -70,7 +70,7 @@ def notify(message: str) -> None:
 
 
 def run_sync(*, academic_only=False) -> tuple[bool, str]:
-    mode = ['--academic-only'] if academic_only else ['--ensure', '--metadata-only']
+    mode = ['--academic-only', '--force'] if academic_only else ['--ensure', '--metadata-only']
     try:
         result = subprocess.run([sys.executable, str(Path(__file__).with_name("sync_tls.py")), *mode],
                                 capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=120)

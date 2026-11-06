@@ -22,12 +22,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from providers.moodle_provider import MoodleTLSProvider
-from providers.moodle_session import LoginError, MoodleSession
-from providers.credentials import CredentialInputRequired, load, resolve, save, save_session
+from providers.moodle_session import LoginError, MoodleSession, RequestBackoff
+from providers.credentials import CredentialInputRequired, load, load_username, resolve, save, save_session
 from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
 from features.autonomous_course_watch import refresh as refresh_autonomous_course
 from providers.tls_auth import resume_saved_session
+from providers.request_metrics import RequestMetrics, measure_requests
+from features import sync_policy
 
 
 def _cached_resources(db_path: Path, user_id: str, file_root: Path) -> dict[str, dict[str, object]]:
@@ -116,8 +118,21 @@ def store_resource(file_root, item):
     return item
 
 
-def persist(db_path, user_id, username, courses, *, assignments=None, lectures=None, notices=None, resources=None, activities=None):
+def persist(db_path, user_id, username, courses, *, assignments=None, lectures=None, notices=None, resources=None, activities=None, refreshed_course_ids=None):
     with closing(LocalDatabase(db_path)) as database:
+        if refreshed_course_ids is not None:
+            retained = {course['id'] for course in courses} - refreshed_course_ids
+
+            def merge(items, previous):
+                if items is None:
+                    return None
+                return [item for item in previous if item.get('courseId') in retained] + items
+
+            assignments = merge(assignments, [x for x in database.get_assignments(user_id) if x.get('source') != 'manual'])
+            lectures = merge(lectures, database.get_lectures(user_id))
+            notices = merge(notices, database.get_notices(user_id))
+            resources = merge(resources, database.get_resources(user_id, include_permissions=False))
+            activities = merge(activities, database.get_activities(user_id))
         database.upsert_tls_snapshot(user_id, courses,
             assignments if assignments is not None else [x for x in database.get_assignments(user_id) if x.get('source') != 'manual'],
             lectures if lectures is not None else database.get_lectures(user_id), username, None,
@@ -155,18 +170,36 @@ def _resource_needs_data(db_path: Path, user_id: str, resource_ids: list[str]) -
     return False
 
 
-def _preflight_changed(state: dict[str, str], result: dict, *, needs_data: bool) -> bool:
-    if needs_data or state.get('resource_response_version') != MoodleTLSProvider.RESOURCE_RESPONSE_VERSION:
-        return True
+def _changed_course_ids(state: dict[str, str], result: dict) -> set[str] | None:
+    """None requires a full refresh; an empty set can still mean unenrollment."""
+    if state.get('resource_response_version') != MoodleTLSProvider.RESOURCE_RESPONSE_VERSION:
+        return None
     try:
-        saved_courses = json.loads(state.get('course_ids', '[]'))
-        saved_fingerprints = json.loads(state.get('course_fingerprints', '{}'))
-    except (TypeError, ValueError):
+        saved_courses = json.loads(state['course_ids'])
+        saved_fingerprints = json.loads(state['course_fingerprints'])
+        if (not isinstance(saved_courses, list) or not all(isinstance(value, str) for value in saved_courses)
+                or not isinstance(saved_fingerprints, dict)):
+            return None
+        return {course_id for course_id in result['courseIds']
+                if course_id not in saved_courses or not result['fingerprints'].get(course_id)
+                or saved_fingerprints.get(course_id) != result['fingerprints'][course_id]}
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _preflight_changed(state: dict[str, str], result: dict, *, needs_data: bool) -> bool:
+    changed = _changed_course_ids(state, result)
+    if needs_data or changed is None or changed:
         return True
-    if sorted(saved_courses) != sorted(result.get('courseIds', [])):
-        return True
-    return any(saved_fingerprints.get(course_id) != fingerprint
-               for course_id, fingerprint in result.get('fingerprints', {}).items())
+    return set(json.loads(state['course_ids'])) != set(result['courseIds'])
+
+
+def _requested_course_ids(db_path, user_id, resource_ids):
+    with closing(LocalDatabase(db_path, read_only=True)) as database:
+        resources = {item['id']: item for item in database.get_resources(user_id, include_permissions=False)}
+    if any(identifier not in resources for identifier in resource_ids):
+        return None
+    return {resources[identifier]['courseId'] for identifier in resource_ids}
 
 
 def _save_sync_state(db_path: Path, user_id: str, provider: MoodleTLSProvider) -> None:
@@ -234,152 +267,216 @@ def _login_with_retries(base_url: str, requested_username: str | None = None, *,
 
 
 def main() -> None:
+    metrics = RequestMetrics() if '--metrics' in sys.argv else None
+    with measure_requests(metrics):
+        try:
+            _main()
+        finally:
+            if metrics is not None:
+                print('TLS_METRICS ' + json.dumps(metrics.snapshot(), sort_keys=True), file=sys.stderr)
+
+
+def _mark_checks(db_path, user_id, kind, refreshed, course_ids, scope):
+    with closing(LocalDatabase(db_path)) as database:
+        previous = sync_policy.checks(database.get_sync_state(user_id), kind)
+        previous = {key: value for key, value in previous.items() if key in course_ids}
+        checked = sync_policy.now().isoformat()
+        previous.update(dict.fromkeys(refreshed, checked))
+        update = {kind + '_course_checks': json.dumps(previous), 'sync_scope': scope}
+        if set(course_ids) <= set(refreshed):
+            update[kind + '_checked_at'] = checked
+        database.merge_sync_state(user_id, update)
+
+
+def _can_reuse(args, state, scope, db_path, user_id, requested_at):
+    if state.get('sync_scope') != scope:
+        return False
+    since = requested_at if args.force or args.full else None
+    if args.academic_only:
+        return sync_policy.fresh(state.get('academic_checked_at'), sync_policy.ACADEMIC_TTL, since=since)
+    if state.get('resource_response_version') != MoodleTLSProvider.RESOURCE_RESPONSE_VERSION:
+        return False
+    if not sync_policy.fresh(state.get('catalog_checked_at'), sync_policy.CATALOG_TTL, since=since):
+        return False
+    if state.get('autonomous_course_watch_url') and (
+            state.get('autonomous_course_check_status') not in ('OK', 'CHANGED') or
+            not sync_policy.fresh(state.get('autonomous_course_checked_at'), sync_policy.CATALOG_TTL, since=since)):
+        return False
+    try:
+        course_ids = json.loads(state['course_ids'])
+        if not isinstance(course_ids, list) or not all(isinstance(value, str) for value in course_ids):
+            return False
+    except (KeyError, TypeError, ValueError):
+        return False
+    if args.resource_id:
+        if _resource_needs_data(db_path, user_id, args.resource_id):
+            return False
+        targets = _requested_course_ids(db_path, user_id, args.resource_id)
+        return targets is not None and not any(sync_policy.due_courses(
+            state, kind, targets, sync_policy.CATALOG_TTL, since=requested_at) for kind in ('notice', 'resource'))
+    required = [('academic', sync_policy.ACADEMIC_TTL), ('notice', sync_policy.NOTICE_TTL),
+                ('resource', sync_policy.RESOURCE_TTL)]
+    if not args.metadata_only:
+        required.append(('file', sync_policy.RESOURCE_TTL))
+    return not any(sync_policy.due_courses(state, kind, course_ids, ttl, since=since) for kind, ttl in required)
+
+
+def _main() -> None:
     parser = argparse.ArgumentParser(description="Sync KKU TLS data into the local SQLite database")
     parser.add_argument('--connect', action='store_true', help='Open a private native terminal for account connection')
     parser.add_argument('--metadata-only', action='store_true', help='Refresh records without downloading new file contents')
-    parser.add_argument('--academic-only', action='store_true', help='Always refresh assignment/watch status using saved credentials; skip notices and files')
-    parser.add_argument('--ensure', action='store_true', help='Check course activity changes first and sync only when needed')
-    parser.add_argument('--full', action='store_true', help='Skip the preflight and force a complete sync')
-    parser.add_argument('--resource-id', action='append', default=[], help='With --ensure, force data refresh when this resource is not local')
+    parser.add_argument('--academic-only', action='store_true', help='Check assignment/watch status; reuse a successful check for up to 15 minutes')
+    parser.add_argument('--ensure', action='store_true', help='Check course changes and refresh only required scopes')
+    parser.add_argument('--full', action='store_true', help='Force a complete refresh')
+    parser.add_argument('--force', action='store_true', help='Bypass successful-check ages; still respect active syncs and server cooldowns')
+    parser.add_argument('--resource-id', action='append', default=[], help='Prepare the requested original file after checking current permissions')
+    parser.add_argument('--metrics', action='store_true', help='Print private aggregate HTTP request counters to stderr')
     args = parser.parse_args()
     if args.academic_only and (args.ensure or args.full or args.resource_id or args.connect):
         parser.error('--academic-only는 다른 동기화 범위나 연결 모드와 함께 사용할 수 없습니다.')
     if args.ensure and args.full:
         parser.error('--ensure와 --full은 함께 사용할 수 없습니다.')
-    smart_sync = args.ensure or not args.full
-    if args.metadata_only and not args.ensure:
-        smart_sync = False
     if args.connect:
         try:
             open_connection_terminal()
-        except (OSError, subprocess.SubprocessError) as exc:
-            raise SystemExit('연결창을 자동으로 열지 못했어요. 직접 터미널에서 실행해 주세요: ' + subprocess.list2cmdline([sys.executable, str(Path(__file__).resolve())])) from exc
+        except (OSError, subprocess.SubprocessError) as error:
+            raise SystemExit('연결창을 자동으로 열지 못했어요. 직접 터미널에서 sync_tls.py를 실행해 주세요.') from error
         return
+    db_path = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent' / 'university.db'))
+    base_url = os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr')
+    requested_at = sync_policy.now()
     try:
-        username, session = _login_with_retries(
-            os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr"),
-            os.environ.get("TLS_USERNAME"),
-            stored_only=args.academic_only,
-        )
-    except CredentialInputRequired as error:
-        raise SystemExit(str(error) + '\n연결창 열기: ' + subprocess.list2cmdline([sys.executable, str(Path(__file__).resolve()), '--connect'])) from error
-    except RuntimeError as error:
-        raise SystemExit(str(error)) from error
-    user_id = os.environ.get("UNIVERSITY_AGENT_USER_ID", username)
-    db_path = Path(os.environ.get("UNIVERSITY_AGENT_DB", Path.home() / ".university-agent" / "university.db"))
-    file_root = db_path.parent / "files"
-    started = monotonic()
+        local_username = os.environ.get('TLS_USERNAME') or load_username()
+    except (OSError, KeyError, TypeError, ValueError):
+        local_username = None
+    scope = sync_policy.scope_key(base_url, local_username) if local_username else None
     try:
-        print("터틀넥이 학교 자료를 살펴볼 준비를 하고 있어요…", flush=True)
-        print("연결됐어요. 이제 필요한 내용만 차근차근 가져올게요.", flush=True)
-        provider = MoodleTLSProvider(session)
-        provider.progress = lambda message: print(message, flush=True)
-        saved_state = _saved_sync_state(db_path, user_id)
-        autonomous_url = saved_state.get("autonomous_course_watch_url")
-        if autonomous_url:
-            print("선택한 자율강좌의 새 토픽과 활동을 확인하는 중이에요…", flush=True)
-            watch = refresh_autonomous_course(
-                provider, user_id, autonomous_url,
-                {"fingerprint": saved_state.get("autonomous_course_fingerprint")},
-            )
-            if not watch["ok"]:
-                print(watch["reason"], flush=True)
-                with closing(LocalDatabase(db_path)) as database:
-                    database.merge_sync_state(user_id, {
-                        "autonomous_course_checked_at": datetime.now(timezone.utc).isoformat(),
-                        "autonomous_course_check_status": "FAILED",
-                        "autonomous_course_check_error": watch["reason"],
-                    })
-            else:
-                with closing(LocalDatabase(db_path)) as database:
-                    database.merge_sync_state(user_id, {
-                        "autonomous_course_checked_at": datetime.now(timezone.utc).isoformat(),
-                        "autonomous_course_check_status": "CHANGED" if watch["changed"] else "OK",
-                        "autonomous_course_fingerprint": watch["fingerprint"],
-                        "autonomous_course_snapshot": json.dumps(watch["snapshot"], ensure_ascii=False, sort_keys=True),
-                        "autonomous_course_check_error": "",
-                    })
-                print("자율강좌 구조를 확인했어요. " +
-                      ("새로운 변경이 있어 로컬 기록을 갱신했어요." if watch["changed"] else "새로운 변경은 없어요."),
-                      flush=True)
-        if args.academic_only:
-            print('과목별 과제와 강의 상태만 새로 확인할게요. 파일은 받지 않아요.', flush=True)
-            courses, assignments, lectures = provider.get_academic_snapshot(user_id)
-            persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures)
-            with closing(LocalDatabase(db_path)) as database:
-                database.merge_sync_state(user_id, {'academic_checked_at': datetime.now(timezone.utc).isoformat()})
-            print(f'최신 상태 확인 완료 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · {monotonic() - started:.1f}초', flush=True)
-            return
-        cached_resources = _cached_resources(db_path, user_id, file_root)
-        if smart_sync:
-            if saved_state:
-                print("새 자료가 있는지 빠르게 확인하고 있어요…", flush=True)
-                preflight = provider.preflight(user_id)
-                if not _preflight_changed(saved_state, preflight,
-                                          needs_data=_resource_needs_data(db_path, user_id, args.resource_id)):
-                    print("새로 가져올 내용이 없어요. 저장된 학교 정보를 그대로 사용할게요.", flush=True)
-                    return
-                print("새 자료나 변경된 내용이 있어 필요한 정보를 가져올게요.", flush=True)
-            else:
-                print("처음 연결이라 학교 정보를 한 번에 준비할게요.", flush=True)
-        _progress(1, 5, "수강 과목을 확인하는 중이에요…")
-        stage_started = monotonic()
-        courses = provider.get_courses(user_id)
-        print(f"과목 {len(courses)}개를 찾았어요. · {monotonic() - stage_started:.1f}초", flush=True)
-        _progress(2, 5, "과제와 마감일을 살펴보는 중이에요…")
-        stage_started = monotonic()
-        assignments = provider.get_assignments(user_id)
-        print(f"과제 {len(assignments)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
-        # Assignment reads already warm the shared course-page cache in the parallel provider.
-        # Parse the activity map after that work so it does not become a serial network gate.
-        catalog_reader = getattr(provider, 'get_activity_catalog', None)
-        activities = catalog_reader(user_id) if catalog_reader else None
-        print(f"강의실 활동 {len(activities or [])}개를 분류했어요. 새 유형도 놓치지 않을게요.", flush=True)
-        persist(db_path, user_id, username, courses, assignments=assignments, activities=activities)
-        _progress(3, 5, "강의 시청 상태를 확인하는 중이에요…")
-        stage_started = monotonic()
-        lectures = provider.get_lectures(user_id)
-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, activities=activities)
-        print(f"강의 {len(lectures)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
-        _progress(4, 5, "새 공지를 살펴보는 중이에요…")
-        stage_started = monotonic()
-        notices = provider.get_notices(user_id)
-        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, activities=activities)
-        print(f"공지 {len(notices)}개를 확인했어요. · {monotonic() - stage_started:.1f}초", flush=True)
-        _progress(5, 5, "강의 자료를 확인하는 중이에요…")
-        stage_started = monotonic()
-        resources = provider.get_resources(user_id, notices=notices, existing_resources=cached_resources,
-                                           progress=lambda message: print(message, flush=True),
-                                           download_new_files=not args.metadata_only,
-                                           resource_ids=set(args.resource_id) if args.resource_id else None,
-                                           save_file=lambda item: store_resource(file_root, item))
-        reused = sum(item.get('_reused', False) for item in resources)
-        print(f"자료 {len(resources)}개를 확인했어요. 기존 파일 {reused}개는 다시 받지 않았어요. · {monotonic() - stage_started:.1f}초", flush=True)
-    except SocketTimeout as error:
-        raise SystemExit("학교의 응답이 늦어 잠시 멈췄어요. 이미 저장한 내용은 그대로 남아 있어요. 잠시 후 다시 시도해 주세요.") from error
+        with sync_policy.SyncLock(db_path) as guard:
+            try:
+                previous_scope = scope
+                previous_failure = bool(guard.state(scope).get('failed')) if scope else False
+                if scope:
+                    remaining = guard.remaining(scope)
+                    if remaining:
+                        raise RequestBackoff(remaining)
+                    user_id = os.environ.get('UNIVERSITY_AGENT_USER_ID', local_username)
+                    state = _saved_sync_state(db_path, user_id)
+                    if not guard.state(scope).get('failed') and _can_reuse(args, state, scope, db_path, user_id, requested_at):
+                        print('최근에 성공한 학교 확인 결과를 재사용했어요. 기존 확인 시각을 유지해요.')
+                        return
+                    guard.record(scope, failed=True)
+                username, session = _login_with_retries(base_url, os.environ.get('TLS_USERNAME'), stored_only=args.academic_only)
+                user_id = os.environ.get('UNIVERSITY_AGENT_USER_ID', username)
+                scope = sync_policy.scope_key(base_url, username)
+                if guard.remaining(scope):
+                    raise RequestBackoff(guard.remaining(scope))
+                retry_failed = previous_failure if scope == previous_scope else bool(guard.state(scope).get('failed'))
+                guard.record(scope, failed=True)
+                _perform_sync(args, db_path, user_id, username, session, scope,
+                              retry_failed=retry_failed)
+                guard.record(scope)
+            except BaseException as error:
+                if scope:
+                    delay = error.seconds if isinstance(error, RequestBackoff) else 60 if isinstance(error, (URLError, TimeoutError)) else 0
+                    guard.record(scope, failed=True, delay=max(delay, guard.remaining(scope)))
+                raise
+    except RequestBackoff as error:
+        raise SystemExit(f'학교 요청을 잠시 쉬고 있어요. 약 {max(1, int(error.seconds + 0.999))}초 후 다시 확인해 주세요. 기존 기록의 확인 시각은 갱신하지 않았어요.') from error
     except LoginError as error:
-        raise SystemExit('학교에 연결하지 못했어요. 아이디와 비밀번호를 확인하고 다시 연결해 주세요.') from error
-    except URLError as error:
-        raise SystemExit('학교와 연결이 끊겨 잠시 멈췄어요. 이미 저장한 내용은 그대로 남아 있어요. 잠시 후 다시 시도해 주세요.') from error
-    prohibited = 0
-    course_names = {course["id"]: course["name"] for course in courses}
-    for item in resources:
-        if item.get("downloadStatus") == "PROHIBITED":
-            prohibited += 1
-            print(f"{course_names.get(item['courseId'], '과목')} · {item['title']}는 내려받기가 금지되어 이번에는 제외했어요.", flush=True)
-            continue
-        if item.get("downloadStatus") == "DOWNLOADED" and item.get("localPath"):
-            continue
-        if "_content" not in item:
-            print(f"{course_names.get(item['courseId'], '과목')} · {item['title']} · {resource_unavailable_reason(item)}", flush=True)
-            continue
-        store_resource(file_root, item)
-    persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures, notices=notices, resources=resources, activities=activities)
+        raise SystemExit('학교에 연결하지 못했어요. 아이디와 비밀번호를 확인해 주세요.') from error
+    except (sync_policy.SyncBusy, CredentialInputRequired, RuntimeError) as error:
+        raise SystemExit(str(error)) from error
+    except (URLError, TimeoutError) as error:
+        raise SystemExit('학교 확인이 끝나지 않았어요. 기존 기록은 보존했으며 잠시 후 다시 확인할 수 있어요.') from error
+
+
+def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_failed=False):
+    started = monotonic()
+    force = args.full or args.force or retry_failed
+    provider = MoodleTLSProvider(session)
+    provider.progress = lambda message: print(message, flush=True)
+    state = _saved_sync_state(db_path, user_id)
+    if state.get('sync_scope') != scope:
+        force = True
+    if args.academic_only:
+        courses, assignments, lectures = provider.get_academic_snapshot(user_id)
+        persist(db_path, user_id, username, courses, assignments=assignments, lectures=lectures)
+        ids = {course['id'] for course in courses}
+        _mark_checks(db_path, user_id, 'academic', ids, ids, scope)
+        print(f'과제·시청 상태 확인 완료 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개')
+        return
+    autonomous_url = state.get('autonomous_course_watch_url')
+    if autonomous_url and (force or not sync_policy.fresh(state.get('autonomous_course_checked_at'), sync_policy.CATALOG_TTL)):
+        watch = refresh_autonomous_course(provider, user_id, autonomous_url,
+                                         {'fingerprint': state.get('autonomous_course_fingerprint')})
+        with closing(LocalDatabase(db_path)) as database:
+            update = {'autonomous_course_checked_at': sync_policy.now().isoformat(),
+                      'autonomous_course_check_status': 'CHANGED' if watch.get('changed') else 'OK'}
+            if watch['ok']:
+                update.update(autonomous_course_fingerprint=watch['fingerprint'],
+                              autonomous_course_snapshot=json.dumps(watch['snapshot'], ensure_ascii=False),
+                              autonomous_course_check_error='')
+            else:
+                update.update(autonomous_course_check_status='FAILED', autonomous_course_check_error=watch['reason'])
+            database.merge_sync_state(user_id, update)
+        if not watch['ok']:
+            raise RuntimeError(watch['reason'])
+    preflight = provider.preflight(user_id)
+    courses = provider.get_courses(user_id)
+    ids = set(preflight['courseIds'])
+    changed = None if force else _changed_course_ids(state, preflight)
+    changed = ids if changed is None else changed
+    academic = changed | sync_policy.due_courses(state, 'academic', ids, sync_policy.ACADEMIC_TTL)
+    notices_scope = changed | sync_policy.due_courses(state, 'notice', ids, sync_policy.NOTICE_TTL)
+    resources_scope = changed | sync_policy.due_courses(state, 'resource', ids, sync_policy.RESOURCE_TTL)
+    if args.resource_id:
+        requested = _requested_course_ids(db_path, user_id, args.resource_id) if db_path.exists() else None
+        requested = ids if requested is None else requested & ids
+        resources_scope |= requested
+        notices_scope |= requested  # Recheck restrictions stated in notices before an explicit download.
+    elif not args.metadata_only:
+        resources_scope |= sync_policy.due_courses(state, 'file', ids, sync_policy.RESOURCE_TTL)
+    if not args.metadata_only:
+        notices_scope |= resources_scope
+    # Reconcile enrollment without discarding data that a later failing read must preserve.
+    persist(db_path, user_id, username, courses, assignments=[], lectures=[], refreshed_course_ids=set())
+    if changed:
+        activities = provider.for_courses(user_id, changed).get_activity_catalog(user_id)
+    if academic:
+        reader = provider.for_courses(user_id, academic)
+        assignments = reader.get_assignments(user_id)
+        persist(db_path, user_id, username, courses, assignments=assignments, refreshed_course_ids=academic)
+        lectures = reader.get_lectures(user_id)
+        persist(db_path, user_id, username, courses, lectures=lectures, refreshed_course_ids=academic)
+        _mark_checks(db_path, user_id, 'academic', academic, ids, scope)
+    if changed:
+        persist(db_path, user_id, username, courses, activities=activities, refreshed_course_ids=changed)
+    if notices_scope:
+        notices = provider.for_courses(user_id, notices_scope).get_notices(user_id)
+        persist(db_path, user_id, username, courses, notices=notices, refreshed_course_ids=notices_scope)
+        _mark_checks(db_path, user_id, 'notice', notices_scope, ids, scope)
+    if resources_scope:
+        file_root = db_path.parent / 'files'
+        with closing(LocalDatabase(db_path, read_only=True)) as database:
+            notices = database.get_notices(user_id)
+        resources = provider.for_courses(user_id, resources_scope).get_resources(
+            user_id, notices=notices, existing_resources=_cached_resources(db_path, user_id, file_root),
+            download_new_files=not args.metadata_only, resource_ids=set(args.resource_id) if args.resource_id else None,
+            save_file=lambda item: store_resource(file_root, item))
+        if any(item.get('_checkFailed') for item in resources):
+            raise URLError('일부 자료의 현재 상태를 확인하지 못했어요.')
+        persist(db_path, user_id, username, courses, resources=resources, refreshed_course_ids=resources_scope)
+        _mark_checks(db_path, user_id, 'resource', resources_scope, ids, scope)
+        if not args.metadata_only and not args.resource_id:
+            complete = {identifier for identifier in resources_scope if all(
+                item.get('downloadStatus') in ('DOWNLOADED', 'PROHIBITED')
+                for item in resources if item['courseId'] == identifier)}
+            _mark_checks(db_path, user_id, 'file', complete, ids, scope)
     _save_sync_state(db_path, user_id, provider)
-    elapsed = round(monotonic() - started, 1)
-    print(f"터틀넥 준비 완료 · 과목 {len(courses)}개 · 활동 {len(activities)}개 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개 · 공지 {len(notices)}개 · 자료 {len(resources)}개 · 제한으로 건너뜀 {prohibited}개 · {elapsed}초", flush=True)
-    print("이제 ‘이번 주에 뭐부터 해야 해?’라고 물어보면 우선순위를 정리해 드릴게요.", flush=True)
+    with closing(LocalDatabase(db_path)) as database:
+        database.merge_sync_state(user_id, {'catalog_checked_at': sync_policy.now().isoformat(), 'sync_scope': scope})
+    print(f'학교 확인 완료 · 과목 {len(ids)}개 · 과제·시청 상태 {len(academic)}과목 · 공지 {len(notices_scope)}과목 · 자료 {len(resources_scope)}과목 · {monotonic() - started:.1f}초')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

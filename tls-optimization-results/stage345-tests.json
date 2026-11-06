@@ -1,0 +1,16 @@
+{
+  "university": {
+    "total": 344,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2,
+    "passed": 342
+  },
+  "server": {
+    "total": 16,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 16
+  }
+}

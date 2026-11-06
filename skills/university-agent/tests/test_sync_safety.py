@@ -447,6 +447,9 @@ class SyncSafetyTests(unittest.TestCase):
     def test_completed_stages_survive_later_network_failure(self):
         class Provider:
             def __init__(self, session): pass
+            def preflight(self, user): return {'courseIds': ['c'], 'fingerprints': {'c': 'fixture'}}
+            def for_courses(self, user, ids): return self
+            def get_activity_catalog(self, user): return []
             def get_courses(self, user): return [{'id': 'c', 'name': '과목'}]
             def get_assignments(self, user): return [{'id': 'a', 'courseId': 'c', 'title': '과제', 'dueAt': None}]
             def get_lectures(self, user): raise URLError('temporary failure')

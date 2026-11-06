@@ -122,6 +122,27 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.request('/v1/disconnect', 'POST', bearer=new)['status'], 200)
         self.assertEqual(self.request('/v1/sync', bearer=new)['status'], 401)
 
+    def test_recent_complete_sync_reuses_records_without_provider_reads(self):
+        self.connect('alice')
+        account = self.app.accounts['alice']
+        stamp = account['syncedAt']
+        with patch('server.app.MoodleTLSProvider') as provider:
+            self.app.sync_worker('alice', account)
+            provider.assert_not_called()
+        self.assertEqual(account['syncedAt'], stamp)
+        self.assertIsNone(account['error'])
+
+    def test_persistent_cooldown_prevents_gateway_reads(self):
+        from server.app import sync_policy
+        self.connect('alice')
+        scope = sync_policy.scope_key('https://tls.kku.ac.kr', 'alice')
+        with sync_policy.SyncLock(self.app.db_path('alice')) as guard:
+            guard.record(scope, failed=True, delay=90)
+        with patch('server.app.MoodleTLSProvider') as provider:
+            self.app.sync_worker('alice', self.app.accounts['alice'])
+            provider.assert_not_called()
+        self.assertIsNotNone(self.app.accounts['alice']['error'])
+
     def test_account_isolation_deadlines_pagination_and_schema(self):
         alice, bob = self.connect('alice'), self.connect('bob')
         for user, tokens in [('alice', alice), ('bob', bob)]:

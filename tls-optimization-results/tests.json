@@ -1,0 +1,23 @@
+[
+  {
+    "suite": "skills/university-agent/tests",
+    "tests": 325,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2,
+    "skip_reasons": [
+      "macOS PDFKit required",
+      "Install requirements.txt to check portable PDF extraction"
+    ],
+    "successful": true
+  },
+  {
+    "suite": "server",
+    "tests": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "skip_reasons": [],
+    "successful": true
+  }
+]
