@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-13
+          - os: macos-15-intel
             artifact: turtleneck-macos-x64-unsigned
           - os: windows-latest
             artifact: turtleneck-windows-x64-unsigned
