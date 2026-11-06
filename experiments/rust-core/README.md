@@ -1,4 +1,50 @@
-# Rust activity-parser pilot
+# Rust partial-backend experiment
+
+Current: [PARTIAL_PLAN.md](PARTIAL_PLAN.md),
+[detailed results](../../RUST_PARTIAL_RESULTS.md),
+[report memo](../../RUST_PARTIAL_REPORT_MEMO.md).
+Activity and overview passed partial adoption; slower concept ranking stays Python.
+The actual internal exam API was measured with ThreadingHTTPServer and called no
+HTML parsers. No Rust HTTP server was implemented.
+
+```powershell
+cargo build --release --locked --manifest-path experiments/rust-core/Cargo.toml
+cargo test --release --locked --manifest-path experiments/rust-core/Cargo.toml
+$env:PYTHONUTF8='1'
+python -m unittest discover -s experiments/rust-core -p 'test_*.py'
+python experiments/rust-core/partial_benchmark.py
+python experiments/rust-core/assess_partial.py
+```
+
+There are six Rust tests and 27 Python experiment tests. Assessment also consumes
+`partial-regression.json` and `partial-tests.json`; regenerate successful summaries
+when code changes. Optional `partial_benchmark.py --live` reads TLS pages in memory
+without saving HTML/credentials or modifying source DB/school data.
+
+Explicit approved execution:
+
+```powershell
+python experiments/rust-core/run.py sync_tls --ensure --metadata-only --metrics
+```
+
+This is normal sync and **updates the application's DB**, not a read-only benchmark.
+The launcher selects adopted modules from `partial-decision.json`; missing/stale
+DLLs fall back to Python. Normal entry points remain Python. Install before request
+threads start; never switch the global backend while serving.
+
+To reproduce current legacy checks, adapt the historical snippet below: import
+`activate` from `backend`, use `activate(native, ('activity', 'overview', 'concept'))`
+instead of `patch.object`, and write to `partial-regression.*`. Record
+`html_calls_by_kind=native.calls_by_kind`, `html_fallbacks=native.fallbacks`,
+`concept_calls=native.concept_calls`, `concept_fallbacks=native.concept_fallbacks`.
+All three candidates are checked for functionality, including non-adopted concept.
+Child Python commands keep their normal backend.
+
+Current artifact identity is in `results/partial-environment.json` and
+`results/partial-hashes.json`. Other OS/bundles and combined-parser peak memory
+remain unvalidated. Initial evidence below is historical; preserve its hashes.
+
+## Historical activity-only pilot
 
 See [PLAN.md](PLAN.md) for the decision fixed before timing, and
 [RUST_MIGRATION_RESULTS.md](../../RUST_MIGRATION_RESULTS.md) for measured results.
@@ -69,8 +115,8 @@ After current results and adapter-test aggregates are present:
 python experiments/rust-core/assess.py
 ```
 
-Expansion requires `allow_expansion: true`. The current result is false, so no
-other parser or production module is migrated. If a future representative workload
+The initial expansion required `allow_expansion: true`. That result was false.
+Current partial adoption uses the separate policy above. If a future representative workload
 passes, port one remaining local kernel, extend parity tests, and repeat the same
 gate. A microbenchmark win alone is insufficient.
 

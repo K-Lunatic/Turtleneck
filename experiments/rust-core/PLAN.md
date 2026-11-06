@@ -1,5 +1,8 @@
 # Rust core experiment
 
+Historical first-pilot criteria. Current partial adoption uses
+[PARTIAL_PLAN.md](PARTIAL_PLAN.md); retain this plan with its original evidence.
+
 Branch: `experiment/rust-core-refactor`, based on `c60d975`.
 The `turtleneck` branch and the existing production Python backend are preserved.
 

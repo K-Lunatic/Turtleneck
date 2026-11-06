@@ -1,0 +1,25 @@
+{
+  "modules": {
+    "activity": {
+      "module_gain_passed": true,
+      "domain_non_regression": true,
+      "adopt": true
+    },
+    "overview": {
+      "module_gain_passed": true,
+      "domain_non_regression": true,
+      "adopt": true
+    },
+    "concept": {
+      "module_gain_passed": false,
+      "domain_non_regression": false,
+      "adopt": false
+    }
+  },
+  "regression_passed": true,
+  "experiment_tests_passed": true,
+  "overall_non_regression": true,
+  "full_rewrite_authorized": false,
+  "web_server_ported": false,
+  "policy": "Module >=20% with positive paired interval; applicable flow no worse than 5%."
+}

@@ -1,0 +1,23 @@
+{
+  "university": {
+    "total": 368,
+    "passed": 366,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 2
+  },
+  "server": {
+    "total": 16,
+    "passed": 16,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0
+  },
+  "html_calls_by_kind": {
+    "activity": 1030,
+    "overview": 758
+  },
+  "html_fallbacks": 0,
+  "concept_calls": 77,
+  "concept_fallbacks": 0
+}

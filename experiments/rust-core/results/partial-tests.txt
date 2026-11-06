@@ -1,0 +1,33 @@
+test_concurrent_calls_are_independent (test_adapter.ParityTests.test_concurrent_calls_are_independent) ... ok
+test_fallback_preserves_duplicate_attribute_semantics (test_adapter.ParityTests.test_fallback_preserves_duplicate_attribute_semantics) ... ok
+test_ffi_rejects_invalid_utf8_and_input_size (test_adapter.ParityTests.test_ffi_rejects_invalid_utf8_and_input_size) ... ok
+test_generated_markup_matches (test_adapter.ParityTests.test_generated_markup_matches) ... ok
+test_incremental_feed_keeps_completed_items (test_adapter.ParityTests.test_incremental_feed_keeps_completed_items) ... ok
+test_static_html_contracts (test_adapter.ParityTests.test_static_html_contracts) ... ok
+test_complete_valid_evidence_allows_next_stage (test_assess.GateTests.test_complete_valid_evidence_allows_next_stage) ... ok
+test_failed_or_missing_regression_stops_expansion (test_assess.GateTests.test_failed_or_missing_regression_stops_expansion) ... ok
+test_micro_speedup_cannot_replace_missing_representative_flow (test_assess.GateTests.test_micro_speedup_cannot_replace_missing_representative_flow) ... ok
+test_noise_or_insufficient_improvement_stops_expansion (test_assess.GateTests.test_noise_or_insufficient_improvement_stops_expansion) ... ok
+test_request_or_data_changes_cannot_be_called_a_speedup (test_assess.GateTests.test_request_or_data_changes_cannot_be_called_a_speedup) ... ok
+test_explicit_modules_restore_even_after_error (test_backend.ActivationTests.test_explicit_modules_restore_even_after_error) ... ok
+test_launcher_forwards_arguments_and_enables_only_approved_modules (test_backend.ActivationTests.test_launcher_forwards_arguments_and_enables_only_approved_modules) ... Experimental HTML backend: activity, overview
+ok
+test_missing_dll_keeps_python (test_backend.ActivationTests.test_missing_dll_keeps_python) ... ok
+test_evidence_order_and_unicode_sort_are_kept (test_concept.ConceptParityTests.test_evidence_order_and_unicode_sort_are_kept) ... ok
+test_existing_permission_and_course_regressions_use_native_rank (test_concept.ConceptParityTests.test_existing_permission_and_course_regressions_use_native_rank) ... ok
+test_generated_scores_and_ties_match (test_concept.ConceptParityTests.test_generated_scores_and_ties_match) ... ok
+test_invalid_unselected_score_preserves_original_exception (test_concept.ConceptParityTests.test_invalid_unselected_score_preserves_original_exception) ... ok
+test_nonfinite_and_surrogate_inputs_use_python_recovery (test_concept.ConceptParityTests.test_nonfinite_and_surrogate_inputs_use_python_recovery) ... ok
+test_generated_sections_match (test_overview.OverviewParityTests.test_generated_sections_match) ... ok
+test_incremental_feed_and_concurrent_requests (test_overview.OverviewParityTests.test_incremental_feed_and_concurrent_requests) ... ok
+test_static_visibility_and_structure_contracts (test_overview.OverviewParityTests.test_static_visibility_and_structure_contracts) ... ok
+test_applicable_flow_regression_blocks_its_html_adoption (test_partial_assess.PartialGateTests.test_applicable_flow_regression_blocks_its_html_adoption) ... ok
+test_failed_regression_and_changed_outputs_never_adopt (test_partial_assess.PartialGateTests.test_failed_regression_and_changed_outputs_never_adopt) ... ok
+test_missing_measurements_never_adopt (test_partial_assess.PartialGateTests.test_missing_measurements_never_adopt) ... ok
+test_partial_gain_is_allowed_without_twenty_percent_overall_gain (test_partial_assess.PartialGateTests.test_partial_gain_is_allowed_without_twenty_percent_overall_gain) ... ok
+test_slow_concept_path_does_not_block_good_html_modules (test_partial_assess.PartialGateTests.test_slow_concept_path_does_not_block_good_html_modules) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.122s
+
+OK

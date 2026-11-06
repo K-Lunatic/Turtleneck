@@ -148,6 +148,11 @@ def build_insights(root, user, resources, *, course_ids=None, limit=20):
                             if pair.get("id") in wrong:
                                 _add(bucket, pair.get("concept"), weak=1, attempts=1, explanation=pair.get("explanation", ""), evidence=pair.get("evidence", []))
 
+    return _rank_bucket(bucket, limit)
+
+
+def _rank_bucket(bucket, limit):
+    """Pure ranking boundary; source permissions and record aggregation stay above."""
     if not bucket:
         return {"concepts": [], "total": 0}
     max_importance = max(item["importanceRaw"] for item in bucket.values()) or 1

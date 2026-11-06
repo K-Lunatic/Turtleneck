@@ -2,7 +2,17 @@
 
 작성일: 2026-11-06 · 브랜치: `experiment/rust-core-refactor` · 기준: `c60d975`
 
-## 결론과 goal 처리
+## 현재 결론 — 부분 채택 후속 실험
+
+사용자 요청에 따라 모듈의 개선과 전면 전환을 분리해 다시 판단했다. **활동 파서와 섹션
+개요 파서는 실험 브랜치의 명시적 실행 경로에 부분 채택**했다. 개념 우선순위 계산은
+현재 JSON/FFI 경로가 느려 채택하지 않았고, 내부 웹도 실제 API를 측정해 검토 범위에 넣었다.
+기본 Python 진입점과 운영 `turtleneck`은 그대로다. 아래 1차 원시 수치는 보존한다.
+
+최신 결과와 실행 방법은 [부분 채택 후속 기록](RUST_PARTIAL_RESULTS.md), 요약은
+[부분 채택 보고 메모](RUST_PARTIAL_REPORT_MEMO.md)를 기준으로 한다.
+
+## 1차 당시 결론과 goal 처리
 
 **활동 파서는 빨라졌지만 대표 동기화 전체 흐름의 개선이 없어 확대 전환을 중단했다.**
 기존 `turtleneck`과 운영 Python 구현은 보존했다. Rust 시제품·재현 가능한 비교·회귀 검사·
@@ -12,7 +22,8 @@
 측정 전에 고정한 조건은 [PLAN.md](experiments/rust-core/PLAN.md)에 있다. 활동 목록 파서의
 출력·오류·URL·제한 문구가 같아야 하며, 대표 목록 확인과 전체 메타데이터 동기화가 **각각
 중앙값 20% 이상 단축**되고 95% 반복측정 구간도 개선 방향이어야 다음 전환을 허용한다.
-현재 [decision.json](experiments/rust-core/results/decision.json)의 `allow_expansion`은 false다.
+1차 [decision.json](experiments/rust-core/results/decision.json)의 `allow_expansion`은 false다.
+이는 전면 확대용 기존 기준이며, 후속 부분 채택은 별도 `partial-decision.json`으로 판단한다.
 
 ## 구현 범위
 

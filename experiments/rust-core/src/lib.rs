@@ -5,6 +5,8 @@ use serde::Serialize;
 use std::{cell::RefCell, panic::catch_unwind, ptr, rc::Rc};
 
 const MAX_INPUT: usize = 32 * 1024 * 1024;
+mod overview;
+mod concept;
 
 #[derive(Default, Serialize)]
 struct Activity {
@@ -145,11 +147,27 @@ fn failure(status: u32) -> Buffer {
 /// Input must point to `len` readable bytes for the duration of this call.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn activity_parse(data: *const u8, len: usize) -> Buffer {
+    unsafe { export_parse(data, len, parse) }
+}
+
+/// Input must point to `len` readable bytes for the duration of this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn overview_parse(data: *const u8, len: usize) -> Buffer {
+    unsafe { export_parse(data, len, overview::parse) }
+}
+
+/// Input must point to a UTF-8 JSON payload of `len` readable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn concept_rank(data: *const u8, len: usize) -> Buffer {
+    unsafe { export_parse(data, len, concept::rank) }
+}
+
+unsafe fn export_parse<T: Serialize>(data: *const u8, len: usize, parser: fn(&str) -> Result<T, ()>) -> Buffer {
     if len > MAX_INPUT || (data.is_null() && len != 0) { return failure(1); }
     let result = catch_unwind(|| {
         let input = if len == 0 { &[] } else { unsafe { std::slice::from_raw_parts(data, len) } };
         let html = std::str::from_utf8(input).map_err(|_| 1_u32)?;
-        let items = parse(html).map_err(|_| 2_u32)?;
+        let items = parser(html).map_err(|_| 2_u32)?;
         serde_json::to_vec(&items).map_err(|_| 3_u32)
     });
     match result {

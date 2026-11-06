@@ -1,0 +1,21 @@
+{
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26300-SP0",
+  "machine": "AMD64",
+  "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+  "cargo": "1.99.1",
+  "target": "x86_64-pc-windows-gnu",
+  "source_branch": "experiment/rust-core-refactor",
+  "previous_experiment_commit": "4ce2bc3816bbcaf46f0ed62d9214f53592030894",
+  "production_branch_commit": "3dff972874ce2607d21843a13c70b44bb0586057",
+  "dll_sha256": "96ae19b3c8bbd4140130edd4410e52251652f2cdd5f178ab340762559de2bcdd",
+  "cargo_lock_sha256": "74cc9b8ac8878f2d25763f9c4827e9cfa3ef78f7a9a17c4c5b366c626de2af55",
+  "adopted_modules": [
+    "activity",
+    "overview"
+  ],
+  "excluded_modules": [
+    "concept"
+  ],
+  "note": "Initial environment.json and hashes.json belong to the historical activity-only pilot."
+}
