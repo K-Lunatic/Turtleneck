@@ -8,6 +8,7 @@
 - [최적화 보류 목록](OPTIMIZATION_BACKLOG.md) · 다음 실행 항목
 - [파트별 벤치마크 기준](BENCHMARK_PROTOCOL.md) · OS·버전별 비교 규칙
 - [상징 버전별 비교 기준](VERSION_BENCHMARKS.md) · 해커톤·최적화·Rust·현재 버전
+- [최신 벤치마크 결과](BENCHMARK_RESULTS.md) · macOS/Windows 독립 실행 누적 기록
 
 ## 기록 보존
 

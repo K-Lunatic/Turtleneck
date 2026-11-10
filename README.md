@@ -70,6 +70,11 @@
 저장된 [최적화 기록](docs/optimization/README.md)과 GitHub Actions의 `Benchmark Turtleneck` 결과에서
 확인할 수 있습니다.
 
+최근 macOS 기준 실행(`448376b`, 8코어)에서는 4개 파일 학습 파이프라인이 `102.667ms → 93.774ms`,
+warm 재사용이 `23.498ms → 22.624ms`로 측정됐습니다. 이 수치는 AI 추론과 실제 TLS 접속을 제외한
+오프라인 fixture 결과이며, [최신 상세 결과](docs/optimization/BENCHMARK_RESULTS.md)에 실행 환경과
+파트별 타임스탬프를 함께 기록합니다.
+
 ## 빠른 시작
 
 터틀넥은 GitHub에서 `Turtleneck AI Skill` 또는 `터틀넥 스킬`로 찾을 수 있고, Codex·Claude Code
