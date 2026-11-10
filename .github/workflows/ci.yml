@@ -11,23 +11,82 @@ env:
 
 jobs:
   test:
+    name: test (${{ matrix.os }}, ${{ matrix.suite }})
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         os: [macos-14, windows-latest]
-        python: ['3.11']
+        suite: [study, sync, assignments, moodle]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python }}
-      - name: Run tests
+          python-version: '3.11'
+      - name: Run skill tests
         shell: bash
         run: |
-          PYTHONPATH=skills/university-agent python -m unittest discover -s skills/university-agent/tests -p 'test_*.py'
-          PYTHONPATH=skills/university-agent python -m unittest server.test_app server.test_local
-          python -m compileall -q server skills/university-agent packaging
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            export PYTHONPATH="skills/university-agent;skills/university-agent/tests"
+          else
+            export PYTHONPATH="skills/university-agent:skills/university-agent/tests"
+          fi
+          case "${{ matrix.suite }}" in
+            study)
+              modules="test_concept_insights test_exam_web test_learning_plan test_lecture_audio test_study test_study_materials test_study_pack test_study_pipeline test_study_topup"
+              ;;
+            sync)
+              modules="test_academic_alerts test_academic_status test_analysis_records test_connection test_everytime_connect test_setup test_sync_policy test_sync_safety test_tls_backup_download test_tls_data test_tls_login test_tls_optimization test_update"
+              ;;
+            assignments)
+              modules="test_assignment_draft test_assignment_selection test_assignment_submission test_learner_profile test_notice_storage_optimization test_project test_resource_responses test_resource_targeting test_secret_boundary"
+              ;;
+            moodle)
+              modules="test_assemble_moodle_backup test_autonomous_course_policy test_autonomous_course_watch test_autonomous_courses test_control_tls_activities test_control_tls_quiz_questions test_document_export test_inspect_tls_activity_forms test_install_turtleneck test_moodle_xml test_rebuild_moodle_backup test_restore_moodle_backup test_update_autonomous_course test_update_autonomous_section test_validate_moodle_backup"
+              ;;
+          esac
+          python -m unittest $modules
+
+  server:
+    name: server (${{ matrix.os }})
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run gateway tests
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            export PYTHONPATH="skills/university-agent;skills/university-agent/tests;."
+          else
+            export PYTHONPATH="skills/university-agent:skills/university-agent/tests:."
+          fi
+          python -m unittest server.test_app server.test_local
+
+  standalone:
+    name: standalone (${{ matrix.os }})
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile sources
+        shell: bash
+        run: python -m compileall -q server skills/university-agent packaging
       - name: Validate standalone build
         shell: bash
         run: |

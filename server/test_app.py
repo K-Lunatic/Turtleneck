@@ -60,6 +60,13 @@ class GatewayTests(unittest.TestCase):
         self.provider.stop()
         self.temp.cleanup()
 
+    def wait_for_idle(self, user, timeout=10):
+        """Allow the async first sync to finish on slower Windows runners."""
+        deadline = time.monotonic() + timeout
+        while self.app.accounts[user]['running'] and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertFalse(self.app.accounts[user]['running'])
+
     def request(self, path, method='GET', fields=None, bearer=None, query=None, extra=None, json_body=None):
         raw = json.dumps(json_body, ensure_ascii=False).encode() if json_body is not None else urlencode(fields or {}).encode()
         env = {'REQUEST_METHOD': method, 'PATH_INFO': path, 'QUERY_STRING': urlencode(query or {}), 'CONTENT_TYPE': 'application/json' if json_body is not None else 'application/x-www-form-urlencoded', 'CONTENT_LENGTH': str(len(raw)), 'wsgi.input': io.BytesIO(raw)}
@@ -95,10 +102,7 @@ class GatewayTests(unittest.TestCase):
     def connect(self, user):
         response = self.exchange(self.code(user))
         self.assertEqual(response['status'], 200)
-        for _ in range(200):
-            if not self.app.accounts[user]['running']:
-                break
-            time.sleep(.005)
+        self.wait_for_idle(user)
         self.assertIsNone(self.app.accounts[user]['error'])
         return response['body']
 
@@ -114,10 +118,7 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.request('/oauth/token', 'POST', fields)['status'], 400)
         self.app.tokens[hashlib.sha256(tokens['access_token'].encode()).hexdigest()]['expires'] = 0
         self.assertEqual(self.request('/v1/sync', bearer=tokens['access_token'])['status'], 401)
-        for _ in range(200):
-            if not self.app.accounts['alice']['running']:
-                break
-            time.sleep(.005)
+        self.wait_for_idle('alice')
         new = refreshed['body']['access_token']
         self.assertEqual(self.request('/v1/disconnect', 'POST', bearer=new)['status'], 200)
         self.assertEqual(self.request('/v1/sync', bearer=new)['status'], 401)
@@ -174,10 +175,7 @@ class GatewayTests(unittest.TestCase):
     def test_partial_sync_keeps_assignments_and_failed_refresh_keeps_old_data(self):
         with patch.object(FakeProvider, 'get_lectures', side_effect=TimeoutError('secret')):
             tokens = self.exchange(self.code())['body']
-            for _ in range(200):
-                if not self.app.accounts['alice']['running']:
-                    break
-                time.sleep(.005)
+            self.wait_for_idle('alice')
             result = self.request('/v1/assignments', bearer=tokens['access_token'])
             self.assertEqual(result['status'], 200)
             self.assertEqual(len(result['body']['data']), 1)
@@ -186,10 +184,7 @@ class GatewayTests(unittest.TestCase):
             self.assertNotIn('secret', str(result))
         with patch.object(FakeProvider, 'get_assignments', side_effect=TimeoutError):
             self.app.sync('alice')
-            for _ in range(200):
-                if not self.app.accounts['alice']['running']:
-                    break
-                time.sleep(.005)
+            self.wait_for_idle('alice')
             self.assertEqual(len(self.request('/v1/assignments', bearer=tokens['access_token'])['body']['data']), 1)
 
     def test_browser_secrets_and_errors_do_not_escape(self):
