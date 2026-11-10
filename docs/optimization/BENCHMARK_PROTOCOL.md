@@ -32,3 +32,27 @@ Windows와 macOS는 [.github/workflows/benchmark.yml](../../.github/workflows/be
 서로 다른 runner job으로 실행하고 결과 artifact도 분리한다. 이 workflow는 pull request와
 수동 실행에만 연결해 일반 push 테스트 시간을 늘리지 않는다.
 
+## 서버 트래픽 비교
+
+로컬 처리 시간만으로는 학교 서버 부담을 판단할 수 없다. 같은 작업 단위의 실제 브라우저 사용과
+터틀넥 실행을 각각 기록해 요청 수, 요청·응답 본문량, 리디렉션·실패·재시도, MIME별 요청 수를
+비교한다.
+
+사람 기준값은 브라우저에서 같은 시나리오를 수행해 내보낸 HAR로 만든다. 로그인·초기 준비는
+`academic_sync`, `open_one_course`, `download_one_file`, `watch_one_lecture` 같은 작업과 분리하고,
+스킬도 같은 범위의 계측 결과만 비교한다. HAR 요약기는 URL·쿼리·헤더·쿠키·요청 본문·응답 본문을
+저장하지 않으며, 크기와 집계값만 남긴다.
+
+```bash
+python experiments/benchmarks/traffic_profile.py \
+  --har /path/to/exported.har \
+  --scenario academic_sync \
+  --skill-json /tmp/turtleneck-benchmark.json \
+  --output /tmp/turtleneck-traffic-compare.json
+```
+
+현재 저장소에는 스킬 측정 도구와 개인정보 제거 요약기는 있지만 실제 학생 브라우저의 HAR가 아직
+등록되어 있지 않다. 따라서 HAR를 받기 전에는 “일반 사용자보다 몇 % 적다”라고 주장하지 않는다.
+본문량은 헤더·TLS·TCP·압축 전송 조건을 모두 포함하지 않는 하한이므로 회선 전체 사용량이나 학교
+내부 CPU·DB 부하와 동일한 값으로 해석하지 않는다.
+

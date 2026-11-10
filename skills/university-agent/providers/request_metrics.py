@@ -27,13 +27,16 @@ class RequestMetrics:
         self.requests = Counter()
         self.statuses = Counter()
         self.body_bytes = Counter()
+        self.request_body_bytes = 0
         self.active = self.peak = self.peak_rps = 0
         self.arrivals = deque()
 
-    def start(self, kind):
+    def start(self, kind, request_body_size=0):
         with self.lock:
             now = time.monotonic()
             self.requests[kind] += 1
+            if isinstance(request_body_size, (int, float)) and request_body_size > 0:
+                self.request_body_bytes += request_body_size
             self.active += 1
             self.peak = max(self.peak, self.active)
             self.arrivals.append(now)
@@ -62,6 +65,7 @@ class RequestMetrics:
         with self.lock:
             return {
                 'requests': sum(self.requests.values()), 'requests_by_kind': dict(self.requests),
+                'request_body_bytes': self.request_body_bytes,
                 'response_body_bytes': sum(self.body_bytes.values()),
                 'response_body_bytes_by_kind': dict(self.body_bytes), 'statuses': dict(self.statuses),
                 'peak_open_requests': self.peak, 'peak_requests_per_second': self.peak_rps,
@@ -77,7 +81,9 @@ class MetricsHandler(BaseHandler):
         self.metrics = metrics
 
     def http_request(self, request):
-        request._metrics_token = self.metrics.start(getattr(request, 'metrics_kind', 'page'))
+        data = getattr(request, 'data', None)
+        size = len(data) if isinstance(data, (bytes, bytearray, str)) else 0
+        request._metrics_token = self.metrics.start(getattr(request, 'metrics_kind', 'page'), size)
         return request
 
     https_request = http_request

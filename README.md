@@ -70,6 +70,10 @@
 저장된 [최적화 기록](docs/optimization/README.md)과 GitHub Actions의 `Benchmark Turtleneck` 결과에서
 확인할 수 있습니다.
 
+서버 부담은 로컬 시간만으로 추정하지 않습니다. 같은 작업을 브라우저와 터틀넥에서 각각 기록해
+요청 수·본문량·리디렉션·실패를 비교하며, 실제 브라우저 기준 HAR가 없을 때는 사용자보다 빠르거나
+가볍다고 단정하지 않습니다. 자세한 기준은 [트래픽 비교 절차](docs/optimization/BENCHMARK_PROTOCOL.md#서버-트래픽-비교)에 적었습니다.
+
 최근 macOS 기준 실행(`448376b`, 8코어)에서는 4개 파일 학습 파이프라인이 `102.667ms → 93.774ms`,
 warm 재사용이 `23.498ms → 22.624ms`로 측정됐습니다. 이 수치는 AI 추론과 실제 TLS 접속을 제외한
 오프라인 fixture 결과이며, [최신 상세 결과](docs/optimization/BENCHMARK_RESULTS.md)에 실행 환경과
