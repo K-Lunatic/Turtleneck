@@ -89,9 +89,10 @@ class TopUpTests(fixtures.FilePipelineTests):
         from features import material_cache
         self.seed_bank()
         with closing(sqlite3.connect(self.files.parent / 'study-sessions.db')) as db:
-            state = json.loads(db.execute('SELECT state FROM study_sessions WHERE conversation=?', ('seed',)).fetchone()[0])
+            pipeline = json.loads(db.execute('SELECT state FROM study_pipelines WHERE user=? AND exam_id=?',
+                ('fixture-user', 'conversation:seed')).fetchone()[0])
         cache = self.files.parent / 'cache'
-        key = state['pipeline']['analysisKey']
+        key = pipeline['analysisKey']
         value = material_cache.get(cache, 'analysis', 'fixture-user', key)
         value.pop('sourceAnalysisKey')
         material_cache.put(cache, 'analysis', 'fixture-user', key, value)

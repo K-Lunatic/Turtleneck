@@ -5,6 +5,7 @@
 - [TLS 수집 최적화](tls/README.md) · 5개 문서
 - [Rust 전환](rust/README.md) · 4개 문서
 - [문제 생성 최적화](study-generation/README.md) · 7개 문서
+- [최적화 보류 목록](OPTIMIZATION_BACKLOG.md) · 다음 실행 항목
 
 ## 기록 보존
 

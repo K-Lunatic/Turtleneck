@@ -384,6 +384,19 @@ class FilePipelineTests(ProjectTestBase):
         self.assertNotIn('pipeline', saved)
         self.assertEqual(len(pipeline['units']), 4)
 
+    def test_active_pipeline_is_split_from_session_and_resumes(self):
+        prepared = self.request()
+        path = self.files.parent / 'study-sessions.db'
+        with closing(sqlite3.connect(path)) as db, db:
+            session_state = json.loads(db.execute('SELECT state FROM study_sessions WHERE conversation=?', ('pipeline',)).fetchone()[0])
+            stored = db.execute('SELECT state FROM study_pipelines WHERE user=? AND exam_id=?',
+                                ('fixture-user', 'conversation:pipeline')).fetchone()
+        self.assertNotIn('pipeline', session_state)
+        self.assertIsNotNone(stored)
+        self.assertEqual(json.loads(stored[0])['fileIndex'], prepared['progress']['processedFiles'])
+        resumed = self.session('pipeline').call({'action': 'status'})
+        self.assertEqual(resumed['requestId'], prepared['requestId'])
+
     def test_catalog_reads_do_not_rewrite_large_session(self):
         prepared = self.request()
         for _ in range(4):
@@ -572,6 +585,8 @@ class FilePipelineTests(ProjectTestBase):
         session = self.session('pipeline')
         with closing(sqlite3.connect(self.files.parent / 'study-sessions.db')) as db, db:
             state = json.loads(db.execute('SELECT state FROM study_sessions').fetchone()[0])
+            pipeline = json.loads(db.execute('SELECT state FROM study_pipelines WHERE user=? AND exam_id=?',
+                ('fixture-user', 'conversation:pipeline')).fetchone()[0])
         material = study_materials(session.provider.get_courses('fixture-user'), session.provider.get_resources('fixture-user'),
             files_root=self.files, course_id='course-1', resource_ids=['r3'], include_ids=True, max_chars=10000000)['data']['materials'][0]
         config = {k: state['settings'][k] for k in ('choices', 'difficulty')}
@@ -579,10 +594,10 @@ class FilePipelineTests(ProjectTestBase):
         old_key = material_cache.key(['analysis-v1', CHUNK_CHARS, 'course-1',
             {k: v for k, v in material.items() if k != 'contentKey'}, config])
         root = self.files.parent / 'cache'
-        value = material_cache.get(root, 'analysis', 'fixture-user', state['pipeline']['analysisKey'])
+        value = material_cache.get(root, 'analysis', 'fixture-user', pipeline['analysisKey'])
         material_cache.put(root, 'analysis', 'fixture-user', old_key, value)
         with closing(sqlite3.connect(root / 'materials.db')) as db, db:
-            db.execute('DELETE FROM material_cache WHERE kind=? AND key=?', ('analysis', state['pipeline']['analysisKey']))
+            db.execute('DELETE FROM material_cache WHERE kind=? AND key=?', ('analysis', pipeline['analysisKey']))
         reused = self.session('upgrade').call({'action': 'request', 'selection': {'courseId': 'course-1', 'allFiles': True},
             'settings': {'count': 4, 'delivery': 'web'}})
         self.assertTrue(reused['needsExtraction'])

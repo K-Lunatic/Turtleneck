@@ -9,6 +9,7 @@ from threading import Lock
 
 
 _WRITE_LOCK = Lock()
+_SCHEMA = 'CREATE TABLE IF NOT EXISTS material_cache (kind TEXT, user TEXT, key TEXT, value TEXT, PRIMARY KEY(kind,user,key))'
 
 
 def key(value):
@@ -40,9 +41,17 @@ def get(root, kind, user, identifier):
     path = (Path(root) / 'materials.db').resolve()
     if not path.exists():
         return None
-    # The first writer creates the table lazily. Share the same short lock so
-    # a read cannot observe the file between creation and schema commit.
-    with _WRITE_LOCK:
+    try:
+        with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=10)) as db:
+            row = db.execute('SELECT value FROM material_cache WHERE kind=? AND user=? AND key=?',
+                             (kind, user, identifier)).fetchone()
+    except sqlite3.OperationalError as error:
+        if 'no such table' not in str(error).lower():
+            raise
+        # An empty cache file may be left by a concurrent first writer.
+        with _WRITE_LOCK:
+            with closing(sqlite3.connect(path, timeout=10)) as db, db:
+                db.execute(_SCHEMA)
         with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=10)) as db:
             row = db.execute('SELECT value FROM material_cache WHERE kind=? AND user=? AND key=?',
                              (kind, user, identifier)).fetchone()
@@ -59,6 +68,6 @@ def put(root, kind, user, identifier, value):
     # serialized so two extractors cannot recreate the cache lock race.
     with _WRITE_LOCK:
         with closing(sqlite3.connect(path, timeout=10)) as db, db:
-            db.execute('CREATE TABLE IF NOT EXISTS material_cache (kind TEXT, user TEXT, key TEXT, value TEXT, PRIMARY KEY(kind,user,key))')
+            db.execute(_SCHEMA)
             db.execute('INSERT OR REPLACE INTO material_cache VALUES (?,?,?,?)',
                        (kind, user, identifier, json.dumps(value, ensure_ascii=False, separators=(',', ':'))))

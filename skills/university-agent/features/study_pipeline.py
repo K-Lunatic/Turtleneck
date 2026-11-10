@@ -83,7 +83,7 @@ def _shared_reference_sources(unit):
 def start(session, state, selected, material=None):
     if material and material.get('truncated'):
         return {'status': 'selecting', 'answer': '첨부 본문 전체를 읽지 못했어요. 파일을 나눠서 첨부해주세요.'}
-    # ponytail: analysis lives in the existing session JSON; split into rows if large banks make writes measurably slow.
+    # Keep the growing analysis bank in the detachable pipeline table, not the live session row.
     state.update(phase='extracting', pipeline={'files': selected, 'fileIndex': 0,
                  'units': [], 'candidates': [], 'failures': [], 'chunks': [], 'chunkIndex': 0,
                  'activeBatch': [], 'activeDone': [],

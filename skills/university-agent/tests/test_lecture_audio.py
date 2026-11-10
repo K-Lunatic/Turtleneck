@@ -68,7 +68,7 @@ class LectureAudioTests(unittest.TestCase):
         def run(command, **kwargs):
             calls.append(command)
             if '-ng' not in command:
-                raise RuntimeError('GPU allocation failed')
+                raise lecture_review._CommandError('ASR failed', stderr='CUDA error: out of memory')
             return expected
         with patch.object(lecture_review, '_run', side_effect=run):
             result, backend = lecture_review._run_asr('whisper-cli', 'model.bin', 'vad.bin', 'audio.wav', 'out')
@@ -76,6 +76,15 @@ class LectureAudioTests(unittest.TestCase):
         self.assertNotIn('-ng', calls[0])
         self.assertIn('-ng', calls[1])
         self.assertIs(result, expected)
+
+    def test_asr_does_not_retry_non_gpu_failures(self):
+        calls = []
+        def run(command, **kwargs):
+            calls.append(command)
+            raise lecture_review._CommandError('ASR failed', stderr='invalid model format')
+        with patch.object(lecture_review, '_run', side_effect=run), self.assertRaises(lecture_review._CommandError):
+            lecture_review._run_asr('whisper-cli', 'model.bin', 'vad.bin', 'audio.wav', 'out')
+        self.assertEqual(len(calls), 1)
 
     def test_completed_flag_not_percentage_authorizes_source_and_never_calls_tracking(self):
         session = Session()

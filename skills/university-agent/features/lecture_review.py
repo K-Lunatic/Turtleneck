@@ -17,6 +17,13 @@ from features.material_cache import key
 from providers.lecture_media import media_window
 
 
+class _CommandError(RuntimeError):
+    def __init__(self, message, *, stderr='', returncode=None):
+        super().__init__(message)
+        self.stderr = stderr or ''
+        self.returncode = returncode
+
+
 def _db(root, *, write=False):
     path = Path(root) / 'lecture-review.db'
     if write:
@@ -69,13 +76,24 @@ def _run(command, *, timeout=300):
     try:
         return subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',
                               timeout=timeout, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    except (OSError, subprocess.SubprocessError):
-        raise RuntimeError('로컬 강의 처리를 마치지 못했어요. 도구·모델·메모리를 확인해 주세요. 기존 기록은 보존했어요.') from None
+    except subprocess.CalledProcessError as error:
+        raise _CommandError('로컬 강의 처리를 마치지 못했어요. 도구·모델·메모리를 확인해 주세요. 기존 기록은 보존했어요.',
+                            stderr=error.stderr, returncode=error.returncode) from None
+    except (OSError, subprocess.SubprocessError) as error:
+        raise _CommandError('로컬 강의 처리를 마치지 못했어요. 도구·모델·메모리를 확인해 주세요. 기존 기록은 보존했어요.',
+                            stderr=getattr(error, 'stderr', '')) from None
 
 
 def _asr_threads():
     """Leave roughly half the logical CPUs free for the student's other work."""
     return max(2, min(6, (os.cpu_count() or 4) // 2))
+
+
+def _needs_cpu_fallback(error):
+    text = str(getattr(error, 'stderr', '')).lower()
+    return any(marker in text for marker in (
+        'out of memory', 'cuda error', 'cuda-capable device', 'failed to initialize cuda',
+        'ggml_cuda_init', 'failed to initialize vulkan', 'no gpu device', 'ggml-metal: error'))
 
 
 def _run_asr(executable, model, vad_model, audio, output):
@@ -84,9 +102,10 @@ def _run_asr(executable, model, vad_model, audio, output):
     try:
         result = _run(command)
         return result, 'auto'
-    except RuntimeError:
-        # whisper.cpp has no portable free-VRAM API. A failed GPU allocation is the
-        # reliable cross-platform signal; retry once without GPU before giving up.
+    except _CommandError as error:
+        if not _needs_cpu_fallback(error):
+            raise
+        # whisper.cpp has no portable free-VRAM API; only its explicit allocation/device errors retry on CPU.
         result = _run(command + ['-ng'])
         return result, 'cpu'
 

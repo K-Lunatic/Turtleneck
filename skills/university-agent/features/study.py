@@ -598,7 +598,28 @@ class StudySession:
         if state.get('questions') and 'pipeline' in state:
             db.execute('INSERT OR REPLACE INTO study_pipelines VALUES (?,?,?)',
                 (self.user, state['examId'], json.dumps(state.pop('pipeline'), ensure_ascii=False, separators=(',', ':'))))
+            db.execute('DELETE FROM study_pipelines WHERE user=? AND exam_id=?',
+                       (self.user, self._conversation_pipeline_key()))
             state['analysisRef'] = state['examId']
+
+    def _conversation_pipeline_key(self):
+        return f'conversation:{self.conversation}'
+
+    def load_pipeline(self, db, state):
+        if 'pipeline' in state or state.get('phase') not in ('extracting', 'assembling'):
+            return
+        key = state.get('analysisRef') or self._conversation_pipeline_key()
+        row = db.execute('SELECT state FROM study_pipelines WHERE user=? AND exam_id=?',
+                         (self.user, key)).fetchone()
+        if row:
+            state['pipeline'] = json.loads(row[0])
+
+    def persist_active_pipeline(self, db, state):
+        if 'pipeline' not in state or state.get('questions'):
+            return
+        db.execute('INSERT OR REPLACE INTO study_pipelines VALUES (?,?,?)',
+                   (self.user, self._conversation_pipeline_key(),
+                    json.dumps(state.pop('pipeline'), ensure_ascii=False, separators=(',', ':'))))
 
     def exam_history(self, db, event):
         offset, limit = event.get('offset', 0), event.get('limit', 20)
@@ -1052,6 +1073,7 @@ class StudySession:
                 return self.exam_history(db, event)
             row = db.execute('SELECT state FROM study_sessions WHERE user=? AND conversation=?', (self.user, self.conversation)).fetchone()
             state = json.loads(row[0]) if row else {'phase': 'idle'}
+            self.load_pipeline(db, state)
             if event.get('action') == 'set_collection_start':
                 source_id = event.get('examId')
                 saved = db.execute('SELECT state FROM study_exams WHERE user=? AND exam_id=?', (self.user, source_id)).fetchone()
@@ -1123,6 +1145,10 @@ class StudySession:
                 result = self.transition(state, event)
             if not read_only:
                 self.detach_pipeline(db, state)
+                self.persist_active_pipeline(db, state)
+                if not state.get('questions') and state.get('phase') not in ('extracting', 'assembling'):
+                    db.execute('DELETE FROM study_pipelines WHERE user=? AND exam_id=?',
+                               (self.user, self._conversation_pipeline_key()))
                 if state.get('phase') == 'finished':
                     self.collection_mark_complete(db, state)
                 self.archive_exam(db, state)

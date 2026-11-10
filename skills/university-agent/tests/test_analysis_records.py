@@ -63,6 +63,17 @@ class AnalysisRecordsTest(unittest.TestCase):
                 list(pool.map(write, range(20)))
             self.assertEqual(material_cache.get(root, 'text', 'fixture-user', 'key-19'), {'value': 19})
 
+    def test_cache_reads_recover_empty_file_and_run_in_parallel(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            root.mkdir(parents=True, exist_ok=True)
+            (root / 'materials.db').touch()
+            self.assertIsNone(material_cache.get(root, 'text', 'fixture-user', 'missing'))
+            material_cache.put(root, 'text', 'fixture-user', 'shared', {'value': 1})
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                values = list(pool.map(lambda _: material_cache.get(root, 'text', 'fixture-user', 'shared'), range(20)))
+            self.assertEqual(values, [{'value': 1}] * 20)
+
     def test_revisions_private_readonly_and_restrictions(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = [{'resourceId': 'r1', 'courseId': 'c1', 'name': '배열',
