@@ -1,0 +1,26 @@
+# 상징 버전별 비교 기준
+
+벤치마크는 모든 과거 커밋을 같은 품질의 실행 대상으로 간주하지 않는다. 해당 버전에
+기능이 없으면 `not_available`, 실제 Whisper 모델·GPU가 없으면 `not_measured`로 남긴다.
+
+| 이름 | 기준 커밋 | 변경 내용 | 당시 역할 |
+| --- | --- | --- | --- |
+| 해커톤 당시 | `5677870` | 설치 가능한 대학생활 Skill의 시작 | TLS 기반 개인 학습 도구의 최소 흐름 |
+| 최초 최적화 | `b7cb4c6` | 학사 조회 병렬화·초기 TLS 최적화 | 반복적인 과목·학사 조회 시간 단축 |
+| TLS 최적화 | `81ad4d0` | 변경 과목·자료 중심 부분 동기화와 측정 기록 | 학교 요청 수·본문량 감소 |
+| Rust 실험 | `1a4f7e6` | 검증된 HTML 커널만 선택적으로 Rust 사용 | Python 전체 교체가 아닌 제한적 실험 |
+| 최신 기준 | `b64d82b` | 학습·서버·Windows/macOS 테스트 분리 | 최신 배포 전 기준선 |
+| 현재 최적화 | 결과 JSON의 `environment.commit` | 캐시 병렬 읽기, 분석 상태 분리, 전사 재시도 분류 | 로컬 처리 안정성과 재개 비용 개선 |
+
+## 실행 방법
+
+```bash
+python experiments/benchmarks/compare_versions.py \
+  --output /tmp/turtleneck-version-comparison.json \
+  --samples 10
+```
+
+결과의 각 버전에는 커밋, 실행 OS, Python, 머신, 논리 코어 수, 작업 시작·종료 시각,
+파트별 역할·대상 파일·중앙값이 함께 저장된다. macOS와 Windows 결과는 서로 다른 runner에서
+독립적으로 생성해야 하며 하나의 평균으로 합치지 않는다.
+

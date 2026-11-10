@@ -58,6 +58,18 @@
 
 > 기본 실행 환경은 **Codex·Claude Code·Gemini가 설치된 macOS·Windows**입니다. 모바일은 독립 실행형 앱이 아니라, 사용자의 컴퓨터에서 켜 둔 ChatGPT Actions 게이트웨이를 통해 정식 보조 경로로 지원합니다. 모바일 기기와 DB를 자동 동기화하지 않고, 컴퓨터 안에 원본 자료를 보관합니다.
 
+## 성능 검증은 계속 업데이트해요
+
+터틀넥은 전체 속도를 하나의 숫자로 포장하지 않고 학습 파이프라인·로컬 캐시·미디어·TLS 동기화·전사를
+파트별로 나눠 측정합니다. 각 결과에는 버전 커밋, 실행 시각, 운영체제, Python 버전, 머신과 논리 코어 수가
+함께 남습니다. macOS와 Windows는 서로 다른 환경에서 독립 실행하며, 실제 Whisper 모델이 없는 환경의
+전사 속도는 추정하지 않습니다.
+
+현재 기준과 상징 버전의 비교 규칙은 [파트별 벤치마크 기준](docs/optimization/BENCHMARK_PROTOCOL.md)과
+[상징 버전별 비교 기준](docs/optimization/VERSION_BENCHMARKS.md)에서 계속 갱신합니다. 최신 실행 결과는
+저장된 [최적화 기록](docs/optimization/README.md)과 GitHub Actions의 `Benchmark Turtleneck` 결과에서
+확인할 수 있습니다.
+
 ## 빠른 시작
 
 터틀넥은 GitHub에서 `Turtleneck AI Skill` 또는 `터틀넥 스킬`로 찾을 수 있고, Codex·Claude Code

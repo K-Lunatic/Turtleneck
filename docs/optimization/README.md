@@ -6,6 +6,8 @@
 - [Rust 전환](rust/README.md) · 4개 문서
 - [문제 생성 최적화](study-generation/README.md) · 7개 문서
 - [최적화 보류 목록](OPTIMIZATION_BACKLOG.md) · 다음 실행 항목
+- [파트별 벤치마크 기준](BENCHMARK_PROTOCOL.md) · OS·버전별 비교 규칙
+- [상징 버전별 비교 기준](VERSION_BENCHMARKS.md) · 해커톤·최적화·Rust·현재 버전
 
 ## 기록 보존
 

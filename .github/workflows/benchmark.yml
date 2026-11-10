@@ -1,0 +1,46 @@
+name: Benchmark Turtleneck
+
+on:
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: Repetitions per deterministic part
+        required: false
+        default: '10'
+  pull_request:
+    paths:
+      - 'experiments/benchmarks/**'
+      - 'experiments/study-generation/**'
+      - 'skills/university-agent/features/**'
+      - 'skills/university-agent/providers/**'
+      - 'skills/university-agent/scripts/sync_tls.py'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: benchmark (${{ matrix.os }})
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run offline part benchmarks
+        shell: bash
+        env:
+          SAMPLES: ${{ inputs.samples || '10' }}
+        run: |
+          python experiments/benchmarks/benchmark_parts.py \
+            --output "benchmark-${RUNNER_OS}.json" \
+            --samples "$SAMPLES"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: turtleneck-benchmark-${{ runner.os }}
+          path: benchmark-${{ runner.os }}.json
