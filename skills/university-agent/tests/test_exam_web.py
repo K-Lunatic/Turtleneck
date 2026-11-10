@@ -1,5 +1,6 @@
 """Saved exam -> HTTP answers -> host-AI rubric -> HTTP results, no live account."""
 import json
+import os
 import sqlite3
 from contextlib import closing
 import threading
@@ -7,6 +8,7 @@ import socket
 import queue
 import subprocess
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 from urllib.request import Request, urlopen
@@ -486,6 +488,7 @@ class ExamWebTests(ProjectTestBase):
             with urlopen(Request(base + 'api/exam', headers={'X-Exam-Token': token}), timeout=3) as response:
                 self.assertEqual(len(json.loads(response.read())['questions']), 6)
 
+    @unittest.skipUnless(os.name == 'nt', 'Windows pipe encoding check')
     def test_launcher_serves_styled_exam_under_windows_pipe_encoding(self):
         self.make_exam()
         script = Path(__file__).resolve().parents[1] / 'scripts' / 'exam_web.py'
