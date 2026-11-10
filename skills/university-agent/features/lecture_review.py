@@ -73,6 +73,24 @@ def _run(command, *, timeout=300):
         raise RuntimeError('로컬 강의 처리를 마치지 못했어요. 도구·모델·메모리를 확인해 주세요. 기존 기록은 보존했어요.') from None
 
 
+def _asr_threads():
+    """Leave roughly half the logical CPUs free for the student's other work."""
+    return max(2, min(6, (os.cpu_count() or 4) // 2))
+
+
+def _run_asr(executable, model, vad_model, audio, output):
+    command = [str(executable), '-m', str(model), '-vm', str(vad_model), '--vad', '-l', 'ko',
+               '-f', str(audio), '-oj', '-of', str(output), '-np', '-t', str(_asr_threads())]
+    try:
+        result = _run(command)
+        return result, 'auto'
+    except RuntimeError:
+        # whisper.cpp has no portable free-VRAM API. A failed GPU allocation is the
+        # reliable cross-platform signal; retry once without GPU before giving up.
+        result = _run(command + ['-ng'])
+        return result, 'cpu'
+
+
 def _folder(root, user, identifier):
     root = Path(root).resolve()
     path = root / 'lecture-review-files' / key(user)[:16] / identifier
@@ -150,8 +168,7 @@ def transcribe(provider, user, lecture, plan, root, model, vad_model, executable
         if progress:
             progress('교수님 말씀을 이 맥북에서 글로 옮기고 있어요…')
         ready = monotonic()
-        process = _run([str(executable), '-m', str(model), '-vm', str(vad_model), '--vad', '-l', 'ko',
-                        '-f', str(audio), '-oj', '-of', str(output), '-np', '-t', '4'])
+        process, backend = _run_asr(executable, model, vad_model, audio, output)
         finished = monotonic()
         value = json.loads(output.with_suffix('.json').read_text(encoding='utf-8'))
         segments = normalize_transcript(value, start, actual_duration)
@@ -170,6 +187,7 @@ def transcribe(provider, user, lecture, plan, root, model, vad_model, executable
               'audioPath': str(final_audio), 'audioHash': audio_hash, 'segments': segments,
               'transcribedAt': datetime.now(timezone.utc).isoformat(), 'asrSeconds': round(finished - ready, 2),
               'downloadSeconds': round(fetched - begun, 2), 'prepareSeconds': round(ready - fetched, 2),
+              'computeBackend': backend, 'asrThreads': _asr_threads(),
               'backendVerification': 'not_reported', 'validation': 'ASR output; not semantically verified'}
     _save(root, user, record)
     return {**read(root, user, identifier), 'reused': False}

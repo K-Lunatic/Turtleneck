@@ -17,6 +17,7 @@ from urllib.request import Request
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts')]
 from features import lecture_audio
+from features import lecture_review
 from providers.lecture_media import media_plan, download_media
 from providers.moodle_provider import MoodleTLSProvider, _download_restriction
 from providers.moodle_session import MoodleSession, DownloadRestricted, _DownloadRedirectHandler, check_download_origin
@@ -59,6 +60,23 @@ class Session:
 
 
 class LectureAudioTests(unittest.TestCase):
+    def test_asr_keeps_cpu_headroom_and_falls_back_when_gpu_fails(self):
+        with patch.object(lecture_review.os, 'cpu_count', return_value=8):
+            self.assertEqual(lecture_review._asr_threads(), 4)
+        calls = []
+        expected = Mock()
+        def run(command, **kwargs):
+            calls.append(command)
+            if '-ng' not in command:
+                raise RuntimeError('GPU allocation failed')
+            return expected
+        with patch.object(lecture_review, '_run', side_effect=run):
+            result, backend = lecture_review._run_asr('whisper-cli', 'model.bin', 'vad.bin', 'audio.wav', 'out')
+        self.assertEqual(backend, 'cpu')
+        self.assertNotIn('-ng', calls[0])
+        self.assertIn('-ng', calls[1])
+        self.assertIs(result, expected)
+
     def test_completed_flag_not_percentage_authorizes_source_and_never_calls_tracking(self):
         session = Session()
         provider = MoodleTLSProvider(session)
