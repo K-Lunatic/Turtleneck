@@ -8,6 +8,21 @@ from storage.local_db import LocalDatabase
 
 
 class LearnerProfileTests(unittest.TestCase):
+    def test_pre_exam_summary_guidance_explains_fixed_markers_and_notability_consent(self):
+        result = guidance_request("시험 전 정리본 만들어줘")
+        self.assertTrue(result["needsPreExamSummary"])
+        self.assertIn("누락", result["answer"])
+        self.assertIn("Notability", result["answer"])
+        self.assertIn("🔥", result["answer"])
+
+    def test_autonomous_course_guidance_explains_manual_setup(self):
+        result = guidance_request("자율강좌 설정 도와줘")
+        self.assertTrue(result["needsAutonomousCourseSetup"])
+        self.assertIn("강좌 만들기", result["answer"])
+        self.assertIn("강좌 URL", result["answer"])
+        self.assertIn("읽기 전용", result["answer"])
+        self.assertNotIn("65513", result["answer"])
+
     def test_analysis_requires_consent_and_inventory_is_safe(self):
         result = guidance_request("자료구조 자료 분석해줘")
         self.assertTrue(result["needsLearningDiscoveryConsent"])

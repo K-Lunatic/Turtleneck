@@ -4,4 +4,4 @@ interface:
   icon_small: "./assets/turtleneck.png"
   icon_large: "./assets/turtleneck.png"
   brand_color: "#B8E9C4"
-  default_prompt: "학교 자료를 준비하고, 지금 해야 할 과제·미시청 강의·공지부터 알려줘."
+  default_prompt: "$turtleneck으로 학교 자료를 준비하고, 지금 해야 할 과제·미시청 강의·공지부터 알려줘."

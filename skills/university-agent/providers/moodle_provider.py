@@ -797,7 +797,7 @@ class MoodleTLSProvider:
                 text = _plain_text(detail)
                 due = _find_datetime(text, ("종료 일시", "마감일", "Due date"))
                 status = "SUBMITTED" if "제출 완료" in text else "NOT_SUBMITTED" if re.search(r"제출 (?:안 함|하지 않음|되지 않음)", text) else "UNKNOWN"
-                result.append({"id": f"tls-assignment-{match.group(1)}", "externalId": match.group(1), "courseId": course["id"], "title": title or f"TLS assignment {match.group(1)}", "dueAt": due, "submissionStatus": status, "source": "tls"})
+                result.append({"id": f"tls-assignment-{match.group(1)}", "externalId": match.group(1), "courseId": course["id"], "title": title or f"TLS assignment {match.group(1)}", "description": text[:12000], "url": f"/mod/assign/view.php?id={match.group(1)}", "dueAt": due, "submissionStatus": status, "source": "tls"})
         return result
 
     def _academic_items(self, user_id):

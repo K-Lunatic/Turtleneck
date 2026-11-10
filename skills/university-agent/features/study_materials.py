@@ -170,7 +170,7 @@ def _legacy_office_sections(path: Path) -> list[dict[str, str]]:
                 if text:
                     return [{"location": f"{extension[1:].upper()} 본문", "text": text}]
     label = "HWP" if extension == ".hwp" else "DOC"
-    raise RuntimeError(f"{label} 파일을 읽을 변환 도구가 없습니다. {label}X 또는 PDF로 저장해 다시 동기화해 주세요.")
+    raise RuntimeError(f"{label} 파일을 읽을 변환 도구가 없습니다. 터틀넥 호환 변환 도구를 설치할까요? 아니면 {label}X 또는 PDF로 저장해 다시 동기화해 주세요.")
 
 
 def _text_sections(path: Path) -> list[dict[str, str]]:
@@ -356,8 +356,10 @@ def attached_material(path_text: str, *, title: str = "", max_chars: int = 30000
         raise ValueError("첨부 파일은 10MB 이하의 일반 파일이어야 합니다.")
     extension = path.suffix.lower()
     try:
-        if extension not in ('.pdf', '.pptx', '.ppt', '.txt', '.md'):
-            raise ValueError("PDF, PPTX, TXT, MD 파일만 첨부할 수 있습니다.")
+        if extension not in ('.pdf', '.pptx', '.ppt', '.docx', '.doc', '.hwpx', '.hwp',
+                             '.txt', '.md', '.java', '.py', '.js', '.c', '.cpp', '.html',
+                             '.css', '.csv', '.json', '.xml', '.yaml', '.yml'):
+            raise ValueError("PDF, PPT/PPTX, HWP/HWPX, DOC/DOCX, TXT, 코드 파일만 첨부할 수 있습니다.")
         sections = _read_sections(path, extension[1:], cache_root or path.parent / 'cache',
                                    path.parent / '.turtleneck-images')
     except RuntimeError as exc:
@@ -377,7 +379,7 @@ def attached_material(path_text: str, *, title: str = "", max_chars: int = 30000
         usable.append({"location": section["location"], "text": excerpt, "images": images})
         remaining -= len(excerpt) if text else 0
     if not usable:
-        raise ValueError("첨부 파일에서 읽을 수 있는 텍스트가 없습니다. 이미지형 PDF라면 OCR이 필요합니다.")
+        raise ValueError("첨부 파일에서 읽을 수 있는 텍스트가 없습니다. 이미지형 문서라면 OCR 또는 텍스트 변환이 필요합니다.")
     digest = material_cache.fingerprint(cache_root or path.parent / 'cache', path)
     identifier = "attachment-" + digest[:16]
     return {"id": identifier, "title": title or path.name, "extension": extension[1:], "sections": usable,

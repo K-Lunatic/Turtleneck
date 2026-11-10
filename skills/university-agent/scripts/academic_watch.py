@@ -83,7 +83,9 @@ def run_sync(*, academic_only=False) -> tuple[bool, str]:
         if detail:
             return False, f'학교 자료를 새로 확인하지 못했어요. {redact_output(detail[:180])}'
         return False, '학교 자료를 새로 확인하지 못했어요. 이전 기록으로 추정하지 않을게요.'
-    return True, ""
+    autonomous = [line.strip() for line in (getattr(result, 'stdout', '') or '').splitlines()
+                  if line.strip().startswith('자율강좌')]
+    return True, '\n'.join(autonomous)
 
 
 def _lock_path(db_path: Path) -> Path:
@@ -172,6 +174,10 @@ def _run_once(*, sync: bool = True, send_notification: bool = True, force_report
         if not ok:
             print(message)
             return 1
+        if message:
+            print(message)
+            if send_notification:
+                notify(message)
     try:
         with closing(LocalDatabase(db_path, read_only=True)) as database:
             state = database.get_sync_state(user_id)

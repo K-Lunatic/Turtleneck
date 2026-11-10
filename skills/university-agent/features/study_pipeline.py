@@ -11,6 +11,7 @@ from features.concept_insights import build_insights
 
 CHUNK_CHARS = 16000
 EXTRACTION_BATCH_SIZE = 2
+SHARED_REFERENCE_MAX_CHARS = 6000
 
 
 def host_response(result):
@@ -53,6 +54,30 @@ def selection_plan(state):
     return {'candidateIds': [chosen[i] for i in sorted(chosen)], 'missingCount': state['settings']['count'] - len(chosen),
             'missingSlots': [i + 1 for i in range(len(expected_types)) if i not in chosen],
             'semanticReviewRequired': True}
+
+
+def _shared_reference_sources(unit):
+    """Build a small, already-grounded reference for a different host model."""
+    original = unit.get('sources', [])
+    by_location = {(source.get('resourceId'), source.get('location')): source for source in original}
+    result, seen, size = [], set(), 0
+    for learning in unit.get('learning', []):
+        for evidence in learning.get('evidence', []):
+            if not isinstance(evidence, dict):
+                continue
+            quote = evidence.get('quote')
+            marker = (evidence.get('resourceId'), evidence.get('location'), quote)
+            if not isinstance(quote, str) or not quote.strip() or marker in seen:
+                continue
+            if size + len(quote) > SHARED_REFERENCE_MAX_CHARS:
+                return result if result else original
+            source = by_location.get((evidence.get('resourceId'), evidence.get('location')), {})
+            result.append({k: source[k] for k in ('resourceId', 'courseId', 'name', 'location') if k in source} |
+                          {'text': quote})
+            seen.add(marker)
+            size += len(quote)
+    full_size = sum(len(source.get('text', '')) for source in original)
+    return result if result and size < full_size else original
 
 
 def start(session, state, selected, material=None):
@@ -220,7 +245,13 @@ def reuse_analysis(session, state, material=None):
             types = missing[index::len(units)]
             for offset in range(0, len(types), 40):
                 work.append({'unitId': unit['id'], 'types': types[offset:offset + 40]})
-        p.update(chunks=[next(u['sources'] for u in units if u['id'] == w['unitId']) for w in work],
+        chunks, reference_mode = [], False
+        for work_item in work:
+            unit = next(u for u in units if u['id'] == work_item['unitId'])
+            reference = _shared_reference_sources(unit)
+            chunks.append(reference)
+            reference_mode |= reference != unit['sources']
+        p.update(chunks=chunks, referenceMode='cached-evidence' if reference_mode else None,
                  chunkIndex=0, topUpRequests=work, activeBatch=[], activeDone=[],
                  unitStart=unit_start, candidateStart=candidate_start,
                  candidateTarget=max(len(w['types']) for w in work),
@@ -277,6 +308,9 @@ def _request_for_chunk(session, state, chunk_index, request_id):
         host['reusedAnalysis'] = {k: unit[k] for k in ('context', 'learning', 'types')}
         host['existingQuestions'] = [q['question'] for q in p['candidates'] if q['unitId'] == unit['id']]
         host['instruction'] += '\n이번 요청은 부족 문항만 추가한다. 기존 개념/맥락을 재작성하지 말고 questions, types와 필요하면 shortageReason만 제출한다. 기존 후보와 의미가 겹치지 않게 만들며 SOURCE 근거를 다시 확인한다.'
+        if p.get('referenceMode') == 'cached-evidence':
+            host['referenceMode'] = 'cached-evidence'
+            host['instruction'] += '\n이번 SOURCE는 다른 호스트에서 이미 검증한 근거 문장만 담은 공통 참조다. SOURCE 밖의 사실을 보태지 말고, 인용은 현재 SOURCE의 문장을 그대로 사용한다.'
         schema.pop('context', None)
         schema.pop('learning', None)
     return {'requestId': request_id,

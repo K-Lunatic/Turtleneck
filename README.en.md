@@ -9,6 +9,8 @@
   A local-first university study skill for Codex, Claude Code, and Gemini.
 </p>
 
+<p align="center"><small>Search: Turtleneck AI Skill · 터틀넥 스킬 · Codex Skill · Claude Code Skill · Gemini Skill · Moodle study assistant</small></p>
+
 <p align="center">
   <a href="README.md">한국어</a> ·
   English ·
@@ -31,6 +33,17 @@ Turtleneck organizes assignments, announcements, lectures, course files, schedul
 - Keep passwords in macOS Keychain or Windows protected storage; do not put passwords, cookies, or original course files in the repository.
 
 ## Quick start
+
+Search GitHub for `Turtleneck AI Skill` or `터틀넥 스킬`. The same package is exposed through the
+Codex and Claude Code marketplace files and the Gemini skill path. Detect the local environment first;
+add `--apply` only after reviewing the official commands:
+
+```bash
+python3 skills/university-agent/scripts/install_turtleneck.py
+python3 skills/university-agent/scripts/install_turtleneck.py --apply
+```
+
+After a successful explicit installation, Turtleneck may show one non-blocking request to star the repository. Starring is optional and never changes access or support.
 
 Requirements: a local Codex, Claude Code, or Gemini environment on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the unsigned `turtleneck-macos-x64-unsigned` or `turtleneck-windows-x64-unsigned` no-install bundle from GitHub Releases. Verify its checksum before running; the operating system may show a security warning.
 
@@ -66,9 +79,17 @@ claude plugin install university-agent@turtleneck
 
 Call `/university-agent:turtleneck` in a new Claude Code chat.
 
-### Gemini
+### Gemini CLI
 
-Connect this repository or register `skills/university-agent` as the `turtleneck` skill. See the [Gemini execution guide](skills/university-agent/references/gemini.md) for local sandbox and network rules.
+Install the skill path explicitly instead of connecting the whole repository:
+
+```bash
+gemini skills install https://github.com/K-Lunatic/Turtleneck.git \
+  --path skills/university-agent --scope user
+gemini skills list --all
+```
+
+For a local checkout, run `gemini skills link "$PWD/skills/university-agent" --scope workspace` from the repository root. A web-only Gemini session without local file and command access cannot use school login, sync, or the local exam. See the [Gemini execution guide](skills/university-agent/references/gemini.md).
 
 On first use, a local connection form opens. Enter TLS and Everytime credentials only in the official browser login flow. Passwords are not sent through chat or stored in logs.
 

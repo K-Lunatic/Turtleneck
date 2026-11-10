@@ -157,10 +157,24 @@ def guidance_request(text: str) -> dict | None:
                 '동의해도 선택한 노트만 읽습니다. 확인한 결과는 여러 채팅에서 재사용할 학습 프로필과 공용 분석 기록으로 저장합니다.'
             ),
         }
+    if re.search(r'(?:시험\s*전|시험\s*대비).{0,20}(?:정리|요약)|정리본.{0,12}(?:시험|강의|수업)', text, re.I):
+        return {
+            'toolCalls': [], 'needsPreExamSummary': True,
+            'nextCommands': ['시험 전 정리본 만들어줘'],
+            'answer': (
+                'TLS 자료와 사용자가 선택한 교수님 공지·강의 전사·Notability 노트를 주차와 자료별로 나눠 읽고, '
+                '빠진 범위는 누락으로 표시한 시험 전 정리본을 만들어요. 🔥는 교수님 자료에서 직접 확인한 강조점, '
+                '⭐는 중요 복습점, 🔎는 다시 볼 점, ⚠️는 근거가 약한 점입니다. Notability 내용이나 녹음을 읽으려면 '
+                '별도 동의와 노트 선택이 필요하고, 선택하지 않은 노트는 열지 않아요.'
+            ),
+        }
     if re.search(r'자율강좌.{0,20}(?:세팅|설정|만들|준비|학습)|(?:학습|복습).{0,20}자율강좌', text, re.I):
         return {'toolCalls': [], 'needsAutonomousCourseSetup': True,
                 'nextCommands': ['python3 scripts/autonomous_courses.py', 'python3 scripts/autonomous_course_structure.py --course-id "<확인된 강좌 ID>"'],
-                'answer': '먼저 이 계정의 자율강좌와 수강 과목을 확인할게요. 소유 권한과 강좌 구조를 확인한 뒤, 승인하면 과목별 토픽과 주차별 학습 흐름을 준비합니다. 원격 강좌를 만들거나 바꾸지는 않고 확인부터 진행할게요.'}
+                'answer': ('TLS에서 `내 강좌` 또는 `자율강좌` 메뉴를 열고 `강좌 만들기`를 직접 선택해 주세요. '
+                           '`YYYY년 N학기 자율강좌`처럼 중립적인 이름으로 만든 뒤 강좌 URL을 보내주시면, '
+                           '현재 계정의 운영 권한과 구조를 읽기 전용으로 확인할게요. 확인이 끝나면 과목별 토픽과 주차별 학습 흐름을 준비합니다. '
+                           '원격 강좌를 만들거나 바꾸지는 않고, 업로드·복구·수정은 별도 확인을 받은 뒤에만 진행합니다.')}
     if re.search(r'(?:주차별|주차마다|시험\s*전|시험\s*대비).{0,20}(?:문제|복습|학습)|문제은행.{0,20}(?:랜덤|복습|출제)|성적.{0,20}(?:부족|취약|보완)', text):
         return {'toolCalls': [], 'needsStudyPlan': True,
                 'nextCommands': ['python3 scripts/run_agent.py study-plan --course "<과목명>"'],
@@ -199,6 +213,18 @@ def guidance_request(text: str) -> dict | None:
     if re.search(r'원본.{0,20}(?:파일|자료)|(?:파일|자료).{0,20}(?:원본|다운로드|보내줘|제공)', text):
         return {'toolCalls': [], 'needsOriginalFile': True, 'nextCommands': [],
                 'answer': '요약본이 아닌 강의 원본 파일로 드릴게요. 대화에서 확인된 과목과 자료를 찾고, 여러 파일이면 골라드릴게요.'}
+    if re.search(r'(?:미제출|안\s*낸|제출\s*여부).{0,20}(?:알려|확인|목록|뭐)', text, re.I):
+        return None
+    if re.search(r'(?:과제|과제물).{0,12}(?:제출|올려)|제출.{0,12}(?:과제|과제물)', text, re.I):
+        return {'toolCalls': [], 'needsAssignmentSubmission': True,
+                'nextCommands': ['python3 scripts/submit_tls_assignment.py --assignment-id "<확인된 과제 ID>" --file "<제출 파일>" --apply --confirm 제출'],
+                'answer': ('확인된 TLS 과제의 실제 제출 양식을 먼저 읽고, 파일·본문·최종 제출 버튼과 제출 완료 화면을 차례로 확인할게요. '
+                           '실제 전송은 사용자가 `--apply --confirm 제출`을 명시한 경우에만 진행하며, 끝나면 과목·과제·상태·제출 파일·TLS 확인 링크만 짧게 보여드려요.')}
+    if re.search(r'(?:과제(?!\s*(?:등록|추가|제출|저장|불러오기|진행))|과제물|보고서|답안).{0,18}(?:작성|만들|초안|도와|해줘)', text, re.I):
+        return {'toolCalls': [], 'needsAssignmentDraft': True,
+                'answer': ('과제 본문을 바로 쓰기 전에 TLS의 과제 설명·공지·강의 개요와 사용자가 선택한 Notability 자료를 먼저 대조할게요. '
+                           '교수님이 댓글이나 수업 중 따로 강조한 내용, 제출 형식·분량·파일명 규칙, 반드시 넣거나 빼야 할 내용을 알려 주세요. '
+                           '확인되지 않은 조건은 초안에 몰래 채우지 않고 다시 물어본 뒤 작성합니다.')}
     if re.search(r"새로\s*고침|동기화|(?:TLS|학교|계정).{0,12}(?:연결|로그인)|(?:최신|다시).{0,8}(?:TLS|학사|제출|시청).{0,12}(?:확인|조회)", text, re.I):
         return {"toolCalls": [], "needsSync": True, "data": {"intent": "sync", "performed": False},
                 "nextCommands": ["python3 scripts/sync_tls.py --connect"],

@@ -300,9 +300,8 @@ def _can_reuse(args, state, scope, db_path, user_id, requested_at):
         return False
     if not sync_policy.fresh(state.get('catalog_checked_at'), sync_policy.CATALOG_TTL, since=since):
         return False
-    if state.get('autonomous_course_watch_url') and (
-            state.get('autonomous_course_check_status') not in ('OK', 'CHANGED') or
-            not sync_policy.fresh(state.get('autonomous_course_checked_at'), sync_policy.CATALOG_TTL, since=since)):
+    if state.get('autonomous_course_watch_url') and not sync_policy.fresh(
+            state.get('autonomous_course_checked_at'), sync_policy.AUTONOMOUS_TTL, since=since):
         return False
     try:
         course_ids = json.loads(state['course_ids'])
@@ -400,6 +399,8 @@ def _main() -> None:
         raise SystemExit('학교에 연결하지 못했어요. 아이디와 비밀번호를 확인해 주세요.') from error
     except (sync_policy.SyncBusy, CredentialInputRequired, RuntimeError) as error:
         raise SystemExit(str(error)) from error
+    except OSError as error:
+        raise SystemExit('학교 정보 저장 폴더에 접근할 수 없어요. 저장 위치 권한을 확인한 뒤 다시 시도해 주세요.') from error
     except (URLError, TimeoutError) as error:
         raise SystemExit('학교 확인이 끝나지 않았어요. 기존 기록은 보존했으며 잠시 후 다시 확인할 수 있어요.') from error
 
@@ -462,10 +463,18 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
         _mark_checks(db_path, user_id, 'academic', ids, ids, scope)
         print(f'과제·시청 상태 확인 완료 · 과제 {len(assignments)}개 · 강의 {len(lectures)}개')
         return
+    autonomous_message = ''
     autonomous_url = state.get('autonomous_course_watch_url')
-    if autonomous_url and (force or not sync_policy.fresh(state.get('autonomous_course_checked_at'), sync_policy.CATALOG_TTL)):
+    if autonomous_url and (force or not sync_policy.fresh(
+            state.get('autonomous_course_checked_at'), sync_policy.AUTONOMOUS_TTL)):
+        previous_snapshot = None
+        try:
+            previous_snapshot = json.loads(state.get('autonomous_course_snapshot', ''))
+        except (TypeError, ValueError):
+            pass
         watch = refresh_autonomous_course(provider, user_id, autonomous_url,
-                                         {'fingerprint': state.get('autonomous_course_fingerprint')})
+                                         {'fingerprint': state.get('autonomous_course_fingerprint'),
+                                          'snapshot': previous_snapshot})
         with closing(LocalDatabase(db_path)) as database:
             update = {'autonomous_course_checked_at': sync_policy.now().isoformat(),
                       'autonomous_course_check_status': 'CHANGED' if watch.get('changed') else 'OK'}
@@ -473,11 +482,20 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
                 update.update(autonomous_course_fingerprint=watch['fingerprint'],
                               autonomous_course_snapshot=json.dumps(watch['snapshot'], ensure_ascii=False),
                               autonomous_course_check_error='')
+                if watch.get('changed'):
+                    update.update(autonomous_course_last_change_summary=json.dumps(
+                        watch.get('changes', {}), ensure_ascii=False, sort_keys=True),
+                        autonomous_course_last_changed_at=sync_policy.now().isoformat())
             else:
                 update.update(autonomous_course_check_status='FAILED', autonomous_course_check_error=watch['reason'])
             database.merge_sync_state(user_id, update)
         if not watch['ok']:
-            raise RuntimeError(watch['reason'])
+            autonomous_message = f"자율강좌 확인을 건너뛰었어요 · {watch['reason']} · 다른 학사 확인은 계속했어요."
+        elif watch.get('changed'):
+            autonomous_message = (f"자율강좌 구조 변경을 확인했어요 · {watch.get('changeMessage', '변경 있음')} · "
+                                  "원격 강좌는 수정하지 않았어요.")
+        else:
+            autonomous_message = '자율강좌 구조를 확인했어요 · 변경 없음 · 원격 강좌는 수정하지 않았어요.'
     preflight = provider.preflight(user_id)
     courses = provider.get_courses(user_id)
     ids = set(preflight['courseIds'])
@@ -577,6 +595,8 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
     _save_sync_state(db_path, user_id, provider)
     with closing(LocalDatabase(db_path)) as database:
         database.merge_sync_state(user_id, {'catalog_checked_at': sync_policy.now().isoformat(), 'sync_scope': scope})
+    if autonomous_message:
+        print(autonomous_message)
     print(f'학교 확인 완료 · 과목 {len(ids)}개 · 과제·시청 상태 {len(academic)}과목 · 공지 {len(notices_scope)}과목 · 자료 {len(resources_scope)}과목 · {monotonic() - started:.1f}초')
 
 

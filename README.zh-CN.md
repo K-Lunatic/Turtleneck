@@ -9,6 +9,8 @@
   面向 Codex、Claude Code 和 Gemini 的本地优先大学学习技能。
 </p>
 
+<p align="center"><small>搜索：Turtleneck AI Skill · 터틀넥 스킬 · Codex Skill · Claude Code Skill · Gemini Skill · Moodle study assistant</small></p>
+
 <p align="center">
   <a href="README.md">한국어</a> ·
   <a href="README.en.md">English</a> ·
@@ -31,6 +33,16 @@ Turtleneck 会在运行它的电脑上整理作业、通知、课程视频、课
 - 密码只保存到 macOS Keychain 或 Windows 受保护存储中；密码、Cookie 和原始课程文件不会放入仓库。
 
 ## 快速开始
+
+在 GitHub 搜索 `Turtleneck AI Skill` 或 `터틀넥 스킬` 即可找到项目。仓库同时提供 Codex、
+Claude Code marketplace 文件和 Gemini skill 路径。先检测环境，确认官方命令后再加 `--apply`：
+
+```bash
+python3 skills/university-agent/scripts/install_turtleneck.py
+python3 skills/university-agent/scripts/install_turtleneck.py --apply
+```
+
+明确安装成功后，Turtleneck 可能只提示一次“如果有帮助，请在 GitHub 点一颗星”。完全自愿，不影响功能或支持。
 
 要求：macOS 或 Windows 上的本地 Codex、Claude Code 或 Gemini 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载未签名的 `turtleneck-macos-x64-unsigned` 或 `turtleneck-windows-x64-unsigned` 免安装包。运行前请先核对校验和，操作系统可能显示安全警告。
 
@@ -66,9 +78,17 @@ claude plugin install university-agent@turtleneck
 
 在新的 Claude Code 对话中调用 `/university-agent:turtleneck`。
 
-### Gemini
+### Gemini CLI
 
-连接此仓库，或将 `skills/university-agent` 注册为 `turtleneck` 技能。关于本地沙箱和网络权限，请参阅 [Gemini 执行指南](skills/university-agent/references/gemini.md)。
+不要连接整个仓库，请直接安装技能目录：
+
+```bash
+gemini skills install https://github.com/K-Lunatic/Turtleneck.git \
+  --path skills/university-agent --scope user
+gemini skills list --all
+```
+
+测试本地检出版本时，在仓库根目录运行 `gemini skills link "$PWD/skills/university-agent" --scope workspace`。没有本地文件和命令权限的 Gemini 网页会话不能使用学校登录、同步或本地试卷。详见 [Gemini 执行指南](skills/university-agent/references/gemini.md)。
 
 首次使用时会打开本地连接表单。TLS 和 Everytime 的账号信息只应在官方浏览器登录流程中输入，不要通过聊天发送密码。
 

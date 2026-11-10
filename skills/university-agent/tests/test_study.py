@@ -3,6 +3,8 @@ from pathlib import Path
 from io import StringIO
 import json
 import sqlite3
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -112,6 +114,35 @@ class StudyFlowTests(ProjectTestBase):
         self.cli('ask', '--text', '과제 알려줘', '--conversation', 'unrelated-study')
         with self.assertRaises(ValueError):
             self.session('unrelated-study').call({'action': 'accept', 'replyTo': old_offer['offerId']})
+
+    def test_study_progress_is_saved_without_an_explicit_save_command(self):
+        prepared = self.cli('ask', '--text', '자료구조 공부 좀 해야겠다', '--conversation', 'auto-saved-study')
+        self.assertEqual(prepared['status'], 'prepared')
+
+        # A normal follow-up turn must not discard the resumable study state.
+        self.cli('ask', '--text', '과제 알려줘', '--conversation', 'auto-saved-study')
+        resumed = self.session('auto-saved-study').call({'action': 'status'})
+        self.assertEqual(resumed['status'], 'prepared')
+
+    def test_codex_and_claude_reuse_the_same_local_study_flow(self):
+        runner = str(Path(__file__).resolve().parents[1] / 'scripts' / 'run_agent.py')
+
+        def host_call(host, *args):
+            env = dict(self.env, TURTLENECK_HOST=host)
+            result = subprocess.run([sys.executable, runner, *args], env=env,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return json.loads(result.stdout)
+
+        started = host_call('codex', 'ask', '--text', '자료구조 공부 좀 해야겠다', '--conversation', 'shared-host-study')
+        self.assertEqual(started['status'], 'prepared')
+
+        switched = host_call('claude', 'ask', '--text', '과제 알려줘', '--conversation', 'shared-host-study')
+        self.assertNotEqual(switched.get('toolCalls'), ['study'])
+
+        resumed = host_call('codex', 'study', '--conversation', 'shared-host-study',
+                            '--event-json', '{"action":"status"}')
+        self.assertEqual(resumed['status'], 'prepared')
 
     def test_exam_context_note_is_detected_saved_separately_and_reused(self):
         text = '자료구조 중간고사는 AI 이슈 때문에 손코딩을 시킨다고 하셨어. 간단하게 작성할 수 있고 50분 주신다고 하셨어.'

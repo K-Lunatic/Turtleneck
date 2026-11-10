@@ -284,7 +284,10 @@ class ProjectTests(ProjectTestBase):
         session = FakeTLSSession()
         provider = MoodleTLSProvider(session)
         self.assertEqual(provider.get_courses('u')[0]['name'], '테스트 과목')
-        self.assertEqual(provider.get_assignments('u')[0]['submissionStatus'], 'SUBMITTED')
+        assignment = provider.get_assignments('u')[0]
+        self.assertEqual(assignment['submissionStatus'], 'SUBMITTED')
+        self.assertIn('제출 완료', assignment['description'])
+        self.assertEqual(assignment['url'], '/mod/assign/view.php?id=2')
         self.assertEqual(provider.get_lectures('u')[0]['watchedSeconds'], 300)
         self.assertEqual(provider.get_notices('u')[0]['title'], '테스트 공지')
         self.assertEqual(provider.get_notices('u')[0]['content'], '실제 공지 내용')

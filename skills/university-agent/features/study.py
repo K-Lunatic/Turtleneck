@@ -14,6 +14,7 @@ from pathlib import Path
 from features.study_materials import study_materials, attached_material
 from features.assignment_selection import normalize
 from features import study_pipeline
+from features import pre_exam_summary
 from features import material_cache, analysis_records
 from features.concept_insights import build_insights
 from features.learning_plan import select_review_questions
@@ -37,7 +38,8 @@ PROMPT = '''역할: 제공된 수업자료로 연습문제를 만들고 채점�
 
 MAX_QUESTIONS = 200
 REFERENCE_KINDS = ('everytime_review', 'student_report', 'ai_evaluation',
-                   'internet_evaluation', 'instructor_transcript', 'instructor_notice')
+                   'internet_evaluation', 'instructor_transcript', 'instructor_notice',
+                   'notability_note', 'notability_transcript')
 
 QUESTION_TYPE_LABELS = {
     'mcq': '객관식', 'short': '용어 단답형', 'essay': '서술형', 'truefalse': 'O/X',
@@ -58,14 +60,14 @@ IMAGE_SUFFIXES = {'.gif', '.jpe', '.jpeg', '.jpg', '.png', '.svg', '.svgz'}
 
 
 def study_intent(text):
-    exam_context = re.search(r'(?:중간고사|기말고사|시험|손코딩|시험\s*(?:시간|방식|정보)|출제\s*(?:방식|경향)|(?:주요|핵심)\s*(?:내용|포인트))', text)
+    exam_context = re.search(r'(?:중간고사|기말고사|시험|손코딩|시험\s*(?:시간|방식|정보)|출제\s*(?:방식|경향)|(?:주요|핵심)\s*(?:내용|포인트)|시험\s*전\s*정리|정리본)', text)
     note_cue = re.search(r'(?:하셨|말씀|알려|들었|이래|라고|저장|기억|참고)', text)
     schedule_lookup = re.search(r'시험\s*(?:일정|범위)|(?:강의|수업)\s*계획|주차별\s*일정', text)
     if exam_context and note_cue and not schedule_lookup:
         return 'save_context_note'
     if re.search(r'(?:저장한|기록한|등록한).*(?:시험|출제|학습).*(?:정보|내용|메모).*(?:보여|확인|알려)|시험\s*정보.*(?:보여|확인|목록)', text):
         return 'list_context_notes'
-    if re.search(r'(문제|퀴즈).*(만들|내줘|출제|풀)|핵심\s*개념.*정리|주요\s*(?:내용|포인트).*정리|학습.*(?:시켜|자료|내용).*(?:만들|정리|준비|보여)?', text):
+    if re.search(r'(문제|퀴즈).*(만들|내줘|출제|풀)|핵심\s*개념.*정리|주요\s*(?:내용|포인트).*정리|시험\s*전\s*(?:정리|요약)|시험\s*대비\s*(?:정리|요약)|정리본|학습.*(?:시켜|자료|내용).*(?:만들|정리|준비|보여)?', text):
         return 'request'
     if re.search(r'공부|시험\s*준비|복습|이해했는지', text):
         return 'request'
@@ -105,7 +107,10 @@ def event_from_text(text, courses):
         time_limit = re.search(r'(?:시간\s*제한|제한\s*시간|시험\s*시간|타이머).{0,8}?(\d{1,4})\s*분|(\d{1,4})\s*분\s*(?:시간\s*)?(?:제한|시험)', text)
         if time_limit:
             configured['timeLimitMinutes'] = int(time_limit.group(1) or time_limit.group(2))
-        if re.search(r'핵심\s*개념.*정리', text) or not re.search(r'문제|퀴즈', text):
+        if re.search(r'(?:시험\s*전|시험\s*대비).*(?:정리|요약)|정리본', text):
+            configured['mode'] = 'summary'
+            configured['delivery'] = 'batch'
+        elif re.search(r'핵심\s*개념.*정리', text) or not re.search(r'문제|퀴즈', text):
             configured['mode'] = 'concepts'
         if re.search(r'문제|퀴즈|모의\s*시험', text):
             configured['delivery'] = 'web'
@@ -141,6 +146,8 @@ def settings(raw):
         raise ValueError('모드나 난이도를 확인하세요.')
     if value['mode'] == 'quiz':
         value['delivery'] = 'web'  # New exams cannot silently fall back to chat.
+    if value['mode'] == 'summary':
+        value['delivery'] = 'batch'
     if type(value['count']) is not int or not 1 <= value['count'] <= MAX_QUESTIONS:
         raise ValueError(f'문항 수는 1~{MAX_QUESTIONS}개까지 지정할 수 있어요.')
     if value['delivery'] == 'web' and 'types' not in raw:
@@ -152,7 +159,7 @@ def settings(raw):
         raise ValueError('문항 수만큼 유형 식별자를 지정하세요.')
     if type(value['choices']) is not int or not 2 <= value['choices'] <= 20:
         raise ValueError('선택지 수는 2~20입니다.')
-    if value['delivery'] not in ('batch', 'single', 'web') or value['mode'] not in ('quiz', 'concepts') or not isinstance(value['difficulty'], str) or not value['difficulty'].strip():
+    if value['delivery'] not in ('batch', 'single', 'web') or value['mode'] not in ('quiz', 'concepts', 'summary') or not isinstance(value['difficulty'], str) or not value['difficulty'].strip():
         raise ValueError('모드나 난이도를 확인하세요.')
     if value['timeLimitMinutes'] is not None and (type(value['timeLimitMinutes']) is not int or not 1 <= value['timeLimitMinutes'] <= 1440):
         raise ValueError('시험 시간은 1~1440분 사이로 지정하세요.')
@@ -228,7 +235,7 @@ def exam_references(raw, course):
             raise ValueError('다른 교수의 후기를 이 과목의 출제 경향으로 사용할 수 없습니다.')
         for k in ('source', 'location', 'text'):
             required_text(item, k)
-        transcript = item['kind'] == 'instructor_transcript'
+        transcript = item['kind'] in ('instructor_transcript', 'notability_note', 'notability_transcript')
         if len(item['text']) > (100000 if transcript else 2000):
             raise ValueError('후기는 2000자, 전사문은 부분별 10만 자 이내로 전달하세요.')
         identifier = 'ref-' + material_cache.key(item)[:16]
@@ -1023,7 +1030,7 @@ class StudySession:
             db.execute('CREATE TABLE IF NOT EXISTS study_match_history (user TEXT, match_id TEXT, source_exam_id TEXT, conversation TEXT, created_at TEXT, phase TEXT, pair_count INTEGER, attempts INTEGER, state TEXT, PRIMARY KEY(user,match_id))')
             db.execute('CREATE TABLE IF NOT EXISTS study_exam_collections (user TEXT, collection_id TEXT, conversation TEXT, created_at TEXT, state TEXT, PRIMARY KEY(user,collection_id))')
             self._ensure_context_notes(db)
-            read_only = self.exam_id is not None or event.get('action') in ('list_context_notes', 'catalog', 'unit', 'candidate', 'exam_review', 'exam_history', 'match_status', 'sets_status', 'web_image')
+            read_only = self.exam_id is not None or event.get('action') in ('list_context_notes', 'catalog', 'unit', 'candidate', 'exam_review', 'exam_history', 'match_status', 'sets_status', 'web_image', 'summary_status')
             db.execute('BEGIN' if read_only else 'BEGIN IMMEDIATE')
             if event.get('action') in ('save_context_note', 'list_context_notes'):
                 return self.context_note_event(db, event)
@@ -1139,6 +1146,8 @@ class StudySession:
                     r['courseId'] == state['selection'].get('courseId')}
                 if not ids <= allowed:
                     raise ValueError('자료 이용 상태가 달라져 이어서 읽지 않았어요. 사용할 자료를 다시 골라 주세요.')
+        if action in ('summary_extract', 'summary_status') and state.get('settings', {}).get('mode') == 'summary':
+            return pre_exam_summary.handle(self, state, event)
         if action in ('extract', 'extract_batch', 'catalog', 'unit', 'candidate', 'assemble') or (action == 'status' and state['phase'] in ('extracting', 'assembling')):
             if 'pipeline' not in state:
                 raise ValueError('먼저 파일별 분석을 시작하세요.')
@@ -1313,6 +1322,11 @@ class StudySession:
     def generation_request(self, state, failures, truncated, *, schema_only=False):
         state.update(failures=failures, truncated=truncated)
         sources = state['sources']
+        if state['settings']['mode'] == 'summary':
+            if schema_only:
+                return pre_exam_summary._schema()
+            state['requestId'] = state.get('requestId') or secrets.token_hex(12)
+            return pre_exam_summary.start(self, state)
         learning_focus = []
         if not schema_only:
             course_id = state.get('selection', {}).get('courseId')

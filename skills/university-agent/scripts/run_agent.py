@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from features.assignments import assignment_answer, get_assignments
+from features.assignment_draft import prepare as prepare_assignment_draft, sources_for_assignment
 from features.assignment_selection import find_assignments, search_save_targets, selection_guidance, public_checkpoint, normalize
 from features.study_materials import study_materials, original_files
 from features.bookmarks import add_bookmark, bookmark_answer, delete_bookmark, list_bookmarks, validate_bookmark_target
@@ -368,6 +369,9 @@ def main() -> None:
     assignment_parser.add_argument("--upcoming", action="store_true")
     assignment_parser.add_argument("--this-week", action="store_true")
     assignment_parser.add_argument("--overdue", action="store_true")
+    assignment_draft_parser = sub.add_parser("assignment-draft", help="TLS 과제 조건을 모아 초안 전 확인 카드 만들기")
+    assignment_draft_parser.add_argument("--query", default="", help="과제명 일부")
+    assignment_draft_parser.add_argument("--course", default="", help="과목명 일부")
     find_parser = sub.add_parser("assignment-find", help="과목명이나 과제 키워드로 저장 대상을 찾기")
     find_parser.add_argument("--query", default="")
     find_parser.add_argument("--operation", choices=("save", "load"), default="save")
@@ -505,6 +509,33 @@ def main() -> None:
             "toolCalls": ["get_assignments"],
             "data": get_assignments(database(), USER_ID, unsubmitted=args.unsubmitted, upcoming=args.upcoming, this_week=args.this_week, overdue=args.overdue),
         }
+    elif args.command == "assignment-draft":
+        store = database()
+        courses = store.get_courses(USER_ID)
+        course_names = {item['id']: item['name'] for item in courses}
+        assignments = store.get_assignments(USER_ID)
+        query = normalize(args.query or '')
+        course_query = normalize(args.course or '')
+        matches = [item for item in assignments
+                   if (not query or query in normalize(item.get('title', '') + ' ' + (item.get('description') or '')))
+                   and (not course_query or course_query in normalize(course_names.get(item.get('courseId'), '')))]
+        if len(matches) != 1:
+            result = {'toolCalls': ['prepare_assignment_draft'], 'needsInput': True,
+                      'data': {'assignments': [{'courseName': course_names.get(item.get('courseId'), '과목 확인 필요'),
+                                                'title': item.get('title', '')} for item in matches[:20]]},
+                      'answer': '초안을 만들 과목과 과제명을 하나만 알려 주세요.' if matches else '저장된 과제를 찾지 못했어요. TLS를 먼저 새로고침해 주세요.'}
+        else:
+            assignment = matches[0]
+            sources = sources_for_assignment(assignment, store.get_notices(USER_ID))
+            try:
+                prepared = prepare_assignment_draft(course_name=course_names.get(assignment.get('courseId'), '과목 확인 필요'),
+                                                    assignment=assignment, sources=sources)
+                result = {'toolCalls': ['prepare_assignment_draft'], 'data': prepared,
+                          'answer': '과제 상세·공지·개요에서 조건을 먼저 확인했어요. 아래 세 가지를 답해 주면 그때 초안을 만들게요.\n' +
+                                    '\n'.join(f'- {question}' for question in prepared['questionsForUser'])}
+            except ValueError as error:
+                result = {'toolCalls': ['prepare_assignment_draft'], 'error': {'code': 'ASSIGNMENT_SOURCES_MISSING', 'message': str(error)},
+                          'answer': '과제 조건을 확인할 자료가 부족해요. TLS 자료를 먼저 새로고침해 주세요.'}
     elif args.command == "assignment-find":
         selectors = {"query": args.query} if args.query.strip() else {}
         if args.source:
@@ -673,7 +704,7 @@ def main() -> None:
                 })
                 data['watchRemembered'] = True
             result = {'toolCalls': ['verify_autonomous_course'], 'data': data,
-                      'answer': ('주소와 이 기기의 TLS 강좌 정보가 일치했어요. 매일 읽기 전용 확인 대상으로 저장했어요. 운영자 권한 확인 전에는 업로드하지 않습니다.'
+                      'answer': ('주소와 이 기기의 TLS 강좌 정보가 일치했어요. 예약된 학교 확인 때 읽기 전용으로 구조를 살펴볼 대상으로 저장했어요. 변경이 보여도 원격 강좌는 자동으로 고치지 않습니다.'
                                  if data['verified'] and args.remember_watch else
                                  '주소와 이 기기의 TLS 강좌 정보가 일치했어요. 운영자 권한 확인 전에는 업로드하지 않습니다.'
                                  if data['verified'] else data['reason'])}

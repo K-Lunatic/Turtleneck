@@ -113,6 +113,64 @@ class FilePipelineTests(ProjectTestBase):
         self.assertEqual(larger['hostOnly']['settings']['count'], 4)
         self.assertIn('reusedAnalysis', larger['hostOnly'])
 
+    def test_cached_reference_reuses_verified_evidence_between_hosts(self):
+        source = self.files / '0.txt'
+        source.write_text('이진 탐색은 정렬된 배열에서 탐색한다. ' * 500, encoding='utf-8')
+        first_host = self.session('first-host')
+        prepared = first_host.call({'action': 'request', 'selection': {'courseId': 'course-1', 'resourceIds': ['r0']},
+                                    'settings': {'count': 1, 'types': ['short'], 'delivery': 'web'}})
+        question = self.question('short')
+        question['evidence'] = [{'resourceId': prepared['hostOnly']['SOURCE'][0]['resourceId'],
+                                 'location': prepared['hostOnly']['SOURCE'][0]['location'],
+                                 'quote': '이진 탐색은 정렬된 배열에서 탐색한다.'}]
+        first_host.call({'action': 'extract', 'requestId': prepared['requestId'],
+                         'data': {'context': '정렬된 배열에서 이진 탐색하는 수업',
+                                  'learning': [{'concept': '이진 탐색', 'explanation': '정렬된 배열에서 탐색하는 방법',
+                                                'evidence': question['evidence']}],
+                                  'types': [{'type': 'short', 'reason': '핵심 용어 확인'}],
+                                  'questions': [question], 'shortageReason': '근거 있는 후보'}})
+
+        reused = self.session('other-host').call({'action': 'request',
+            'selection': {'courseId': 'course-1', 'resourceIds': ['r0']},
+            'settings': {'count': 1, 'types': ['mcq'], 'delivery': 'web'}})
+        self.assertTrue(reused['needsExtraction'])
+        request = reused['hostOnly']['requests'][0]
+        self.assertEqual(request['referenceMode'], 'cached-evidence')
+        self.assertLess(len(request['SOURCE'][0]['text']), len(source.read_text(encoding='utf-8')))
+        self.assertIn('공통 참조', request['instruction'])
+
+    def test_pre_exam_summary_is_bounded_complete_and_marks_notability_emphasis(self):
+        reference = {'kind': 'notability_note', 'courseId': 'course-1', 'professor': '테스트 교수',
+                     'semester': '2026-1', 'source': 'Notability 7주차 필기', 'location': 'p.1',
+                     'text': '교수님이 이진 탐색의 정렬 조건을 시험에서 강조함.'}
+        session = self.session('pre-exam-summary')
+        result = session.call({'action': 'request', 'selection': {'courseId': 'course-1', 'resourceIds': ['r0'],
+            'examReferences': [reference]}, 'settings': {'mode': 'summary', 'delivery': 'batch'}})
+        self.assertTrue(result['needsSummaryExtraction'])
+        while result.get('needsSummaryExtraction'):
+            items = []
+            for request in result['hostOnly']['requests']:
+                source = request['SOURCE'][0]
+                evidence = [{'resourceId': source['resourceId'], 'location': source['location'],
+                             'quote': source['text'][:30]}]
+                emphasis = []
+                if source.get('sourceKind') == 'notability_note':
+                    emphasis = [{'point': '정렬 조건', 'level': 'critical',
+                                 'reason': '선택한 Notability 필기에서 교수님 강조로 표시됨',
+                                 'sourceKind': 'notability_note', 'referenceId': request['examReferences'][0]['id'],
+                                 'evidence': evidence}]
+                items.append({'requestId': request['requestId'], 'data': {
+                    'summary': '자료 조각의 핵심 흐름',
+                    'coverage': [{'topic': '이진 탐색', 'points': ['정렬 조건'], 'definitions': [],
+                                  'examples': [], 'evidence': evidence}],
+                    'emphasis': emphasis, 'gaps': []}})
+            result = session.call({'action': 'summary_extract', 'items': items})
+        self.assertEqual(result['status'], 'summary')
+        self.assertEqual(result['summary']['schemaVersion'], 'pre-exam-summary.v1')
+        self.assertEqual(result['summary']['coverage']['status'], 'complete')
+        self.assertEqual(result['summary']['professorEmphasis'][0]['marker'], '🔥')
+        self.assertEqual(result['summary']['coverage']['sourceCount'], 2)
+
     def test_thirty_questions_are_not_capped_at_twenty_for_one_part(self):
         prepared = self.session('thirty').call({'action': 'request',
             'selection': {'courseId': 'course-1', 'resourceIds': ['r0']}, 'settings': {'count': 30}})

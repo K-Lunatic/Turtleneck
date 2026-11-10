@@ -9,6 +9,8 @@
   <sub>KKU TLS와 수업자료를 연결하는 Codex / Claude Code / Gemini 대학생활 스킬</sub>
 </p>
 
+<p align="center"><small>검색어: Turtleneck AI Skill · 터틀넥 스킬 · Codex Skill · Claude Code Skill · Gemini Skill · Moodle study assistant</small></p>
+
 <p align="center">
   <img src="https://img.shields.io/badge/Codex-Skill-202124?style=flat-square" alt="Codex Skill">
   <img src="https://img.shields.io/badge/Claude_Code-Skill-D97757?style=flat-square" alt="Claude Code Skill">
@@ -58,6 +60,17 @@
 
 ## 빠른 시작
 
+터틀넥은 GitHub에서 `Turtleneck AI Skill` 또는 `터틀넥 스킬`로 찾을 수 있고, Codex·Claude Code
+마켓플레이스와 Gemini 스킬 경로에 같은 패키지로 등록되어 있습니다. 설치 환경만 먼저 확인하려면 아래를
+실행하고, 실제 등록은 확인 후 `--apply`를 붙이세요.
+
+```bash
+python3 skills/university-agent/scripts/install_turtleneck.py
+python3 skills/university-agent/scripts/install_turtleneck.py --apply
+```
+
+설치가 끝났을 때만 “도움이 됐다면 GitHub에서 별 하나만 눌러 주세요”라는 안내를 한 번 표시합니다. 별은 선택 사항이며 기능·지원 범위와 무관합니다.
+
 ### 1. 설치
 
 로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 macOS·Windows 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.
@@ -102,7 +115,15 @@ claude plugin install university-agent@turtleneck
 호출합니다. 이 경우 플러그인 자동 업데이트 대신 폴더를 다시 복사해 갱신합니다.
 [Claude 설치 규칙](https://code.claude.com/docs/en/plugin-marketplaces)과 [실행 지침](skills/university-agent/references/claude-code.md)을 참고하세요.
 
-**Gemini:** 저장소 폴더를 연결하거나 GitHub 주소를 전달해 `skills/university-agent`를 `turtleneck` 스킬로 등록합니다. 자세한 로컬 샌드박스·네트워크 승인 규칙은 [Gemini 실행 지침](skills/university-agent/references/gemini.md)을 참고하세요.
+**Gemini CLI:** 저장소 전체가 아니라 스킬 경로를 직접 등록합니다.
+
+```bash
+gemini skills install https://github.com/K-Lunatic/Turtleneck.git \
+  --path skills/university-agent --scope user
+gemini skills list --all
+```
+
+개발 중인 저장소는 루트에서 `gemini skills link "$PWD/skills/university-agent" --scope workspace`를 사용합니다. 로컬 파일·명령 실행이 없는 일반 Gemini 웹 대화에서는 학교 로그인·동기화·로컬 시험지를 사용할 수 없습니다. [Gemini 실행 지침](skills/university-agent/references/gemini.md)을 참고하세요.
 
 로컬 시험 서버나 Actions 연결을 실행할 때는 `University Agent.command`(macOS) 또는 `University Agent.bat`(Windows)를 더블클릭하세요. Python이 없으면 공식 설치 안내가 표시됩니다. 실행 전 터틀넥은 신뢰한 `turtleneck` 버전을 확인하지만 자동으로 덮어쓰지 않으며, 사용자가 확인한 뒤 `--apply`를 선택해야 업데이트합니다. 개발 중인 Git 저장소는 자동으로 덮어쓰지 않습니다.
 
@@ -116,11 +137,11 @@ claude plugin install university-agent@turtleneck
 
 터틀넥은 [XERJ Corpus Hub](https://hub.xerj.org/contributors/K-Lunatic)에 공개 코퍼스로 선정되었습니다. 실제 구현을 참고할 수 있도록 `feat: add lecture media and activity support` 커밋([`49615b7`](https://github.com/K-Lunatic/Turtleneck/commit/49615b7700f66ccfeef1546c181845528943eacf))이 MIT 라이선스와 함께 고정되어 있으며, [K-Lunatic 기여자 페이지](https://hub.xerj.org/contributors/K-Lunatic)에서 확인할 수 있습니다.
 
-### 자율강좌는 매일 어떻게 갱신되나요?
+### 자율강좌는 예약 확인 때 어떻게 갱신되나요?
 
-자율강좌 주소를 한 번 확인하고 `--remember-watch`를 선택하면, 매일 학교 동기화 때 해당 강좌의 운영 권한과 화면에 보이는 토픽·활동 구조를 다시 확인합니다. 새 토픽이나 활동이 보이면 변경 사실과 최신 구조를 이 컴퓨터에 저장하고, 확인에 실패하면 이전 기록을 최신 정보처럼 보여주지 않습니다. 이 자동 확인은 읽기 전용이며 TLS에 자료를 올리거나 기존 내용을 지우지 않습니다. 복구·업로드·강좌 수정은 별도 명령과 사용자 확인이 필요합니다.
+자율강좌 주소를 한 번 확인하고 `--remember-watch`를 선택하면, 예약된 학교 동기화 때 해당 강좌의 운영 권한과 화면에 보이는 토픽·활동 구조를 읽기 전용으로 확인합니다. 변경이 발견되면 변경 종류를 이 컴퓨터에 저장하고 사용자에게 알려 줍니다. 확인에 실패하면 이전 기록을 최신 정보처럼 보여주지 않습니다. 자료 업로드·삭제·강좌 수정은 자동으로 실행하지 않으며, 별도 명령과 사용자 확인이 필요합니다.
 
-학교 전체가 공유하는 순간 대역폭이 약 1GB/s라는 전제에서도 이를 학생별 허용량으로 계산하지 않습니다. 메타데이터 확인은 비교적 작지만 원본 자료·HLS 음성/영상 조각·재시도·자율강좌 업로드가 모두 순간 대역폭을 사용합니다. 특히 전체 강의 음원 추출은 자동·일괄 실행하지 않고, 필요한 전사 구간을 우선 받으며 검증된 로컬 복사본을 재사용합니다. 학교가 말하는 `1G`가 실제로는 1Gbps(약 125MB/s)를 뜻하는지 먼저 확인해야 하며, 정확한 회선 정책과 피크 사용량이 확인되기 전에는 전체 강의 추출과 자율강좌 쓰기 기능을 학교 전체 배포 대상으로 보지 않습니다.
+원본 파일과 동영상 데이터는 자동으로 일괄 수집하지 않습니다. 필요한 자료만 요청 시 확인하고, 이미 검증된 로컬 사본은 재사용합니다. 학교 서버의 이용 제한이나 자료 다운로드 정책이 확인되지 않은 작업은 실행하지 않습니다.
 
 ```bash
 python3 scripts/run_agent.py autonomous-course-verify \

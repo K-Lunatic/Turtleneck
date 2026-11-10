@@ -61,6 +61,15 @@ class StudyMaterialsTests(ProjectTestBase):
         legacy = {k: v for k, v in material.items() if k != 'extension'}
         self.assertNotEqual(analysis_key(state, material), analysis_key(state, legacy))
 
+    def test_hwp_and_hwpx_are_accepted_by_the_attachment_boundary(self):
+        for extension in ('hwp', 'hwpx'):
+            path = self.files / f'과제.{extension}'
+            path.write_bytes(b'fixture')
+            with patch('features.study_materials._read_sections', return_value=[{'location': '본문', 'text': '한글 과제'}]):
+                material = attached_material(str(path))
+            self.assertEqual(material['extension'], extension)
+            self.assertEqual(material['sections'][0]['text'], '한글 과제')
+
     def test_original_files_are_real_paths_and_prohibited_or_escaped_paths_are_not_exposed(self):
         cli_result = self.cli('resource-file', '--course', '자료구조', '--resource', '3주차')
         self.assertEqual(cli_result['data']['files'][0]['path'], str(self.pptx.resolve()))

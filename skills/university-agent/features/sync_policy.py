@@ -9,6 +9,7 @@ import time
 
 
 CATALOG_TTL = 5 * 60
+AUTONOMOUS_TTL = 6 * 60 * 60
 ACADEMIC_TTL = 15 * 60
 NOTICE_TTL = 6 * 60 * 60
 RESOURCE_TTL = 24 * 60 * 60
