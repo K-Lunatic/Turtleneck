@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15-intel, windows-latest]
-        suite: [study, sync, assignments, moodle]
+        suite: [study-core, study-web, study-media, study-materials, study-pipeline, study-main, sync, assignments, moodle]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -33,8 +33,23 @@ jobs:
             export PYTHONPATH="skills/university-agent:skills/university-agent/tests"
           fi
           case "${{ matrix.suite }}" in
-            study)
-              modules="test_concept_insights test_exam_web test_learning_plan test_lecture_audio test_study test_study_materials test_study_pack test_study_pipeline test_study_topup"
+            study-core)
+              modules="test_concept_insights test_learning_plan test_study_pack test_study_topup"
+              ;;
+            study-web)
+              modules="test_exam_web"
+              ;;
+            study-media)
+              modules="test_lecture_audio"
+              ;;
+            study-materials)
+              modules="test_study_materials"
+              ;;
+            study-pipeline)
+              modules="test_study_pipeline"
+              ;;
+            study-main)
+              modules="test_study"
               ;;
             sync)
               modules="test_academic_alerts test_academic_status test_analysis_records test_connection test_everytime_connect test_setup test_sync_policy test_sync_safety test_tls_backup_download test_tls_data test_tls_login test_tls_optimization test_update"
