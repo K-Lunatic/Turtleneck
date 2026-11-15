@@ -9,6 +9,10 @@
   <sub>KKU TLS와 수업자료를 연결하는 Codex / Claude Code / Gemini 대학생활 스킬</sub>
 </p>
 
+<p align="center">
+  <a href="https://k-lunatic.github.io/Foundation/turtleneck/"><strong>설치 없이 예제 시험지 풀기</strong></a>
+</p>
+
 <p align="center"><small>검색어: Turtleneck AI Skill · 터틀넥 스킬 · Codex Skill · Claude Code Skill · Gemini Skill · Moodle study assistant</small></p>
 
 <p align="center">
