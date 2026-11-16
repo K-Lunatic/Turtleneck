@@ -216,7 +216,8 @@ class GatewayTests(unittest.TestCase):
             self.assertTrue(entered.wait(1))
             self.code('alice')
             release.set()
-            for _ in range(400):
+            # Windows runners can take longer to release the file lock and start the queued run.
+            for _ in range(2000):
                 if len(runs) >= 2 and not self.app.accounts['alice']['running'] and 'pendingSession' not in self.app.accounts['alice']:
                     break
                 time.sleep(.005)
