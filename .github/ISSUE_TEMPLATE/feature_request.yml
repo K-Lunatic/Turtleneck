@@ -1,0 +1,25 @@
+name: 기능 제안
+description: 사용자에게 필요한 기능을 제안합니다.
+title: "feat: "
+body:
+  - type: textarea
+    id: user-story
+    attributes:
+      label: 사용자 흐름
+      description: 누가 어떤 상황에서 무엇을 하려는지 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건
+      description: 동작과 검증 방법을 구체적으로 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 서버·보안 영향
+      description: 학교 서버 요청량, 개인정보, 권한 변경 여부를 적어 주세요.
+    validations:
+      required: true

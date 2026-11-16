@@ -1,0 +1,27 @@
+name: 검증 작업
+description: 실제 학교 환경·OS·Provider 검증을 추적합니다.
+title: "verify: "
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: 검증 범위
+      description: 대상 Provider, OS, 기능, 데이터 범위를 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 필요한 증거
+      description: 로그, 요청 수, 응답 바이트, 화면, fixture 등 완료를 증명할 자료를 적어 주세요.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 안전 조건
+      options:
+        - label: 테스트 계정과 승인된 범위만 사용합니다.
+          required: true
+        - label: 인증정보와 개인자료를 저장하거나 공유하지 않습니다.
+          required: true

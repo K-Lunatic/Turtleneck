@@ -1,0 +1,32 @@
+name: 버그 신고
+description: 재현 가능한 문제를 신고합니다.
+title: "bug: "
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 문제 현상
+      description: 사용자가 본 결과를 민감정보 없이 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 재현 절차
+      description: 입력, 명령, 기대 결과와 실제 결과를 적어 주세요.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 환경
+      placeholder: Windows 11 / macOS 15 / Python 없음 / 버전
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 개인정보 확인
+      options:
+        - label: 비밀번호·쿠키·세션·개인 강의자료를 첨부하지 않았습니다.
+          required: true
