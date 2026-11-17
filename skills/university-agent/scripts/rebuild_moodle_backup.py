@@ -164,7 +164,7 @@ def rebuild_backup(template: Path, output: Path, subjects: list[str], *, include
 
     course_numsections = course_root.find("numsections")
     if course_numsections is not None:
-        course_numsections.text = str(len(clean_subjects))
+        course_numsections.text = str(len(topic_names))
     files["course/course.xml"] = _xml_bytes(course_root)
     files["moodle_backup.xml"] = _xml_bytes(backup_root)
     files["questions.xml"] = _empty_question_bank(course_id, new_base + len(topic_names) + 1)

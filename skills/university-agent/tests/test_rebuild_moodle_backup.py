@@ -52,6 +52,8 @@ class RebuildMoodleBackupTests(unittest.TestCase):
                 sections = ET.fromstring(archive.extractfile("moodle_backup.xml").read())
                 titles = [node.findtext("title") for node in sections.findall("./information/contents/sections/section")]
                 self.assertEqual(titles, ["강의 개요", "자료구조", "고급웹프로그래밍"])
+                course = ET.fromstring(archive.extractfile("course/course.xml").read())
+                self.assertEqual(course.findtext("numsections"), "3")
                 settings = sections.findall("./information/settings/setting")
                 self.assertFalse(any(item.findtext("level") in {"activity", "section"} for item in settings))
                 self.assertEqual(next(item.findtext("value") for item in settings if item.findtext("name") == "activities"), "0")
