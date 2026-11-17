@@ -10,12 +10,25 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / 'skills/university-agent'), str(ROOT / 'skills/university-agent/tests')]
 from test_study_pipeline import FilePipelineTests
+from test_project import snapshot, upsert
+from storage.local_db import LocalDatabase
 
 
 def run(files):
     fixture = FilePipelineTests('test_chunk_boundaries_preserved_without_suffix_copy')
     fixture.setUp()
     try:
+        if files > 4:
+            data = snapshot()
+            data['resources'] = []
+            for index in range(files):
+                path = fixture.files / f'{index}.txt'
+                path.write_text('', encoding='utf-8')
+                data['resources'].append(dict(snapshot()['resources'][0], id=f'r{index}',
+                    localPath=str(path), fileName=path.name, extension='txt'))
+            database = LocalDatabase(fixture.db_path)
+            upsert(database, 'fixture-user', data)
+            database.close()
         for i in range(files):
             (fixture.files / f'{i}.txt').write_text('이진 탐색은 정렬된 배열에서 탐색한다.\n' * (4000 // files), encoding='utf-8')
         session = fixture.session('speed')

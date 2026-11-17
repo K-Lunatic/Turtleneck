@@ -282,6 +282,7 @@ class MoodleSession:
         finally:
             response.close()
         if self.logged_in and ("/login" in urlsplit(response.geturl()).path or re.search(r'name=["\']username["\']', html, re.I)):
+            self.logged_in = False
             raise LoginError("TLS session expired; sign in again")
         return html, response
 

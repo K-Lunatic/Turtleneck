@@ -24,6 +24,9 @@ from scripts import sync_tls
 
 
 class TlsLoginTests(unittest.TestCase):
+    def setUp(self):
+        tls_auth.clear_process_session_cache()
+
     def test_tls_session_cache_stays_out_of_the_marker_file(self):
         jar = CookieJar()
         jar.set_cookie(Cookie(version=0, name='MoodleSession', value='fixture-cookie',
@@ -205,6 +208,28 @@ class TlsLoginTests(unittest.TestCase):
         self.assertEqual(username, 'student')
         self.assertIn('보호 저장소에 세션을 보관하지 못했어요', output.getvalue())
         self.assertNotIn('secret', output.getvalue())
+
+    def test_authenticated_session_reuses_one_process_session_without_reopening_login(self):
+        class Session:
+            logged_in = True
+            cookies = object()
+
+            def __init__(self, _base_url):
+                self.login_calls = 0
+
+            def login(self, _username, _password):
+                self.login_calls += 1
+
+        with patch.object(tls_auth, 'resume_saved_session', return_value=None) as resume, \
+             patch.object(tls_auth, 'load', return_value=('student', 'secret')), \
+             patch.object(tls_auth, 'MoodleSession', side_effect=Session) as session_type, \
+             patch.object(tls_auth, 'save'), patch.object(tls_auth, 'save_session'):
+            first = tls_auth.authenticated_session('https://tls.example')
+            second = tls_auth.authenticated_session('https://tls.example')
+        self.assertIs(first[1], second[1])
+        self.assertEqual(session_type.call_count, 1)
+        self.assertEqual(first[1].login_calls, 1)
+        resume.assert_called_once()
 
     def test_shared_credential_resolver_does_not_reopen_form_for_empty_secret(self):
         with patch.object(credentials, 'load', side_effect=ValueError('empty')), \
