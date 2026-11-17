@@ -22,9 +22,16 @@ dist/turtleneck/turtleneck companion --dashboard
 # macOS 메뉴 바 앱으로 실행하려면
 pyinstaller packaging/companion.spec --noconfirm --clean
 open "dist/Turtleneck Companion.app"
+
+# Windows 알림 영역 앱으로 실행하려면
+pyinstaller packaging/companion.spec --noconfirm --clean
+dist/companion/turtleneck-companion.exe
 ```
 
-The public release workflow runs the same build on macOS and Windows. It does
+The public release workflow runs the same companion build on macOS and Windows.
+macOS places it in a menu bar app bundle and Windows places it in a notification-area
+executable; both expose the same local dashboard, profile summary and login flow.
+It does
 not call the network, school login, or a real account during packaging tests.
 
 ## Public release policy

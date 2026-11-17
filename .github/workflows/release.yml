@@ -39,7 +39,7 @@ jobs:
           python -m pip install pyinstaller==6.11.1
           python -m pip install -r packaging/desktop-requirements.txt
           pyinstaller packaging/turtleneck.spec --noconfirm --clean
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
+          if [[ "$RUNNER_OS" == "macOS" || "$RUNNER_OS" == "Windows" ]]; then
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
           fi
@@ -67,8 +67,10 @@ jobs:
                       bundle.write(path, path.as_posix())
           digest = hashlib.sha256(output.read_bytes()).hexdigest()
           Path(f'{artifact}.sha256').write_text(f'{digest}  {output.name}\n', encoding='utf-8')
-          if os.environ.get('RUNNER_OS') == 'macOS':
-              companion = Path('dist/companion/Turtleneck Companion.app')
+          if os.environ.get('RUNNER_OS') in {'macOS', 'Windows'}:
+              companion = (Path('dist/companion/Turtleneck Companion.app')
+                           if os.environ['RUNNER_OS'] == 'macOS'
+                           else Path('dist/companion'))
               companion_output = Path(f'{artifact}-companion.zip')
               with zipfile.ZipFile(companion_output, 'w', zipfile.ZIP_DEFLATED) as bundle:
                   for path in companion.rglob('*'):

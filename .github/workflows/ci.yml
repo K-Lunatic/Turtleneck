@@ -121,6 +121,9 @@ jobs:
           pyinstaller packaging/turtleneck.spec --noconfirm --clean
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             dist/turtleneck/turtleneck.exe --version
+            pyinstaller packaging/companion.spec --noconfirm --clean \
+              --distpath dist/companion --workpath build/companion
+            test -f "dist/companion/turtleneck-companion.exe"
           else
             dist/turtleneck/turtleneck --version
             pyinstaller packaging/companion.spec --noconfirm --clean \

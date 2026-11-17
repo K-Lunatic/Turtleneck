@@ -1,9 +1,10 @@
-# Native macOS menu-bar app for the optional Turtleneck companion.
+# Native menu-bar/notification-area app for the optional Turtleneck companion.
 from pathlib import Path
 import sys
 
 from PyInstaller.building.build_main import Analysis, EXE, PYZ
-from PyInstaller.building.osx import BUNDLE
+if sys.platform == "darwin":
+    from PyInstaller.building.osx import BUNDLE
 from PyInstaller.utils.hooks import collect_all
 
 
@@ -40,9 +41,10 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="turtleneck-companion", console=False)
-BUNDLE(
-    exe,
-    name="Turtleneck Companion.app",
-    bundle_identifier="org.k-lunatic.turtleneck.companion",
-    info_plist={"LSUIElement": True},
-)
+if sys.platform == "darwin":
+    BUNDLE(
+        exe,
+        name="Turtleneck Companion.app",
+        bundle_identifier="org.k-lunatic.turtleneck.companion",
+        info_plist={"LSUIElement": True},
+    )
