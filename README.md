@@ -4,6 +4,10 @@
 
 <h1 align="center">터틀넥 · Turtleneck</h1>
 
+![Turtleneck system flow](docs/architecture/system-flow.svg)
+
+전체 흐름은 로컬 우선으로 동작하며, 인증정보는 로컬 보호 저장소 경계를 벗어나지 않습니다.
+
 <p align="center">
   <strong>학교 자료를 모으고, 공부할 만큼 나누고, 시험처럼 풀어요.</strong><br>
   <sub>KKU TLS와 수업자료를 연결하는 Codex / Claude Code / Gemini 대학생활 스킬</sub>
