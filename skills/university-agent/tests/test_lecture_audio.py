@@ -73,6 +73,26 @@ class StreamingSession(Session):
         return len(content)
 
 
+class ResumableMp4Session:
+    def __init__(self):
+        self.content = b'\x00\x00\x00\x18ftypmp42' + b'video-data'
+        self.calls = []
+        self.failed = True
+
+    def stream_bytes_to_file(self, url, target, **kwargs):
+        self.calls.append((url, Path(target).stat().st_size if Path(target).exists() else 0, kwargs))
+        target = Path(target)
+        offset = target.stat().st_size if target.exists() else 0
+        if self.failed:
+            target.write_bytes(self.content[:8])
+            self.failed = False
+            raise URLError('temporary reset')
+        self.assert_resume = kwargs.get('resume_existing')
+        with target.open('ab') as stream:
+            stream.write(self.content[offset:])
+        return {'size': len(self.content)}
+
+
 class LectureAudioTests(unittest.TestCase):
     def test_asr_keeps_cpu_headroom_and_falls_back_when_gpu_fails(self):
         with patch.object(lecture_review.os, 'cpu_count', return_value=8):
@@ -304,6 +324,22 @@ class LectureAudioTests(unittest.TestCase):
             download_media(session, plan, path)
             self.assertEqual(path.read_bytes(), b'GfirstGsecond')
             self.assertEqual(list(Path(folder).glob('.media-*')), [])
+
+    def test_direct_mp4_keeps_partial_and_resumes_with_range(self):
+        session = ResumableMp4Session()
+        plan = {'format': 'mov', 'chunks': ['https://media.example/video.mp4'],
+                'origin': 'media.example', 'sourceKey': 'mp4-resume'}
+        with tempfile.TemporaryDirectory() as folder, patch('providers.lecture_media.time.sleep'):
+            path = Path(folder) / 'video.mp4'
+            with self.assertRaises(URLError):
+                download_media(session, plan, path)
+            self.assertFalse(path.exists())
+            self.assertTrue((Path(folder) / '.video.mp4.partial').exists())
+            download_media(session, plan, path)
+            self.assertEqual(path.read_bytes(), session.content)
+            self.assertEqual(session.calls[1][1], 8)
+            self.assertTrue(session.calls[1][2]['resume_existing'])
+            self.assertFalse((Path(folder) / '.video.mp4.partial').exists())
 
     def test_failed_download_preserves_existing_target_and_cleans_partial_output(self):
         session = Session()

@@ -117,6 +117,8 @@ observed media files; no player JavaScript/tracking/attendance requests or decry
 Metadata stays outside the document-resource contract and never changes completion.
 Media chunks are staged on disk and the destination is replaced only after the complete
 bounded transfer succeeds; a failed or expired session must leave an existing local copy intact.
+Direct MP4 media keeps its single partial chunk beside the destination and resumes through
+HTTP Range only when the server returns a matching `206 Content-Range` response.
 
 ## Conditional instructor permission (local only)
 
