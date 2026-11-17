@@ -354,7 +354,8 @@ def _finish_file(session, state, target):
     operation_id = p.get('batchId') or state.get('requestId') or secrets.token_hex(12)
     analysis_records.save(session.files_root.parent, session.user,
         [s for u in units for s in u['sources']], state['settings'], 'exam_analysis',
-        {'units': units, 'candidates': candidates, 'candidateCount': len(candidates)}, operation_id=operation_id)
+        {'units': units, 'candidates': candidates, 'candidateCount': len(candidates),
+         'imageRefs': p.get('imageRefs', {})}, operation_id=operation_id)
     material_cache.put(session.files_root.parent / 'cache', 'analysis', session.user, p['analysisKey'],
         {'units': units, 'candidates': candidates, 'candidateBudget': target, 'imageRefs': p.get('imageRefs', {}),
          'sourceAnalysisKey': p.get('sourceAnalysisKey')})

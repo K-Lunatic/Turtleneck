@@ -8,7 +8,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +55,23 @@ class StreamingResourceSession(Session):
     def stream_bytes_to_file(self, path, target, **kwargs):
         self.bytes_read.append(path)
         Path(target).write_bytes(self.content)
+        return {'size': len(self.content), 'url': path, 'headers': self.response_headers}
+
+
+class InterruptedStreamingResourceSession(StreamingResourceSession):
+    def __init__(self):
+        super().__init__()
+        self.stream_attempts = 0
+
+    def stream_bytes_to_file(self, path, target, **kwargs):
+        self.stream_attempts += 1
+        self.bytes_read.append(path)
+        if self.stream_attempts == 1:
+            Path(target).write_bytes(b'%PDF-')
+            raise URLError('fixture connection dropped')
+        self.assert_resume = kwargs.get('resume_existing')
+        with Path(target).open('ab') as output:
+            output.write(b'fixture')
         return {'size': len(self.content), 'url': path, 'headers': self.response_headers}
 
 def provider(session):
@@ -115,6 +132,27 @@ class ResourceResponseTests(unittest.TestCase):
         with patch('providers.moodle_provider.Path.read_bytes', side_effect=AssertionError('whole file read')):
             item = provider(session).get_resources('u', save_file=sink)[0]
         self.assertEqual(item['downloadStatus'], 'NOT_DOWNLOADED')
+
+    def test_interrupted_resource_download_resumes_and_cleans_checkpoint(self):
+        session = InterruptedStreamingResourceSession()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'files'
+            first = provider(session).get_resources('u', save_file=lambda item: item,
+                                                    partial_root=root)[0]
+            self.assertTrue(first['_checkFailed'])
+            partial = root / '.partials' / 'course-a' / '10.part'
+            manifest = partial.with_suffix('.json')
+            self.assertEqual(partial.read_bytes(), b'%PDF-')
+            self.assertTrue(manifest.is_file())
+            saved = []
+            second = provider(session).get_resources(
+                'u', save_file=lambda item: saved.append(Path(item['_content_path']).read_bytes()) or item,
+                partial_root=root)[0]
+            self.assertTrue(session.assert_resume)
+            self.assertEqual(saved, [b'%PDF-fixture'])
+            self.assertEqual(second['downloadStatus'], 'NOT_DOWNLOADED')
+            self.assertFalse(partial.exists())
+            self.assertFalse(manifest.exists())
 
     def test_nested_visible_viewer_uses_observed_document_id_and_server_permission(self):
         session = Session()

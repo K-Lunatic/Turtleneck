@@ -556,7 +556,8 @@ def _prepare_requested_resources(args, db_path, user_id, username, provider, sco
     resources = reader.get_resources(user_id, notices=notices,
         existing_resources=_cached_resources(db_path, user_id, file_root), resource_ids=targets or None,
         detail_course_ids=requested if not targets else set(),
-        download_new_files=not args.metadata_only, save_file=lambda item: store_resource(file_root, item))
+        download_new_files=not args.metadata_only, save_file=lambda item: store_resource(file_root, item),
+        partial_root=file_root)
     if any(item.get('_checkFailed') for item in resources):
         raise URLError('요청한 자료의 현재 상태를 확인하지 못했어요.')
     seen = {item['id'] for item in resources}
@@ -703,7 +704,7 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
             user_id, notices=notices, existing_resources=_cached_resources(db_path, user_id, file_root),
             download_new_files=not args.metadata_only, resource_ids=set(args.resource_id) if args.resource_id else None,
             detail_course_ids=detail_courses if args.resource_id else None,
-            save_file=lambda item: store_resource(file_root, item))
+            save_file=lambda item: store_resource(file_root, item), partial_root=file_root)
         if any(item.get('_checkFailed') for item in resources):
             raise URLError('일부 자료의 현재 상태를 확인하지 못했어요.')
         checked_resource_ids = {item['id'] for item in resources}

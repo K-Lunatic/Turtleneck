@@ -568,6 +568,19 @@ class Gateway:
         conversation = self._mobile_conversation(ticket)
         current = study_bridge.session(self.data_dir, self.db_path, self.take(self.study_links, ticket)['user'], conversation)
         try:
+            if tail == 'api/image' and env['REQUEST_METHOD'] == 'GET':
+                query = parse_qs(env.get('QUERY_STRING', ''), keep_blank_values=True)
+                if set(query) != {'examId', 'questionId', 'index'}:
+                    return 400, {'error': '문항 이미지를 확인해 주세요.'}, 'application/json', []
+                image = current.call({'action': 'web_image', 'examId': query['examId'][0],
+                                      'questionId': query['questionId'][0], 'index': query['index'][0]})
+                try:
+                    image_path = Path(image['path']).resolve(strict=True)
+                except (KeyError, OSError, ValueError):
+                    return 409, {'error': '문항 이미지를 읽지 못했어요.'}, 'application/json', []
+                if image_path.stat().st_size > 10_000_000:
+                    return 409, {'error': '문항 이미지가 너무 커요.'}, 'application/json', []
+                return 200, image_path.read_bytes(), image['contentType'], []
             action = {'/api/exam': 'web_status', '/api/history': 'exam_history', '/api/start': 'start_exam', '/api/retry': 'shuffle_exam', '/api/draft': 'draft', '/api/submit': 'web_submit', '/api/confusion': 'confusion_toggle', '/api/focus': 'question_focus'}.get('/' + tail)
             if not action:
                 return 404, {'error': '지원하지 않는 요청입니다.'}, 'application/json', []

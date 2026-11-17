@@ -984,7 +984,8 @@ class MoodleTLSProvider:
                       download_new_files: bool = True,
                       save_file: Callable[[dict], dict] | None = None,
                       resource_ids: set[str] | None = None,
-                      detail_course_ids: set[str] | None = None) -> list[dict[str, Any]]:
+                      detail_course_ids: set[str] | None = None,
+                      partial_root: str | os.PathLike[str] | None = None) -> list[dict[str, Any]]:
         jobs = []
         seen = set()
         notices_by_course = {}
@@ -1010,7 +1011,7 @@ class MoodleTLSProvider:
             return provider._get_resource(course, activity, identifier,
                 notices_by_course.get(course['id'], []), existing_resources,
                 download_new_files and (resource_ids is None or f'tls-resource-{identifier}' in resource_ids),
-                save_file)
+                save_file, partial_root)
 
         # One flat pool also overlaps downloads within a single course.
         if len(jobs) > 1 and hasattr(self.session, 'fork'):
@@ -1018,7 +1019,8 @@ class MoodleTLSProvider:
                 return [item for item in pool.map(collect, jobs) if item is not None]
         return [item for job in jobs if (item := collect(job)) is not None]
 
-    def _get_resource(self, course, activity, resource_id, notices, existing_resources, download_new_files, save_file):
+    def _get_resource(self, course, activity, resource_id, notices, existing_resources, download_new_files, save_file,
+                      partial_root=None):
         href, title = activity['href'], activity['title']
         record = {"id": f"tls-resource-{resource_id}", "externalId": resource_id,
                   "courseId": course["id"], "title": title or f"TLS resource {resource_id}",
@@ -1057,13 +1059,42 @@ class MoodleTLSProvider:
                     'downloadReason': download_issue or 'TLS 자료의 원본 다운로드 주소를 확인하지 못했어요.'}
         if not download_new_files:
             return {**record, "downloadReason": "이번에는 목록만 확인했어요. 필요한 자료를 요청하면 해당 파일만 받을게요."}
+        partial_path = partial_manifest = None
+        if partial_root is not None and save_file and hasattr(self.session, 'stream_bytes_to_file'):
+            partial_dir = Path(partial_root) / '.partials' / str(course['id'])
+            if not re.fullmatch(r'[A-Za-z0-9_-]+', str(course['id'])):
+                raise ValueError('자료 저장 식별자가 올바르지 않습니다.')
+            partial_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            partial_path = partial_dir / f'{resource_id}.part'
+            partial_manifest = partial_dir / f'{resource_id}.json'
+            expected = {'courseId': course['id'], 'resourceId': resource_id, 'remotePath': href}
+            try:
+                saved = json.loads(partial_manifest.read_text(encoding='utf-8')) if partial_manifest.exists() else None
+            except (OSError, ValueError):
+                saved = None
+            if saved != expected:
+                partial_path.unlink(missing_ok=True)
+                partial_manifest.unlink(missing_ok=True)
+            if not partial_manifest.exists():
+                temporary = tempfile.NamedTemporaryFile(dir=partial_dir, prefix='.resource-partial-', delete=False,
+                                                        mode='w', encoding='utf-8')
+                try:
+                    json.dump(expected, temporary, ensure_ascii=False)
+                    temporary.flush()
+                    os.fsync(temporary.fileno())
+                finally:
+                    temporary.close()
+                os.replace(temporary.name, partial_manifest)
+            streamed_path = str(partial_path)
         try:
             if not reusable and save_file and hasattr(self.session, 'stream_bytes_to_file'):
-                temporary = tempfile.NamedTemporaryFile(prefix='.resource-', delete=False)
-                streamed_path = temporary.name
-                temporary.close()
+                if streamed_path is None:
+                    temporary = tempfile.NamedTemporaryFile(prefix='.resource-', delete=False)
+                    streamed_path = temporary.name
+                    temporary.close()
                 result = self.session.stream_bytes_to_file(
-                    download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
+                    download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000,
+                    resume_existing=partial_path is not None)
                 content = _read_file_sample(streamed_path)
                 response = type('StreamResponse', (), {
                     'headers': result['headers'],
@@ -1074,31 +1105,45 @@ class MoodleTLSProvider:
         except DownloadRestricted as error:
             if streamed_path:
                 os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+            if partial_manifest:
+                partial_manifest.unlink(missing_ok=True)
             return {**record, 'downloadStatus': 'PROHIBITED', 'downloadReason': str(error)}
         except HTTPError as error:
             if streamed_path:
-                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+                if partial_manifest and error.code in {408, 425, 429, 500, 502, 503, 504}:
+                    pass
+                else:
+                    os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+                    if partial_manifest:
+                        partial_manifest.unlink(missing_ok=True)
             return {**record, **_resource_http_error(error)}
         except RequestBackoff:
             raise
         except (URLError, TimeoutError):
             if streamed_path:
-                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+                if not partial_manifest:
+                    os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, '_checkFailed': True, 'downloadReason': '자료를 받는 중 연결이 끊기거나 응답이 늦었어요. 잠시 후 다시 확인해 주세요.'}
         except (ValueError, OSError) as error:
             if streamed_path:
                 os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+            if partial_manifest:
+                partial_manifest.unlink(missing_ok=True)
             return {**record, 'downloadReason': str(error) or '자료를 안정적으로 저장하지 못했어요.'}
         if content is None and reusable:
             return reused
         if not content:
             if streamed_path:
                 os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+            if partial_manifest:
+                partial_manifest.unlink(missing_ok=True)
             return {**record, 'downloadReason': '학교에서 빈 파일 응답을 보내 원본을 저장하지 않았어요.'}
         mime_type = response.headers.get_content_type()
         if _looks_like_viewer_page(content, mime_type, response.geturl()) or mime_type in {"text/html", "application/xhtml+xml"}:
             if streamed_path:
                 os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+            if partial_manifest:
+                partial_manifest.unlink(missing_ok=True)
             return {**record, 'mimeType': mime_type,
                     'downloadReason': '학교에서 원본 대신 문서 보기 또는 안내 화면을 보내 파일로 저장하지 않았어요.'}
         final_path = unquote(urlsplit(response.geturl()).path)
@@ -1114,6 +1159,8 @@ class MoodleTLSProvider:
         if not extension or extension in ('html', 'htm', 'php'):
             if streamed_path:
                 os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+            if partial_manifest:
+                partial_manifest.unlink(missing_ok=True)
             return {**record, 'mimeType': mime_type, 'downloadReason': '원본 파일의 종류를 확인하지 못해 저장하지 않았어요.'}
         signature = {'pdf': b'%PDF-', 'zip': b'PK',
             'ppt': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1', 'doc': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1',
@@ -1122,6 +1169,8 @@ class MoodleTLSProvider:
         if signature and not content.startswith(signature):
             if streamed_path:
                 os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+            if partial_manifest:
+                partial_manifest.unlink(missing_ok=True)
             return {**record, 'mimeType': mime_type, 'downloadReason': '파일로 표시됐지만 원본 형식과 내용이 달라 저장하지 않았어요.'}
         item = {**record, "title": title or file_name, "fileName": file_name, "extension": extension,
                 "mimeType": mime_type,
@@ -1133,6 +1182,8 @@ class MoodleTLSProvider:
             finally:
                 if streamed_path and os.path.exists(streamed_path):
                     os.unlink(streamed_path)
+                if partial_manifest:
+                    partial_manifest.unlink(missing_ok=True)
         return item
 
 

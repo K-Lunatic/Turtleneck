@@ -389,6 +389,35 @@ class ProjectTests(ProjectTestBase):
                 self.assertEqual(request.call_args.kwargs['timeout'], 30)
                 self.assertEqual(request.call_count, 3)
 
+    def test_stream_bytes_to_file_resumes_existing_file_with_a_verified_range(self):
+        class Response:
+            def __init__(self, payload, start, total):
+                self.payload = BytesIO(payload)
+                self.headers = Message()
+                self.headers['Content-Length'] = str(len(payload))
+                self.headers['Content-Range'] = f'bytes {start}-{total - 1}/{total}'
+            def geturl(self):
+                return 'https://tls.kku.ac.kr/file.pdf'
+            def getcode(self):
+                return 206
+            def read(self, size=-1):
+                return self.payload.read(size)
+            def close(self):
+                pass
+
+        session = MoodleSession(); session.logged_in = True
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'resource.part'
+            target.write_bytes(b'%PDF-')
+            first = Response(b'fixture', 5, 12)
+            with patch.object(session, '_open', return_value=first) as opened:
+                result = session.stream_bytes_to_file('/file.pdf', target,
+                                                      allowed_origin='tls.kku.ac.kr',
+                                                      resume_existing=True)
+            self.assertEqual(target.read_bytes(), b'%PDF-fixture')
+            self.assertEqual(result['size'], 12)
+            self.assertEqual(opened.call_args.args[0].headers['Range'], 'bytes=5-')
+
     def test_html_probe_does_not_transfer_redirected_pdf(self):
         session = MoodleSession(); session.logged_in = True
         response = Mock(headers={'Content-Type': 'application/pdf'}, geturl=lambda: 'https://tls.kku.ac.kr/file.pdf')
