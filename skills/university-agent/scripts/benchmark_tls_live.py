@@ -100,7 +100,8 @@ def main():
                       'Authentication is intentionally excluded from compared sync measurements.',
                       'Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.',
                       'No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.',
-                      'Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.'],
+                      'Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.',
+                      'Records from courses no longer present in the current enrollment are excluded from preservation comparison.'],
         }
         data = {}
         seed_data = None
@@ -124,10 +125,14 @@ def main():
             if label == 'after':
                 with closing(LocalDatabase(seed, read_only=True)) as database:
                     seed_data = {kind: getattr(database, 'get_' + kind)(username) for kind in data[label]}
+        current_course_ids = set(preflight['courseIds'])
+
         def normalized(rows, selected_only):
             return sorted([{key: value for key, value in row.items()
                             if key not in ('updatedAt', 'updated_at', 'downloadedAt')}
-                           for row in rows if (row.get('courseId') == selected) == selected_only],
+                           for row in rows
+                           if row.get('courseId') in current_course_ids
+                           and (row.get('courseId') == selected) == selected_only],
                           key=lambda row: row['id'])
         report['selected_course_results_equal'] = {
             kind: normalized(data['before'][kind], True) == normalized(data['after'][kind], True)
