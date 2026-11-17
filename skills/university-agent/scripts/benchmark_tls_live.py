@@ -20,6 +20,7 @@ from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import MoodleSession
 from providers.request_metrics import RequestMetrics
 from storage.local_db import LocalDatabase
+from features import sync_policy
 from test_tls_optimization import load_baseline
 
 
@@ -72,16 +73,27 @@ def main():
         selected = preflight['courseIds'][0]
         forced = dict(preflight['fingerprints'])
         forced[selected] = 'controlled-refresh-required'
+        # Keep every other scope fresh so the comparison really exercises one
+        # changed course instead of accidentally including a TTL refresh.
+        fresh_stamp = sync_policy.now().isoformat()
+        fresh_checks = json.dumps({course_id: fresh_stamp for course_id in preflight['courseIds']})
         # Same starting state for both runs; no actual TLS course is modified.
         with closing(LocalDatabase(seed)) as database:
             database.save_sync_state(username, {
                 'course_ids': json.dumps(preflight['courseIds']),
                 'course_fingerprints': json.dumps(forced),
                 'resource_response_version': MoodleTLSProvider.RESOURCE_RESPONSE_VERSION,
+                'sync_scope': sync_policy.scope_key(
+                    os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr'), username),
+                'academic_course_checks': fresh_checks,
+                'notice_course_checks': fresh_checks,
+                'resource_course_checks': fresh_checks,
+                'file_course_checks': fresh_checks,
             })
         report = {
             'measurement': 'live TLS, controlled one-course fingerprint mismatch',
             'metadata_only': True, 'courses': len(preflight['courseIds']),
+            'intended_changed_courses': 1,
             'authentication_setup': {'not_measured': True}, 'preflight_setup': setup_metrics.snapshot(),
             'notes': ['Both runs start from the same private DB backup and use the same authenticated account.',
                       'Only a local fingerprint is altered to force one course refresh. TLS is not modified.',

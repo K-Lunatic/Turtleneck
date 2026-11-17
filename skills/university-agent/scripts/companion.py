@@ -342,6 +342,21 @@ def _format_bytes(value: int) -> str:
     return "0B"
 
 
+def _build_tray_icon(image_module, draw_module):
+    """Draw a crisp monochrome mark instead of shrinking the full-color mascot."""
+    image = image_module.new("RGBA", (64, 64), (0, 0, 0, 0))
+    draw = draw_module.Draw(image)
+    ink = (17, 24, 39, 255)
+    width = 4
+    draw.ellipse((10, 8, 54, 52), outline=ink, width=width)
+    draw.ellipse((20, 20, 34, 34), outline=ink, width=width)
+    draw.ellipse((32, 20, 46, 34), outline=ink, width=width)
+    draw.line((34, 27, 32, 27), fill=ink, width=width)
+    draw.arc((24, 31, 47, 46), 10, 165, fill=ink, width=width)
+    draw.arc((8, 42, 56, 72), 200, 340, fill=ink, width=width)
+    return image
+
+
 def _open_setup() -> None:
     # Let setup_turtleneck decide whether a login form is needed; --status alone
     # can never reach the form from the companion menu.
@@ -358,13 +373,13 @@ def run_tray() -> int:
     """Start the native tray icon when the optional desktop dependencies exist."""
     try:
         import pystray
-        from PIL import Image
+        from PIL import Image, ImageDraw
     except ImportError:
         print("보조 앱 구성요소가 없어요. 데스크톱 번들을 설치하거나 pystray와 Pillow를 준비해 주세요.")
         return 2
 
-    image = Image.open(ICON_PATH).convert("RGBA")
-    image.thumbnail((32, 32))
+    image = _build_tray_icon(Image, ImageDraw)
+    image.thumbnail((32, 32), Image.Resampling.LANCZOS)
     state = {"snapshot": snapshot()}
     try:
         import webview
