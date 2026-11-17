@@ -9,7 +9,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.restore_moodle_backup import _WizardFormParser, _multipart, _restore_page, _wizard_fields
+from scripts.restore_moodle_backup import (
+    MoodleBackupRestoreError,
+    _WizardFormParser,
+    _multipart,
+    _restore_page,
+    _wizard_fields,
+    restore_backup,
+)
 from providers.moodle_session import MoodleSession
 
 
@@ -91,6 +98,17 @@ class RestoreBackupTests(unittest.TestCase):
         parser.feed('''<form action="/backup/restore.php"><input type="hidden" name="keep" value="0">
             <input type="checkbox" name="keep" value="1" checked><input type="submit" value="다음"></form>''')
         self.assertEqual(_wizard_fields(parser.forms[0]), {'keep': '1'})
+
+    def test_missing_saved_connection_is_a_user_facing_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backup = Path(directory) / 'clean.mbz'
+            backup.write_bytes(b'backup')
+            with patch('scripts.restore_moodle_backup.validate_backup', return_value={
+                'activityCount': 0, 'hasFiles': False,
+            }), patch('scripts.restore_moodle_backup.authenticated_session',
+                      side_effect=RuntimeError('저장된 학교 연결을 읽지 못했어요.')):
+                with self.assertRaisesRegex(MoodleBackupRestoreError, '저장된 학교 연결'):
+                    restore_backup(backup, 'https://tls.kku.ac.kr/course/view.php?id=65513')
 
 
 if __name__ == '__main__':

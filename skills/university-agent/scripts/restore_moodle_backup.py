@@ -247,7 +247,7 @@ def restore_backup(backup: Path, course_url: str, *, apply: bool = False,
         raise MoodleBackupRestoreError("파일이나 기존 활동이 들어 있는 백업은 자율강좌 빈 구조 복구에 사용할 수 없어요.")
     try:
         username, session = authenticated_session()
-    except CredentialInputRequired as error:
+    except (CredentialInputRequired, RuntimeError) as error:
         raise MoodleBackupRestoreError(str(error)) from error
     courses = MoodleTLSProvider(session).get_autonomous_courses(username)
     target = next((course for course in courses if str(course.get("externalId")) == course_id), None)
