@@ -195,6 +195,14 @@
 - **검증**: 오래된 브랜치 버전과 `v0.6.4` 릴리스 태그를 함께 둔 fixture에서 `UPDATE_AVAILABLE`과 `remoteVersion=0.6.4`를 확인했고, 업데이트 검사 9개 및 macOS·Windows CI 전체를 통과했다.
 - **상태**: 해결. 최신 릴리스와 브랜치 메타데이터의 버전 통일은 다음 패치 릴리스에서 별도로 관리한다.
 
+### 23. 릴리스 dry-run이 태그·runner·패키지 경로 차이로 실패
+
+- **증상**: `v0.6.4` 태그를 대상으로 한 첫 dry-run에서 Windows 번들의 한국어 도움말이 실패했고, `macos-14` arm64 job은 runner 할당 전에 취소됐다. macOS 패키지 검사도 ZIP 내부의 `_internal/` 경로 때문에 실패했다.
+- **원인**: 기존 태그에는 Windows UTF-8 보정 전 코드가 남아 있었고, GitHub runner label이 현재 환경에서 더 이상 안정적으로 할당되지 않았다. PyInstaller onedir는 버전에 따라 자산 앞에 `_internal/`을 붙일 수 있는데 검사가 고정 경로를 가정했다.
+- **해결**: 현재 `turtleneck` 브랜치의 수정 코드를 별도 dry-run으로 검증하고, arm64 runner를 `macos-15`로 변경했다. ZIP 검사는 절대 경로가 아니라 거북이 자산의 경로 suffix를 확인하도록 보정했다. 수동 dry-run은 `publish=false`를 기본값으로 해 GitHub Release를 만들지 않게 했다.
+- **검증**: 현재 브랜치 기준 release dry-run `44069595150`에서 macOS Intel/ARM, Windows unsigned bundle, companion, source archive와 checksum 생성이 모두 성공했다. 첫 실패 run `44068668890`은 실패 원인을 기록하기 위한 시도이며 성공 수치에 포함하지 않는다.
+- **상태**: 해결. 기존 `v0.6.4` 태그 자체는 수정하지 않았으므로 해당 태그를 다시 빌드할 때는 구형 코드의 결과가 재현될 수 있다.
+
 ## 생성·학습 흐름과 사용자 경험
 
 ### 18. 20문항 생성이 17분, 문제은행 생성이 약 1시간 이상 걸림
