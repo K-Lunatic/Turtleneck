@@ -4,8 +4,8 @@
 자동 검사 통과율이나 보안 인증 점수가 아니다. 배포 대상은 개발 환경이 준비되지 않은 macOS·Windows 사용자다.
 새 코드를 작성한 사실만으로 실제 배포가 검증된 것으로 계산하지 않는다.
 
-> 최신 보정: 2026-11-17 기준 원격 브랜치의 최신 workflow 커밋은 `1feca7b`이다. GitHub Actions
-> run `44070181497`에서 macOS·Windows Rust, 서버, 독립 실행 파일, 학습·동기화·Moodle·자료·미디어
+> 최신 보정: 2026-11-17 기준 원격 브랜치의 최신 workflow 커밋은 `c322e96`이다. GitHub Actions
+> run `44154163176`에서 macOS·Windows Rust, 서버, 독립 실행 파일, 학습·동기화·Moodle·자료·미디어
 > 검사가 모두 성공했다. 릴리스 workflow에도 독립 실행 파일과 보조 앱의 도움말·상태 smoke test를 연결했고,
 > `publish=false` 수동 dry-run `44069595150`에서 macOS Intel/ARM·Windows unsigned bundle,
 > companion, source ZIP·체크섬 생성을 확인했다.
