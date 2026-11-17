@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -140,7 +141,11 @@ class CanvasProviderTests(unittest.TestCase):
                 self.assertNotIn("secret-token", path.read_text(encoding="utf-8"))
                 with patch.object(canvas_credentials.subprocess, "run", return_value=SimpleNamespace(stdout="secret-token\n")):
                     self.assertEqual(canvas_credentials.load_token("본계정", "canvas.example.edu"), "secret-token")
-                save_secret.assert_called_once_with("university-agent/canvas-token/canvas.example.edu", "본계정", "secret-token")
+                if os.name == "nt":
+                    self.assertIn("protected", json.loads(path.read_text(encoding="utf-8"))["profiles"]["본계정"])
+                    save_secret.assert_not_called()
+                else:
+                    save_secret.assert_called_once_with("university-agent/canvas-token/canvas.example.edu", "본계정", "secret-token")
 
     def test_canvas_accounts_are_separated_by_site(self):
         with tempfile.TemporaryDirectory() as directory:

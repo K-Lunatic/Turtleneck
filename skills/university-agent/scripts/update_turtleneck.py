@@ -171,12 +171,16 @@ def apply_update(*, force: bool = False) -> dict[str, str | bool]:
             shutil.copytree(extracted, staging)
             source_plugin = extracted.parents[1] / "plugin.json"
             if source_plugin.is_file():
-                plugin_stage = Path(tempfile.mkstemp(prefix=".plugin.json.stage-", dir=installed_package)[1])
+                plugin_fd, plugin_name = tempfile.mkstemp(prefix=".plugin.json.stage-", dir=installed_package)
+                os.close(plugin_fd)
+                plugin_stage = Path(plugin_name)
                 shutil.copy2(source_plugin, plugin_stage)
                 staged_files.append((plugin_stage, installed_package / "plugin.json"))
             source_claude = extracted.parents[1] / '.claude-plugin/plugin.json'
             if source_claude.is_file() and (installed_package / '.claude-plugin/plugin.json').is_file():
-                claude_stage = Path(tempfile.mkstemp(prefix=".claude-plugin.json.stage-", dir=installed_package)[1])
+                claude_fd, claude_name = tempfile.mkstemp(prefix=".claude-plugin.json.stage-", dir=installed_package)
+                os.close(claude_fd)
+                claude_stage = Path(claude_name)
                 shutil.copy2(source_claude, claude_stage)
                 staged_files.append((claude_stage, installed_package / '.claude-plugin/plugin.json'))
         backup_dir = Path(tempfile.mkdtemp(prefix=".turtleneck-update-backup-", dir=target.parent))

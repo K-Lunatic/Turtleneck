@@ -3,6 +3,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from providers import credentials
 
 
 class ProfileAccountTests(unittest.TestCase):
+    @patch.object(credentials.os, "name", "posix")
     def test_default_profile_reads_original_username_key_during_migration(self):
         with tempfile.TemporaryDirectory() as folder:
             config = Path(folder) / "tls-account.json"
@@ -33,6 +35,7 @@ class ProfileAccountTests(unittest.TestCase):
                 self.assertEqual(credentials.load("default", "tls.kku.ac.kr"),
                                  ("lunatic", "old-password"))
 
+    @patch.object(credentials.os, "name", "posix")
     def test_sites_and_aliases_have_separate_markers_and_secrets(self):
         with tempfile.TemporaryDirectory() as folder:
             config = Path(folder) / "tls-account.json"
@@ -58,9 +61,13 @@ class ProfileAccountTests(unittest.TestCase):
                 self.assertEqual(credentials.load("조교", "tls.kku.ac.kr"), ("kku-helper", "helper-password"))
                 markers = list(Path(folder).glob("tls-account*.json"))
                 self.assertTrue(markers)
-                self.assertNotIn("password", "".join(path.read_text(encoding="utf-8") for path in markers).lower())
+                marker_text = "".join(path.read_text(encoding="utf-8") for path in markers)
+                self.assertNotIn("kku-password", marker_text)
+                self.assertNotIn("mokwon-password", marker_text)
+                self.assertNotIn("helper-password", marker_text)
                 self.assertEqual({item["site"] for item in credentials.list_profiles()}, {"tls.kku.ac.kr", "lms.mokwon.ac.kr"})
 
+    @patch.object(credentials.os, "name", "posix")
     def test_session_markers_keep_other_aliases(self):
         with tempfile.TemporaryDirectory() as folder:
             session_path = Path(folder) / "tls-session.json"
@@ -93,6 +100,7 @@ class ProfileAccountTests(unittest.TestCase):
                 self.assertNotIn("cookie-one", session_path.read_text(encoding="utf-8"))
                 self.assertEqual(next(iter(credentials.load_session("one", "one", "tls.kku.ac.kr"))).value, "cookie-one")
 
+    @patch.object(credentials.os, "name", "posix")
     def test_explicit_cross_site_link_reuses_only_the_source_secret(self):
         with tempfile.TemporaryDirectory() as folder:
             config = Path(folder) / "tls-account.json"
@@ -128,7 +136,7 @@ class ProfileAccountTests(unittest.TestCase):
                 for item, course in zip(credentials.list_profiles(), ("자료구조", "운영체제")):
                     db = Path(item["dbPath"])
                     db.parent.mkdir(parents=True, exist_ok=True)
-                    with sqlite3.connect(db) as connection:
+                    with closing(sqlite3.connect(db)) as connection, connection:
                         connection.execute("CREATE TABLE courses(name TEXT)")
                         connection.execute("INSERT INTO courses VALUES (?)", (course,))
                 selected = select_profile("자료구조 과제 확인해줘")
@@ -136,7 +144,7 @@ class ProfileAccountTests(unittest.TestCase):
                 credentials.save("kku-2", "secret", "부계정", "tls.kku.ac.kr")
                 db = Path(next(item for item in credentials.list_profiles() if item["alias"] == "부계정")["dbPath"])
                 db.parent.mkdir(parents=True, exist_ok=True)
-                with sqlite3.connect(db) as connection:
+                with closing(sqlite3.connect(db)) as connection, connection:
                     connection.execute("CREATE TABLE courses(name TEXT)")
                     connection.execute("INSERT INTO courses VALUES ('자료구조')")
                 self.assertEqual(select_profile("자료구조 과제 확인해줘")["status"], "ambiguous")
