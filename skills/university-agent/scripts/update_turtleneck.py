@@ -127,9 +127,13 @@ def check(*, force: bool = False) -> dict[str, str | bool]:
         remote_version = str(cache.get("remoteVersion", local_version))
     else:
         try:
-            remote_version = str(json.loads(_fetch(REMOTE_PLUGIN))["version"])
+            release = json.loads(_fetch(REMOTE_RELEASE_API))
+            remote_version = str(release["tag_name"]).lstrip("v")
         except (OSError, ValueError, KeyError, TypeError):
-            return {"status": "UNAVAILABLE", "localVersion": local_version, "message": "새 버전을 확인하지 못했어요. 현재 버전으로 계속 사용할게요."}
+            try:
+                remote_version = str(json.loads(_fetch(REMOTE_PLUGIN))["version"])
+            except (OSError, ValueError, KeyError, TypeError):
+                return {"status": "UNAVAILABLE", "localVersion": local_version, "message": "새 버전을 확인하지 못했어요. 현재 버전으로 계속 사용할게요."}
         try:
             path = _cache_path()
             path.parent.mkdir(parents=True, exist_ok=True)

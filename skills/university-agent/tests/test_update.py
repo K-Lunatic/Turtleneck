@@ -50,6 +50,18 @@ class UpdateTests(unittest.TestCase):
             self.assertEqual(result["status"], "UPDATE_AVAILABLE")
             self.assertEqual(update_turtleneck.CHECK_INTERVAL_SECONDS, 24 * 60 * 60)
 
+    def test_check_prefers_latest_release_tag_over_stale_branch_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "plugin.json").write_text(json.dumps({"version": "0.6.2"}), encoding="utf-8")
+            cache = root / "update.json"
+            with patch.object(update_turtleneck, "package_root", return_value=root), \
+                 patch.object(update_turtleneck, "_fetch", side_effect=[b'{"tag_name":"v0.6.4"}', AssertionError("branch metadata should not be read")]), \
+                 patch.object(update_turtleneck, "_cache_path", return_value=cache):
+                result = update_turtleneck.check(force=True)
+            self.assertEqual(result["status"], "UPDATE_AVAILABLE")
+            self.assertEqual(result["remoteVersion"], "0.6.4")
+
     def test_apply_skips_git_checkout(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
