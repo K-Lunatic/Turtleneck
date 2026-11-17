@@ -1176,6 +1176,8 @@ class MoodleTLSProvider:
                 })()
             else:
                 content, response = self.session.get_bytes(download_path, allowed_origin=self._origin_host())
+        except HTTPError:
+            raise
         except (ValueError, OSError) as error:
             if streamed_path and os.path.exists(streamed_path):
                 os.unlink(streamed_path)
