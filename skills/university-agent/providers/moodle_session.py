@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import random
 import re
 import ssl
@@ -436,6 +437,16 @@ class MoodleSession:
                 raise ValueError('영상 응답 형식이 달라 가져오기를 멈췄어요.')
             response_url = response.geturl()
             response_headers = response.headers
+            if max_bytes is not None:
+                declared = response_headers.get('Content-Length')
+                try:
+                    declared_size = int(declared) if declared is not None else None
+                except (TypeError, ValueError):
+                    declared_size = None
+                if declared_size is not None and declared_size < 0:
+                    raise ValueError('학교가 자료 크기를 올바르게 알려주지 않아 가져오기를 멈췄어요.')
+                if declared_size is not None and declared_size > max_bytes:
+                    raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')
             with open(target, 'wb') as output:
                 while True:
                     chunk = response.read(chunk_size)
@@ -443,9 +454,10 @@ class MoodleSession:
                         break
                     written += len(chunk)
                     if max_bytes is not None and written > max_bytes:
-                        raise ValueError('영상 조각이 너무 커서 가져오기를 멈췄어요.')
+                        raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')
                     output.write(chunk)
                 output.flush()
+                os.fsync(output.fileno())
             return {'size': written, 'url': response_url, 'headers': response_headers}
         finally:
             response.close()

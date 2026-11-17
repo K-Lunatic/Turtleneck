@@ -103,6 +103,19 @@ class ResourceResponseTests(unittest.TestCase):
         self.assertEqual(saved, [b'%PDF-fixture'])
         self.assertEqual(item['downloadStatus'], 'NOT_DOWNLOADED')
 
+    def test_streamed_resource_validation_reads_only_a_small_sample(self):
+        session = StreamingResourceSession()
+        session.content = b'%PDF-' + b'x' * 10_000_000
+
+        def sink(item):
+            path = Path(item['_content_path'])
+            path.unlink()
+            return item
+
+        with patch('providers.moodle_provider.Path.read_bytes', side_effect=AssertionError('whole file read')):
+            item = provider(session).get_resources('u', save_file=sink)[0]
+        self.assertEqual(item['downloadStatus'], 'NOT_DOWNLOADED')
+
     def test_nested_visible_viewer_uses_observed_document_id_and_server_permission(self):
         session = Session()
         item = provider(session).get_resources('u')[0]

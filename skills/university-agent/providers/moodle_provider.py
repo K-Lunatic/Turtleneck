@@ -69,6 +69,12 @@ def _file_extension(name):
     return value if re.fullmatch(r'[a-z0-9]{1,16}', value) and value not in ('html', 'htm', 'php') else ''
 
 
+def _read_file_sample(path, limit=4096):
+    """Inspect only the header of a streamed file; never materialize the original."""
+    with Path(path).open('rb') as stream:
+        return stream.read(limit)
+
+
 def _header_filename(headers):
     name = headers.get_filename()
     # Some servers put raw UTF-8 into a legacy Latin-1 HTTP header.
@@ -1058,7 +1064,7 @@ class MoodleTLSProvider:
                 temporary.close()
                 result = self.session.stream_bytes_to_file(
                     download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
-                content = Path(streamed_path).read_bytes()[:4096]
+                content = _read_file_sample(streamed_path)
                 response = type('StreamResponse', (), {
                     'headers': result['headers'],
                     'geturl': lambda _self: result['url'],
@@ -1158,7 +1164,7 @@ class MoodleTLSProvider:
             temporary.close()
             result = self.session.stream_bytes_to_file(
                 download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
-            content = Path(streamed_path).read_bytes()[:4096]
+            content = _read_file_sample(streamed_path)
             response = type('StreamResponse', (), {
                 'headers': result['headers'],
                 'geturl': lambda _self: result['url'],
