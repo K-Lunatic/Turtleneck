@@ -148,13 +148,13 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (OSError, TimeoutError, ConnectionError) as error:
+    except (OSError, TimeoutError, ConnectionError, SystemExit) as error:
         # A slow school response is a measurement failure, not a reason to
         # replace the last successful aggregate with partial counters.
         report = {
             'measurement': 'live TLS, controlled one-course fingerprint mismatch',
             'status': 'NOT_MEASURED',
-            'reason': '학교 서버 응답이 시간 제한을 넘겨 측정을 완료하지 못했어요.',
+            'reason': str(error) or '학교 서버 응답이 시간 제한을 넘겨 측정을 완료하지 못했어요.',
             'error_type': type(error).__name__,
             'requests': 0,
             'response_body_bytes': 0,
