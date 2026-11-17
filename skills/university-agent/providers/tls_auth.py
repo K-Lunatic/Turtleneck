@@ -11,6 +11,7 @@ from providers.credentials import (
     load_active_alias,
     load_session,
     load_username,
+    profile_db_path,
     resolve,
     resolve_profile,
     save,
@@ -18,6 +19,7 @@ from providers.credentials import (
     site_key,
 )
 from providers.moodle_session import MoodleSession, LoginError, RequestBackoff
+from features.sync_policy import SyncLock
 
 
 _PROCESS_SESSIONS = {}
@@ -77,13 +79,11 @@ def resume_saved_session(base_url: str, requested_username: str | None = None,
     return None
 
 
-def authenticated_session(base_url: str | None = None, requested_username: str | None = None,
-                          *, stored_only: bool = False, profile_alias: str | None = None,
-                          allow_prompt: bool = False):
+def _authenticated_session_unlocked(base_url: str, requested_username: str | None,
+                                    *, stored_only: bool, profile_alias: str,
+                                    allow_prompt: bool):
     """Reuse local auth; only an explicit connection flow may open the form."""
-    base_url = base_url or os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr")
     site = site_key(base_url)
-    profile_alias = profile_alias or os.environ.get("TLS_ACCOUNT_ALIAS") or load_active_alias(site)
     requested_username = requested_username or os.environ.get("TLS_USERNAME")
     cached = _cached_process_session(_session_cache_key(base_url, site, profile_alias, requested_username))
     if cached:
@@ -124,3 +124,26 @@ def authenticated_session(base_url: str | None = None, requested_username: str |
         print('학교 로그인은 성공했지만 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 연결할 수 있어요.', flush=True)
     _remember_authenticated_session(base_url, site, profile_alias, (username, session))
     return username, session
+
+
+def authenticated_session(base_url: str | None = None, requested_username: str | None = None,
+                          *, stored_only: bool = False, profile_alias: str | None = None,
+                          allow_prompt: bool = False):
+    """Authenticate once per profile, even when separate commands start together."""
+    base_url = base_url or os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr")
+    site = site_key(base_url)
+    profile_alias = profile_alias or os.environ.get("TLS_ACCOUNT_ALIAS") or load_active_alias(site)
+    cached = _cached_process_session(_session_cache_key(base_url, site, profile_alias, requested_username))
+    if cached:
+        return cached
+    # A second process must wait for the first login, then reuse its protected cookie.
+    db_path = profile_db_path(base_url, profile_alias)
+    auth_path = db_path.with_name(db_path.name + '.auth')
+    with SyncLock(auth_path, timeout=120):
+        cached = _cached_process_session(_session_cache_key(base_url, site, profile_alias, requested_username))
+        if cached:
+            return cached
+        return _authenticated_session_unlocked(
+            base_url, requested_username, stored_only=stored_only,
+            profile_alias=profile_alias, allow_prompt=allow_prompt,
+        )

@@ -260,19 +260,21 @@ def open_connection_terminal(command: list[str] | None = None) -> None:
     print('학교 연결 절차를 시작했어요. 브라우저에 입력 화면이 실제로 보이는지 확인해 주세요.', flush=True)
 
 
-def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False,
-                        profile_alias: str | None = None, force_input=False) -> tuple[str, MoodleSession]:
+def _login_with_retries_unlocked(base_url: str, requested_username: str | None = None, *, stored_only=False,
+                                 profile_alias: str | None = None, force_input=False,
+                                 _session_checked=False) -> tuple[str, MoodleSession]:
     """Login without ever returning the password to the caller."""
     site = site_key(base_url)
     profile_alias = profile_alias or os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site)
-    resumed = resume_saved_session(base_url, requested_username, profile_alias)
-    if resumed:
-        print("저장된 학교 연결을 재사용했어요.", flush=True)
-        try:
-            resumed[1].profile_alias = profile_alias
-        except AttributeError:
-            pass
-        return resumed
+    if not _session_checked:
+        resumed = resume_saved_session(base_url, requested_username, profile_alias)
+        if resumed:
+            print("저장된 학교 연결을 재사용했어요.", flush=True)
+            try:
+                resumed[1].profile_alias = profile_alias
+            except AttributeError:
+                pass
+            return resumed
     if not force_input and not os.environ.get('UNIVERSITY_AGENT_DB'):
         try:
             stored_username, stored_password = load(profile_alias, site)
@@ -361,6 +363,27 @@ def _login_with_retries(base_url: str, requested_username: str | None = None, *,
         session.profile_alias = profile_alias
         return username, session
     raise AssertionError("unreachable")
+
+
+def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False,
+                        profile_alias: str | None = None, force_input=False) -> tuple[str, MoodleSession]:
+    """Serialize cross-process login and re-check the session after waiting."""
+    site = site_key(base_url)
+    alias = profile_alias or os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site)
+    db_path = profile_db_path(base_url, alias)
+    with sync_policy.SyncLock(db_path.with_name(db_path.name + '.auth'), timeout=120):
+        resumed = resume_saved_session(base_url, requested_username, alias)
+        if resumed:
+            print("저장된 학교 연결을 재사용했어요.", flush=True)
+            try:
+                resumed[1].profile_alias = alias
+            except AttributeError:
+                pass
+            return resumed
+        return _login_with_retries_unlocked(
+            base_url, requested_username, stored_only=stored_only,
+            profile_alias=alias, force_input=force_input, _session_checked=True,
+        )
 
 
 def main() -> None:

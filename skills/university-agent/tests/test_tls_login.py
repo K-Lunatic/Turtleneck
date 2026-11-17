@@ -231,6 +231,19 @@ class TlsLoginTests(unittest.TestCase):
         self.assertEqual(first[1].login_calls, 1)
         resume.assert_called_once()
 
+    def test_authenticated_session_serializes_separate_process_login(self):
+        session = object()
+        with patch.object(tls_auth, 'SyncLock') as lock, \
+             patch.object(tls_auth, 'load_active_alias', return_value='default'), \
+             patch.object(tls_auth, 'profile_db_path', return_value=Path('/tmp/turtleneck-auth.db')), \
+             patch.object(tls_auth, '_authenticated_session_unlocked', return_value=('student', session)) as login:
+            lock.return_value.__enter__.return_value = lock.return_value
+            result = tls_auth.authenticated_session('https://tls.example')
+        self.assertEqual(result, ('student', session))
+        lock.assert_called_once()
+        login.assert_called_once_with('https://tls.example', None, stored_only=False,
+                                      profile_alias='default', allow_prompt=False)
+
     def test_shared_credential_resolver_does_not_reopen_form_for_empty_secret(self):
         with patch.object(credentials, 'load', side_effect=ValueError('empty')), \
              patch.object(credentials, 'load_username', return_value='student'), \
