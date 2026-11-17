@@ -416,7 +416,7 @@ class MoodleSession:
 
     def stream_bytes_to_file(self, path: str, target, *, allowed_origin=None,
                              max_bytes=None, chunk_size=1024 * 1024) -> dict:
-        """Write one binary response directly to a temporary file."""
+        """Write one binary response directly to a temporary file, resuming safe ranges."""
         if not self.logged_in:
             raise LoginError("Call login() before stream_bytes_to_file()")
         if not isinstance(chunk_size, int) or chunk_size <= 0:
@@ -424,40 +424,67 @@ class MoodleSession:
         url = urljoin(f"{self.base_url}/", path.lstrip("/"))
         check_download_url(url)
         check_download_origin(url, allowed_origin)
-        request = Request(url, headers={"User-Agent": "UniversityAgent/0.1", "Accept-Encoding": "identity"})
-        request.allowed_origin = allowed_origin
-        response = self._open(request, kind='file')
         written = 0
-        try:
-            check_download_url(response.geturl())
-            check_download_origin(response.geturl(), allowed_origin)
-            if "/login" in urlsplit(response.geturl()).path:
-                raise LoginError("TLS session expired; sign in again")
-            if response.headers.get('Content-Encoding', '').lower() not in ('', 'identity'):
-                raise ValueError('영상 응답 형식이 달라 가져오기를 멈췄어요.')
-            response_url = response.geturl()
-            response_headers = response.headers
-            if max_bytes is not None:
-                declared = response_headers.get('Content-Length')
+        response_url = url
+        response_headers = None
+        for attempt in range(3):
+            request_start = written
+            headers = {"User-Agent": "UniversityAgent/0.1", "Accept-Encoding": "identity"}
+            if written:
+                headers['Range'] = f'bytes={written}-'
+            request = Request(url, headers=headers)
+            request.allowed_origin = allowed_origin
+            response = None
+            try:
+                response = self._open(request, kind='file')
+                check_download_url(response.geturl())
+                check_download_origin(response.geturl(), allowed_origin)
+                if "/login" in urlsplit(response.geturl()).path:
+                    raise LoginError("TLS session expired; sign in again")
+                if response.headers.get('Content-Encoding', '').lower() not in ('', 'identity'):
+                    raise ValueError('영상 응답 형식이 달라 가져오기를 멈췄어요.')
+                status = response.getcode() if hasattr(response, 'getcode') else getattr(response, 'status', 200)
+                total_size = None
+                if written:
+                    content_range = response.headers.get('Content-Range', '')
+                    match = re.fullmatch(r'bytes\s+(\d+)-(\d+)/(\d+|\*)', content_range.strip(), re.I)
+                    if status != 206 or not match or int(match.group(1)) != written:
+                        raise ValueError('학교가 자료 이어받기를 지원하지 않아 처음부터 다시 확인해야 해요.')
+                    if match.group(3) != '*':
+                        total_size = int(match.group(3))
+                declared = response.headers.get('Content-Length')
                 try:
                     declared_size = int(declared) if declared is not None else None
                 except (TypeError, ValueError):
                     declared_size = None
                 if declared_size is not None and declared_size < 0:
                     raise ValueError('학교가 자료 크기를 올바르게 알려주지 않아 가져오기를 멈췄어요.')
-                if declared_size is not None and declared_size > max_bytes:
+                if max_bytes is not None and written + (declared_size or 0) > max_bytes:
                     raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')
-            with open(target, 'wb') as output:
-                while True:
-                    chunk = response.read(chunk_size)
-                    if not chunk:
-                        break
-                    written += len(chunk)
-                    if max_bytes is not None and written > max_bytes:
-                        raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')
-                    output.write(chunk)
-                output.flush()
-                os.fsync(output.fileno())
-            return {'size': written, 'url': response_url, 'headers': response_headers}
-        finally:
-            response.close()
+                if total_size is None and status == 200 and declared_size is not None:
+                    total_size = declared_size
+                response_url = response.geturl()
+                response_headers = response.headers
+                with open(target, 'ab' if written else 'wb') as output:
+                    while True:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        if max_bytes is not None and written > max_bytes:
+                            raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')
+                        output.write(chunk)
+                    output.flush()
+                    os.fsync(output.fileno())
+                if total_size is not None and written < total_size:
+                    if attempt == 2:
+                        raise URLError('자료가 끝까지 전송되지 않았어요.')
+                    continue
+                return {'size': written, 'url': response_url, 'headers': response_headers}
+            except (URLError, TimeoutError, ConnectionError, OSError) as error:
+                if isinstance(error, RequestBackoff) or attempt == 2:
+                    raise
+            finally:
+                if response is not None:
+                    response.close()
+        raise URLError('자료를 끝까지 받지 못했어요.')

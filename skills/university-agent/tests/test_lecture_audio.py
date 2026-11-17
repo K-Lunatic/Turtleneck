@@ -260,6 +260,30 @@ class LectureAudioTests(unittest.TestCase):
         response.read.assert_not_called()
         response.close.assert_called_once()
 
+    def test_stream_bytes_to_file_resumes_after_a_short_response_with_http_range(self):
+        session = MoodleSession()
+        session.logged_in = True
+        first_headers = Message()
+        first_headers['Content-Type'] = 'video/mp2t'
+        first_headers['Content-Length'] = '13'
+        first = Mock(headers=first_headers, geturl=lambda: SOURCE, getcode=lambda: 200)
+        first.read.side_effect = [b'Gfirst', URLError('connection reset')]
+        second_headers = Message()
+        second_headers['Content-Type'] = 'video/mp2t'
+        second_headers['Content-Length'] = '7'
+        second_headers['Content-Range'] = 'bytes 6-12/13'
+        second = Mock(headers=second_headers, geturl=lambda: SOURCE, getcode=lambda: 206)
+        second.read.side_effect = [b'Gsecond', b'']
+        with tempfile.TemporaryDirectory() as folder, patch.object(
+                session.opener, 'open', side_effect=[first, second]) as opened:
+            target = Path(folder) / 'chunk.ts'
+            result = session.stream_bytes_to_file(SOURCE, target, allowed_origin='tlsvod.kku.ac.kr:8443')
+            self.assertEqual(result['size'], 13)
+            self.assertEqual(target.read_bytes(), b'GfirstGsecond')
+            self.assertEqual(opened.call_args_list[1].args[0].get_header('Range'), 'bytes=6-')
+        first.close.assert_called_once()
+        second.close.assert_called_once()
+
     def test_download_order_is_preserved_and_html_or_http_denial_never_succeeds(self):
         session = Session()
         plan = media_plan(session, SOURCE)

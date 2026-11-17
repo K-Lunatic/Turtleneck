@@ -1085,6 +1085,10 @@ class MoodleTLSProvider:
             if streamed_path:
                 os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, '_checkFailed': True, 'downloadReason': '자료를 받는 중 연결이 끊기거나 응답이 늦었어요. 잠시 후 다시 확인해 주세요.'}
+        except (ValueError, OSError) as error:
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
+            return {**record, 'downloadReason': str(error) or '자료를 안정적으로 저장하지 못했어요.'}
         if content is None and reusable:
             return reused
         if not content:
@@ -1158,19 +1162,24 @@ class MoodleTLSProvider:
         if not download_path:
             raise ValueError(issue or '이 자료의 주소를 하나로 확인하지 못해 가져오지 않았어요.')
         streamed_path = None
-        if hasattr(self.session, 'stream_bytes_to_file'):
-            temporary = tempfile.NamedTemporaryFile(prefix='.resource-permitted-', delete=False)
-            streamed_path = temporary.name
-            temporary.close()
-            result = self.session.stream_bytes_to_file(
-                download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
-            content = _read_file_sample(streamed_path)
-            response = type('StreamResponse', (), {
-                'headers': result['headers'],
-                'geturl': lambda _self: result['url'],
-            })()
-        else:
-            content, response = self.session.get_bytes(download_path, allowed_origin=self._origin_host())
+        try:
+            if hasattr(self.session, 'stream_bytes_to_file'):
+                temporary = tempfile.NamedTemporaryFile(prefix='.resource-permitted-', delete=False)
+                streamed_path = temporary.name
+                temporary.close()
+                result = self.session.stream_bytes_to_file(
+                    download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
+                content = _read_file_sample(streamed_path)
+                response = type('StreamResponse', (), {
+                    'headers': result['headers'],
+                    'geturl': lambda _self: result['url'],
+                })()
+            else:
+                content, response = self.session.get_bytes(download_path, allowed_origin=self._origin_host())
+        except (ValueError, OSError) as error:
+            if streamed_path and os.path.exists(streamed_path):
+                os.unlink(streamed_path)
+            raise DownloadRestricted('원본 자료를 안정적으로 받지 못해 저장하지 않았어요.') from error
         mime_type = response.headers.get_content_type()
         sample = content[:4096].lstrip().lower() if content else b''
         if not content or mime_type in ('text/html', 'application/xhtml+xml') or any(
