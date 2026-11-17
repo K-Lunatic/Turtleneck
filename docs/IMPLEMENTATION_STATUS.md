@@ -4,9 +4,11 @@
 자동 검사 통과율이나 보안 인증 점수가 아니다. 배포 대상은 개발 환경이 준비되지 않은 macOS·Windows 사용자다.
 새 코드를 작성한 사실만으로 실제 배포가 검증된 것으로 계산하지 않는다.
 
-> 최신 보정: 2026-11-17 기준 원격 브랜치의 최신 커밋은 `e5908cb`이다. GitHub Actions
-> run `44063449824`에서 macOS·Windows Rust, 서버, 독립 실행 파일, 학습·동기화·Moodle·자료·미디어
+> 최신 보정: 2026-11-17 기준 원격 브랜치의 최신 workflow 커밋은 `1feca7b`이다. GitHub Actions
+> run `44070181497`에서 macOS·Windows Rust, 서버, 독립 실행 파일, 학습·동기화·Moodle·자료·미디어
 > 검사가 모두 성공했다. 릴리스 workflow에도 독립 실행 파일과 보조 앱의 도움말·상태 smoke test를 연결했고,
+> `publish=false` 수동 dry-run `44069595150`에서 macOS Intel/ARM·Windows unsigned bundle,
+> companion, source ZIP·체크섬 생성을 확인했다.
 > 백업 재구성은 바이너리 스트리밍과 토픽 수 메타데이터 보정을 포함한다.
 > 실서버 벤치마크는 저장 자격증명을 재사용해 8과목의 메타데이터만 비교했고,
 > 수강 취소된 과목의 과거 자료를 비교 대상에서 제외하는 보정을 거쳐 일관된 결과를 만들었다.
@@ -171,6 +173,8 @@ Canvas의 과제 제출·파일 업로드·강좌 수정은 의도적으로 읽�
   사용하며, macOS는 메뉴 막대 앱, Windows는 알림 영역 실행 파일로만 외형이 달라진다.
 - CI의 macOS·Windows 독립 실행 파일 검사에 보조 앱 빌드와 실행 파일 존재 확인을 모두 추가했다.
   릴리스 workflow도 두 플랫폼의 보조 앱을 함께 압축하고 SHA-256 체크섬을 만든다.
+- 릴리스 dry-run은 `macos-15` arm64와 `macos-15-intel`을 사용한다. `macos-14` runner 미할당,
+  구형 태그의 Windows UTF-8, PyInstaller `_internal` 자산 경로 차이는 실패 기록 후 보정했다.
 - 로컬 macOS ARM64에서 공통 스펙으로 `Turtleneck Companion.app`을 다시 생성했고, 기존
   보조 앱 회귀 7개와 설정 문법 검사를 통과했다. Windows 물리 기기의 실제 알림 영역 표시,
   클릭 동작, 공개 코드 서명은 아직 확인하지 않았다.
