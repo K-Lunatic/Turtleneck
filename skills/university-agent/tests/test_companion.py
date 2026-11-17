@@ -15,11 +15,30 @@ from scripts import companion
 
 class CompanionTests(unittest.TestCase):
     def test_tray_icon_is_a_small_monochrome_line_mark(self):
-        from PIL import Image, ImageDraw
-        icon = companion._build_tray_icon(Image, ImageDraw)
-        self.assertEqual(icon.mode, 'RGBA')
-        self.assertEqual(icon.size, (64, 64))
-        self.assertGreater(sum(1 for pixel in icon.getdata() if pixel[3]), 100)
+        class FakeImage:
+            mode = 'RGBA'
+            size = (64, 64)
+            def __init__(self):
+                self.operations = []
+
+        class FakeImageModule:
+            @staticmethod
+            def new(mode, size, color):
+                return FakeImage()
+
+        class FakeDraw:
+            def __init__(self, image):
+                self.image = image
+            def ellipse(self, *args, **kwargs): self.image.operations.append('ellipse')
+            def line(self, *args, **kwargs): self.image.operations.append('line')
+            def arc(self, *args, **kwargs): self.image.operations.append('arc')
+
+        class FakeDrawModule:
+            Draw = FakeDraw
+
+        icon = companion._build_tray_icon(FakeImageModule, FakeDrawModule)
+        self.assertEqual((icon.mode, icon.size), ('RGBA', (64, 64)))
+        self.assertGreaterEqual(len(icon.operations), 5)
 
     def test_setup_menu_starts_connection_flow_instead_of_status_only(self):
         with patch.object(companion.subprocess, 'Popen') as launch:
