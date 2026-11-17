@@ -216,20 +216,21 @@ def _multipart(fields: dict[str, str], field_name: str, path: Path) -> tuple[byt
 
 
 def _upload(session: MoodleSession, page_url: str, meta: dict[str, str], backup: Path, sesskey: str) -> dict[str, object]:
-    body, content_type = _multipart({
+    fields = {
         "action": "upload", "repo_id": meta["repoId"], "itemid": meta["itemId"],
         "sesskey": sesskey, "client_id": meta["clientId"], "savepath": "/",
-    }, "repo_upload_file", backup)
-    html, _ = session.post_bytes("/repository/repository_ajax.php", body,
-                                 content_type=content_type, referer=page_url,
-                                 allowed_origin="tls.kku.ac.kr")
+    }
+    html, _, request_bytes = session.post_multipart_file(
+        "/repository/repository_ajax.php", fields, "repo_upload_file", backup,
+        referer=page_url, allowed_origin="tls.kku.ac.kr")
     try:
         result = json.loads(html)
     except json.JSONDecodeError as error:
         raise MoodleBackupRestoreError("TLS 파일 업로드 응답을 읽지 못했어요.") from error
     if not isinstance(result, dict) or result.get("error"):
         raise MoodleBackupRestoreError("TLS가 백업 파일 업로드를 거부했어요.")
-    return {"uploaded": True, "filename": backup.name, "bytes": backup.stat().st_size}
+    return {"uploaded": True, "filename": backup.name, "bytes": backup.stat().st_size,
+            "requestBytes": request_bytes}
 
 
 def restore_backup(backup: Path, course_url: str, *, apply: bool = False,

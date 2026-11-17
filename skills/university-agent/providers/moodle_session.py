@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import gzip
 import json
+import mimetypes
 import os
 import random
 import re
+import secrets
 import ssl
 import sys
 import threading
@@ -352,6 +354,97 @@ class MoodleSession:
         if "/login" in urlsplit(response.geturl()).path or re.search(r'name=["\']username["\']', html, re.I):
             raise LoginError("TLS session expired; sign in again")
         return html, response
+
+    def post_multipart_file(self, path: str, fields: dict[str, str], field_name: str,
+                            file_path, *, referer: str | None = None,
+                            allowed_origin=None) -> tuple[str, Any, int]:
+        """POST a multipart file without materializing its bytes in memory."""
+        if not self.logged_in:
+            raise LoginError('Call login() before post_multipart_file()')
+        file_path = Path(file_path)
+        if not file_path.is_file():
+            raise FileNotFoundError(file_path)
+        boundary = '----Turtleneck' + secrets.token_hex(12)
+        prefix = b''.join(
+            part
+            for name, value in fields.items()
+            for part in (f'--{boundary}\r\n'.encode(),
+                         f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode(),
+                         str(value).encode(), b'\r\n'))
+        filename = file_path.name.replace('"', '_').replace('\r', '_').replace('\n', '_')
+        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+        file_prefix = (f'--{boundary}\r\nContent-Disposition: form-data; name="{field_name}"; '
+                       f'filename="{filename}"\r\nContent-Type: {content_type}\r\n\r\n').encode()
+        suffix = f'\r\n--{boundary}--\r\n'.encode()
+        total = len(prefix) + len(file_prefix) + file_path.stat().st_size + len(suffix)
+
+        class _Body:
+            def __init__(self):
+                self.parts = iter((prefix, file_prefix))
+                self.current = b''
+                self.stream = None
+                self.finished_prefix = False
+                self.finished_file = False
+
+            def read(self, size=-1):
+                if size == 0:
+                    return b''
+                output = bytearray()
+                while size < 0 or len(output) < size:
+                    if not self.current:
+                        if not self.finished_prefix:
+                            self.current = next(self.parts, b'')
+                            if not self.current:
+                                self.finished_prefix = True
+                                self.stream = file_path.open('rb')
+                                continue
+                        elif not self.finished_file:
+                            self.current = self.stream.read(size if size > 0 else 1024 * 1024)
+                            if not self.current:
+                                self.stream.close()
+                                self.finished_file = True
+                                self.current = suffix
+                        else:
+                            break
+                    if not self.current:
+                        continue
+                    take = len(self.current) if size < 0 else min(len(self.current), size - len(output))
+                    output.extend(self.current[:take])
+                    self.current = self.current[take:]
+                    if size > 0 and len(output) >= size:
+                        break
+                return bytes(output)
+
+            def close(self):
+                if self.stream is not None and not self.stream.closed:
+                    self.stream.close()
+
+        url = urljoin(f"{self.base_url}/", path.lstrip("/"))
+        check_download_origin(url, allowed_origin)
+        body = _Body()
+        request = Request(url, data=body, headers={
+            'User-Agent': 'UniversityAgent/0.1',
+            'Accept': 'text/html,application/json;q=0.9,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate',
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+            'Content-Length': str(total),
+            'Origin': self.base_url,
+            'Referer': referer or url,
+        }, method='POST')
+        request.allowed_origin = allowed_origin
+        try:
+            response = self._open(request, kind='post')
+            try:
+                check_download_origin(response.geturl(), allowed_origin)
+                html = self._decode(response)
+                response_url = response.geturl()
+            finally:
+                response.close()
+            if "/login" in urlsplit(response_url).path or re.search(r'name=["\']username["\']', html, re.I):
+                raise LoginError("TLS session expired; sign in again")
+            return html, response, total
+        finally:
+            body.close()
 
     def document_state(self, viewer_url):
         """The viewer's read-only status request; never start file conversion/upload."""

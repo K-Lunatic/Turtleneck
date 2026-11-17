@@ -1,13 +1,16 @@
 import sys
 import tempfile
 import unittest
+from email.message import Message
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.restore_moodle_backup import _WizardFormParser, _multipart, _restore_page, _wizard_fields
+from providers.moodle_session import MoodleSession
 
 
 RESTORE_PAGE = '''
@@ -55,6 +58,33 @@ class RestoreBackupTests(unittest.TestCase):
         self.assertIn(b'name="repo_upload_file"', payload)
         self.assertIn(b'backup-bytes', payload)
         self.assertIn('multipart/form-data; boundary=', content_type)
+
+    def test_multipart_upload_keeps_backup_out_of_memory(self):
+        session = MoodleSession()
+        session.logged_in = True
+        headers = Message()
+        headers['Content-Type'] = 'application/json'
+        response = Mock(headers=headers, geturl=lambda: 'https://tls.kku.ac.kr/repository/repository_ajax.php')
+        response.read.return_value = b'{"error":false}'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'large.mbz'
+            path.write_bytes(b'backup-bytes' * 100_000)
+            with patch.object(session.opener, 'open', return_value=response) as opened:
+                _html, _response, total = session.post_multipart_file(
+                    '/repository/repository_ajax.php', {'action': 'upload'},
+                    'repo_upload_file', path, allowed_origin='tls.kku.ac.kr')
+            request = opened.call_args.args[0]
+            self.assertFalse(isinstance(request.data, (bytes, bytearray)))
+            self.assertEqual(int(request.get_header('Content-length')), total)
+            body = bytearray()
+            while True:
+                chunk = request.data.read(8192)
+                if not chunk:
+                    break
+                body.extend(chunk)
+            self.assertIn(b'backup-bytes', body)
+            self.assertEqual(len(body), total)
+        response.close.assert_called_once()
 
     def test_wizard_fields_keep_checked_choice_and_hidden_values(self):
         parser = _WizardFormParser()
