@@ -1,12 +1,103 @@
 {
   "measurement": "live TLS, controlled one-course fingerprint mismatch",
+  "metadata_only": true,
+  "courses": 8,
+  "intended_changed_courses": 1,
+  "authentication_setup": {
+    "not_measured": true
+  },
+  "preflight_setup": {
+    "requests": 9,
+    "requests_by_kind": {
+      "page": 9
+    },
+    "request_body_bytes": 0,
+    "response_body_bytes": 96117,
+    "response_body_bytes_by_kind": {
+      "page": 96117
+    },
+    "statuses": {
+      "200": 9
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 2.3821
+  },
+  "notes": [
+    "Both runs start from the same private DB backup and use the same authenticated account.",
+    "Only a local fingerprint is altered to force one course refresh. TLS is not modified.",
+    "Authentication is intentionally excluded from compared sync measurements.",
+    "Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.",
+    "No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.",
+    "Two live runs are sequential; changing server content and network conditions affect byte/time comparisons."
+  ],
+  "before": {
+    "requests": 303,
+    "requests_by_kind": {
+      "page": 283,
+      "post": 20
+    },
+    "request_body_bytes": 1000,
+    "response_body_bytes": 1048324,
+    "response_body_bytes_by_kind": {
+      "page": 1042478,
+      "post": 5846
+    },
+    "statuses": {
+      "200": 203,
+      "303": 60,
+      "302": 20,
+      "301": 20
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 78.8734
+  },
+  "after": {
+    "requests": 12,
+    "requests_by_kind": {
+      "page": 12
+    },
+    "request_body_bytes": 0,
+    "response_body_bytes": 120707,
+    "response_body_bytes_by_kind": {
+      "page": 120707
+    },
+    "statuses": {
+      "200": 12
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 3.5116
+  },
+  "selected_course_results_equal": {
+    "assignments": true,
+    "lectures": true,
+    "notices": true,
+    "resources": true,
+    "activities": true
+  },
+  "unselected_records_preserved": {
+    "assignments": true,
+    "lectures": true,
+    "notices": true,
+    "resources": false,
+    "activities": true
+  },
+  "selected_course_record_counts": {
+    "assignments": 0,
+    "lectures": 2,
+    "notices": 6,
+    "resources": 9,
+    "activities": 14
+  },
   "status": "NOT_MEASURED",
   "reason": "실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.",
-  "error_type": "RuntimeError",
+  "inconsistent_selected_kinds": [],
+  "unpreserved_unselected_kinds": [
+    "resources"
+  ],
   "requests": 0,
   "response_body_bytes": 0,
-  "elapsed_seconds": 0,
-  "notes": [
-    "The last successful live.json was preserved; this file records only the failed attempt."
-  ]
+  "elapsed_seconds": 0
 }

@@ -138,7 +138,23 @@ def main():
         report['selected_course_record_counts'] = {
             kind: sum(row.get('courseId') == selected for row in rows) for kind, rows in data['after'].items()}
     if not all(report['selected_course_results_equal'].values()) or not all(report['unselected_records_preserved'].values()):
-        raise RuntimeError('실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.')
+        report.update({
+            'status': 'NOT_MEASURED',
+            'reason': '실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.',
+            'inconsistent_selected_kinds': [
+                kind for kind, equal in report['selected_course_results_equal'].items() if not equal
+            ],
+            'unpreserved_unselected_kinds': [
+                kind for kind, equal in report['unselected_records_preserved'].items() if not equal
+            ],
+            'requests': 0,
+            'response_body_bytes': 0,
+            'elapsed_seconds': 0,
+        })
+        (REPO / 'tls-optimization-results/live-attempt.json').write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return
     report['source_db_bytes_unchanged'] = hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
     for key in ('requests', 'response_body_bytes', 'elapsed_seconds'):
         report[key + '_reduction_percent'] = round((1 - report['after'][key] / report['before'][key]) * 100, 2)
