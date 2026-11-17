@@ -121,15 +121,30 @@ jobs:
           pyinstaller packaging/turtleneck.spec --noconfirm --clean
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             dist/turtleneck/turtleneck.exe --version
+            dist/turtleneck/turtleneck.exe --help > cli-help.txt
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -f "dist/companion/turtleneck-companion.exe"
+            dist/companion/turtleneck-companion.exe --status > companion-status.json
           else
             dist/turtleneck/turtleneck --version
+            dist/turtleneck/turtleneck --help > cli-help.txt
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -d "dist/companion/Turtleneck Companion.app"
+            "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
           fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          assert Path("cli-help.txt").read_text(encoding="utf-8").strip()
+          status = json.loads(Path("companion-status.json").read_text(encoding="utf-8"))
+          rendered = json.dumps(status, ensure_ascii=False).lower()
+          for secret_marker in ("password", "cookie", "session", "token"):
+              assert secret_marker not in rendered, secret_marker
+          assert "skill" in status and "profiles" in status
+          PY
 
   rust-core:
     name: rust-core (${{ matrix.os }})
