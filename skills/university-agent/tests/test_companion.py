@@ -3,6 +3,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlsplit
@@ -90,7 +91,7 @@ class CompanionTests(unittest.TestCase):
             root = Path(folder)
             db_path = root / 'university.db'
             study_path = root / 'study-sessions.db'
-            with sqlite3.connect(study_path) as db:
+            with closing(sqlite3.connect(study_path)) as db, db:
                 db.execute('CREATE TABLE study_exams (user TEXT, exam_id TEXT, conversation TEXT, created_at TEXT, title TEXT, question_count INTEGER, phase TEXT, score REAL, state TEXT)')
                 db.execute('INSERT INTO study_exams VALUES (?,?,?,?,?,?,?,?,?)',
                            ('student', 'exam-1', 'conversation', '2026-11-16T01:00:00+00:00', '자료구조 복습', 10, 'finished', 80.0, '{}'))

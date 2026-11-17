@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import sys
 import tempfile
@@ -16,7 +17,7 @@ from providers import credentials
 
 
 class ProfileAccountTests(unittest.TestCase):
-    @patch.object(credentials.os, "name", "posix")
+    @unittest.skipIf(os.name == "nt", "macOS Keychain migration case")
     def test_default_profile_reads_original_username_key_during_migration(self):
         with tempfile.TemporaryDirectory() as folder:
             config = Path(folder) / "tls-account.json"
@@ -35,7 +36,7 @@ class ProfileAccountTests(unittest.TestCase):
                 self.assertEqual(credentials.load("default", "tls.kku.ac.kr"),
                                  ("lunatic", "old-password"))
 
-    @patch.object(credentials.os, "name", "posix")
+    @unittest.skipIf(os.name == "nt", "macOS Keychain storage case")
     def test_sites_and_aliases_have_separate_markers_and_secrets(self):
         with tempfile.TemporaryDirectory() as folder:
             config = Path(folder) / "tls-account.json"
@@ -67,7 +68,7 @@ class ProfileAccountTests(unittest.TestCase):
                 self.assertNotIn("helper-password", marker_text)
                 self.assertEqual({item["site"] for item in credentials.list_profiles()}, {"tls.kku.ac.kr", "lms.mokwon.ac.kr"})
 
-    @patch.object(credentials.os, "name", "posix")
+    @unittest.skipIf(os.name == "nt", "macOS Keychain session case")
     def test_session_markers_keep_other_aliases(self):
         with tempfile.TemporaryDirectory() as folder:
             session_path = Path(folder) / "tls-session.json"
@@ -100,7 +101,7 @@ class ProfileAccountTests(unittest.TestCase):
                 self.assertNotIn("cookie-one", session_path.read_text(encoding="utf-8"))
                 self.assertEqual(next(iter(credentials.load_session("one", "one", "tls.kku.ac.kr"))).value, "cookie-one")
 
-    @patch.object(credentials.os, "name", "posix")
+    @unittest.skipIf(os.name == "nt", "macOS Keychain linking case")
     def test_explicit_cross_site_link_reuses_only_the_source_secret(self):
         with tempfile.TemporaryDirectory() as folder:
             config = Path(folder) / "tls-account.json"
