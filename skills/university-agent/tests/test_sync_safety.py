@@ -1,5 +1,6 @@
 """Offline regressions for file identity, restricted downloads and partial sync."""
 import contextlib
+import errno
 from email.message import Message
 import io
 import json
@@ -378,6 +379,38 @@ class SyncSafetyTests(unittest.TestCase):
                 with self.assertRaises(OSError):
                     sync_tls.store_resource(root, item('r1', b'one'))
             self.assertEqual(Path(first['localPath']).read_bytes(), b'one')
+
+    def test_streamed_resource_moves_verified_temp_file_without_copying(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'files'
+            streamed = Path(directory) / 'streamed.bin'
+            streamed.write_bytes(b'streamed')
+            result = sync_tls.store_resource(root, {
+                'id': 'r-stream', 'courseId': 'course', 'fileName': '강의.pdf',
+                'extension': 'pdf', '_content_path': str(streamed),
+            })
+            self.assertEqual(Path(result['localPath']).read_bytes(), b'streamed')
+            self.assertFalse(streamed.exists())
+
+    def test_streamed_resource_falls_back_to_copy_across_filesystems(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'files'
+            streamed = Path(directory) / 'streamed.bin'
+            streamed.write_bytes(b'streamed')
+            real_replace = os.replace
+            calls = {'count': 0}
+            def replace_with_cross_device_error(source, target):
+                calls['count'] += 1
+                if calls['count'] == 1:
+                    raise OSError(errno.EXDEV, 'cross-device')
+                return real_replace(source, target)
+            with patch('sync_tls.os.replace', side_effect=replace_with_cross_device_error):
+                result = sync_tls.store_resource(root, {
+                    'id': 'r-cross', 'courseId': 'course', 'fileName': '강의.pdf',
+                    'extension': 'pdf', '_content_path': str(streamed),
+                })
+            self.assertEqual(Path(result['localPath']).read_bytes(), b'streamed')
+            self.assertFalse(streamed.exists())
 
     def test_mixed_permission_and_undated_assignment(self):
         for text in ('PDF 다운로드 금지. TXT 다운로드 가능.', 'PDF 다운로드 금지 및 TXT 다운로드 가능'):

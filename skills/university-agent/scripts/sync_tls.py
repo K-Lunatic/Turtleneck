@@ -13,6 +13,7 @@ import shutil
 import tempfile
 from contextlib import closing
 from datetime import datetime, timezone
+import errno
 from pathlib import Path
 from urllib.error import URLError
 from socket import timeout as SocketTimeout
@@ -116,17 +117,28 @@ def store_resource(file_root, item):
     if not target.resolve().is_relative_to(root):
         raise ValueError('자료 저장 위치가 허용된 폴더 밖입니다.')
     temporary = None
+    moved = False
     try:
-        with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as stream:
-            temporary = Path(stream.name)
-            if content_path:
-                with open(content_path, 'rb') as source:
-                    shutil.copyfileobj(source, stream, length=1024 * 1024)
-            else:
-                stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, target)
+        if content_path:
+            # The stream was already fsynced by the downloader; avoid a second
+            # full read/write when the temporary file is on this filesystem.
+            try:
+                os.replace(content_path, target)
+                moved = True
+            except OSError as error:
+                if error.errno != errno.EXDEV:
+                    raise
+        if not moved:
+            with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                if content_path:
+                    with open(content_path, 'rb') as source:
+                        shutil.copyfileobj(source, stream, length=1024 * 1024)
+                else:
+                    stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, target)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
