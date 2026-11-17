@@ -1,8 +1,8 @@
 {
   "measurement": "live TLS, controlled one-course fingerprint mismatch",
   "status": "NOT_MEASURED",
-  "reason": "The read operation timed out",
-  "error_type": "TimeoutError",
+  "reason": "실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.",
+  "error_type": "RuntimeError",
   "requests": 0,
   "response_body_bytes": 0,
   "elapsed_seconds": 0,
