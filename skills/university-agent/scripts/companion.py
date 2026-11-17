@@ -124,7 +124,7 @@ def _study_exams(profile: dict) -> list[dict[str, object]]:
     if not path.is_file():
         return []
     try:
-        with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as db:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
             rows = db.execute(
                 "SELECT exam_id, created_at, title, question_count, phase, score "
                 "FROM study_exams WHERE user=? ORDER BY created_at DESC, exam_id LIMIT 50",
