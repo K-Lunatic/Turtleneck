@@ -26,7 +26,7 @@ jobs:
         include:
           - os: macos-15-intel
             artifact: turtleneck-macos-x64-unsigned
-          - os: macos-14
+          - os: macos-15
             artifact: turtleneck-macos-arm64-unsigned
           - os: windows-latest
             artifact: turtleneck-windows-x64-unsigned
