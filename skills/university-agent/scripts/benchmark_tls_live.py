@@ -137,6 +137,8 @@ def main():
             for kind in seed_data}
         report['selected_course_record_counts'] = {
             kind: sum(row.get('courseId') == selected for row in rows) for kind, rows in data['after'].items()}
+    if not all(report['selected_course_results_equal'].values()) or not all(report['unselected_records_preserved'].values()):
+        raise RuntimeError('실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.')
     report['source_db_bytes_unchanged'] = hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
     for key in ('requests', 'response_body_bytes', 'elapsed_seconds'):
         report[key + '_reduction_percent'] = round((1 - report['after'][key] / report['before'][key]) * 100, 2)
@@ -148,7 +150,7 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (OSError, TimeoutError, ConnectionError, SystemExit) as error:
+    except (OSError, TimeoutError, ConnectionError, RuntimeError, SystemExit) as error:
         # A slow school response is a measurement failure, not a reason to
         # replace the last successful aggregate with partial counters.
         report = {
