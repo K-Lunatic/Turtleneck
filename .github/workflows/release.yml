@@ -82,6 +82,10 @@ jobs:
               for path in Path('dist/turtleneck').rglob('*'):
                   if path.is_file():
                       bundle.write(path, path.as_posix())
+          with zipfile.ZipFile(output) as bundle:
+              names = set(bundle.namelist())
+              assert 'skills/university-agent/assets/turtleneck.png' in names
+              assert not any(name.endswith(('.env', '.db')) for name in names)
           digest = hashlib.sha256(output.read_bytes()).hexdigest()
           Path(f'{artifact}.sha256').write_text(f'{digest}  {output.name}\n', encoding='utf-8')
           if os.environ.get('RUNNER_OS') in {'macOS', 'Windows'}:
