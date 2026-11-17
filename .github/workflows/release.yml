@@ -9,6 +9,11 @@ on:
         description: Existing or new release tag to update
         required: true
         default: v0.6.4
+      publish:
+        description: Publish the generated artifacts as a GitHub Release
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -146,6 +151,7 @@ jobs:
 
   publish:
     needs: [build, source]
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
