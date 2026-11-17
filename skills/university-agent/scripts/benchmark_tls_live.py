@@ -16,7 +16,6 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'tests')]
 import sync_tls
-from providers.credentials import load
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import MoodleSession
 from providers.request_metrics import RequestMetrics
@@ -25,11 +24,31 @@ from test_tls_optimization import load_baseline
 
 
 def main():
+    if any(argument in {'-h', '--help'} for argument in sys.argv[1:]):
+        print('usage: benchmark_tls_live.py')
+        print('  Runs the controlled read-only TLS benchmark with stored credentials only.')
+        return
     auth_metrics = RequestMetrics()
-    username, password = load()
-    session = MoodleSession(metrics=auth_metrics)
-    session.login(username, password)
-    del password
+    # Use the same stored-only gate as production sync. A missing/empty password
+    # must fail before any network login attempt or browser form can be opened.
+    try:
+        username, session = sync_tls._login_with_retries(
+            os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr'), stored_only=True)
+    except RuntimeError as error:
+        report = {
+            'measurement': 'live TLS, controlled one-course fingerprint mismatch',
+            'status': 'NOT_MEASURED',
+            'reason': str(error),
+            'requests': 0,
+            'response_body_bytes': 0,
+            'elapsed_seconds': 0,
+            'notes': ['Stored-only authentication stopped before network login; no live comparison was run.'],
+        }
+        # Never overwrite the last successful live measurement with an unavailable run.
+        output = REPO / 'tls-optimization-results/live-attempt.json'
+        output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return
     source = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent' / 'university.db'))
     original_hash = hashlib.sha256(source.read_bytes()).hexdigest()
     with tempfile.TemporaryDirectory(prefix='turtleneck-live-measure-') as directory:
@@ -63,10 +82,10 @@ def main():
         report = {
             'measurement': 'live TLS, controlled one-course fingerprint mismatch',
             'metadata_only': True, 'courses': len(preflight['courseIds']),
-            'authentication_setup': auth_metrics.snapshot(), 'preflight_setup': setup_metrics.snapshot(),
+            'authentication_setup': {'not_measured': True}, 'preflight_setup': setup_metrics.snapshot(),
             'notes': ['Both runs start from the same private DB backup and use the same authenticated account.',
                       'Only a local fingerprint is altered to force one course refresh. TLS is not modified.',
-                      'Authentication and setup preflight are separate from compared sync measurements.',
+                      'Authentication is intentionally excluded from compared sync measurements.',
                       'Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.',
                       'No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.',
                       'Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.'],

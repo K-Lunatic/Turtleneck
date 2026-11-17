@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>터틀넥 · 로컬 학습판</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101514; --panel:#18201e; --line:#2d3a36; --mint:#b8e7c5; --soft:#9db4aa; --accent:#d8f5df; }
+    * { box-sizing:border-box; } body { margin:0; background:linear-gradient(145deg,#101514,#17221f); color:#f3f7f3; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(980px,100%); margin:0 auto; padding:30px 20px 54px; }
+    header { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:24px; }
+    h1,h2,p { margin:0; } h1 { font-size:28px; letter-spacing:-.04em; } h2 { font-size:17px; margin-bottom:14px; }
+    .eyebrow { color:var(--mint); font-size:12px; letter-spacing:.14em; text-transform:uppercase; margin-bottom:5px; }
+    .muted { color:var(--soft); } .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px; }
+    .card,.panel { background:rgba(24,32,30,.88); border:1px solid var(--line); border-radius:18px; box-shadow:0 12px 40px rgba(0,0,0,.15); }
+    .card { padding:16px; } .card strong { display:block; font-size:25px; color:var(--accent); } .card span { color:var(--soft); font-size:13px; }
+    .panel { padding:20px; margin-top:14px; } .row { display:flex; justify-content:space-between; align-items:center; gap:15px; padding:13px 0; border-top:1px solid var(--line); }
+    .row:first-child { border-top:0; padding-top:0; } .row:last-child { padding-bottom:0; } .title { font-weight:650; } .meta { color:var(--soft); font-size:13px; }
+    a.button { color:#122019; background:var(--mint); border-radius:999px; padding:7px 12px; text-decoration:none; white-space:nowrap; font-weight:650; font-size:13px; }
+    button { font:inherit; color:#122019; background:var(--mint); border:0; border-radius:999px; padding:7px 12px; cursor:pointer; }
+    select { font:inherit; background:var(--panel); color:var(--accent); padding:6px; border:1px solid var(--line); border-radius:8px; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; }
+    .empty { color:var(--soft); padding:8px 0; } .profile { display:inline-block; color:var(--mint); margin:2px 7px 2px 0; }
+    @media (max-width:700px) { .grid { grid-template-columns:repeat(2,1fr); } header { display:block; } .row { align-items:flex-start; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><div><div class="eyebrow">Turtleneck</div><h1 data-i18n="heading">오늘의 학습판</h1><p class="muted" data-i18n="privacy">학교 자료와 시험 기록은 이 컴퓨터 안에서만 확인해요.</p></div><div><select id="language" aria-label="Language"><option value="ko">한국어</option><option value="en">English</option><option value="zh-CN">简体中文</option></select><p id="updated" class="muted">…</p></div></header>
+  <section class="grid" id="stats"></section>
+  <section class="panel"><h2 data-i18n="recent">최근 시험지</h2><div id="exams" class="empty">…</div></section>
+  <section class="panel"><h2 data-i18n="spaces">연결된 공간</h2><div id="profiles" class="empty">…</div></section>
+  <section class="panel"><h2 data-i18n="library">저장한 학습 자료</h2><p id="source-error" role="status"></p><div id="documents" class="empty">…</div></section>
+  <section class="panel" id="source-panel" hidden><h2 id="source-title"></h2><pre id="source-text"></pre><button id="source-next" data-i18n="next" hidden>이어서 읽기</button></section>
+</main>
+<script>
+  const messages = {
+    ko: {heading:'오늘의 학습판',privacy:'학교 자료와 시험 기록은 이 컴퓨터 안에서만 확인해요.',recent:'최근 시험지',spaces:'연결된 공간',library:'저장한 학습 자료',next:'이어서 읽기',files:'로컬 자료',exams:'저장 시험',average:'평균 점수',points:'점',questions:'문항',ungraded:'아직 채점 전',openExam:'시험 열기',emptyExams:'저장된 시험지가 아직 없어요.',emptySpaces:'연결된 프로필이 아직 없어요.',emptyDocuments:'저장한 학습 자료가 아직 없어요.',sections:'개 부분',read:'자료 읽기',loadError:'자료를 읽지 못했어요. 보조 앱에서 다시 열어 주세요.',unchecked:'확인 전'},
+    en: {heading:'Your study dashboard',privacy:'Course materials and exam records stay on this computer.',recent:'Recent exams',spaces:'Connected profiles',library:'Saved study materials',next:'Continue reading',files:'Local files',exams:'Saved exams',average:'Average score',points:' points',questions:' questions',ungraded:'Not graded yet',openExam:'Open exam',emptyExams:'No saved exams yet.',emptySpaces:'No connected profiles yet.',emptyDocuments:'No saved study materials yet.',sections:' sections',read:'Read material',loadError:'Could not load this content. Reopen it from the companion app.',unchecked:'Not checked'},
+    'zh-CN': {heading:'学习面板',privacy:'课程资料和考试记录保存在这台电脑上。',recent:'最近的试卷',spaces:'已连接的账户',library:'已保存的学习资料',next:'继续阅读',files:'本地文件',exams:'已保存的试卷',average:'平均分',points:'分',questions:'题',ungraded:'尚未评分',openExam:'打开试卷',emptyExams:'暂无已保存的试卷。',emptySpaces:'暂无已连接的账户。',emptyDocuments:'暂无已保存的学习资料。',sections:'个部分',read:'阅读资料',loadError:'无法读取内容。请从辅助应用重新打开。',unchecked:'尚未检查'}
+  };
+  let language = navigator.language?.startsWith('ko') ? 'ko' : navigator.language?.startsWith('zh') ? 'zh-CN' : 'en';
+  try { language = localStorage.getItem('turtleneck-language') || language; } catch {}
+  if (!messages[language]) language = 'en';
+  const t = key => messages[language][key] || messages.en[key] || key;
+  function translate() {
+    document.documentElement.lang = language;
+    document.title = 'Turtleneck · ' + t('heading');
+    document.querySelector('#language').value = language;
+    document.querySelectorAll('[data-i18n]').forEach(element => { element.textContent = t(element.dataset.i18n); });
+  }
+  document.querySelector('#language').addEventListener('change', event => {
+    language = event.target.value;
+    try { localStorage.setItem('turtleneck-language', language); } catch {}
+    translate();
+    load().catch(showError);
+  });
+  const token = new URLSearchParams(location.search).get('token') || '';
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const date = value => value ? new Date(value).toLocaleString(language) : t('unchecked');
+  async function load() {
+    const response = await fetch('/api/dashboard?token=' + encodeURIComponent(token), {cache:'no-store'});
+    const data = await response.json();
+    document.querySelector('#updated').textContent = date(new Date(data.checkedAt * 1000).toISOString());
+    const files = data.profiles.reduce((sum, item) => sum + Number(item.localFiles || 0), 0);
+    const resources = data.profiles.reduce((sum, item) => sum + Number(item.resources || 0), 0);
+    const score = data.scoreSummary.average == null ? '—' : data.scoreSummary.average.toFixed(1) + t('points');
+    document.querySelector('#stats').innerHTML = [[t('spaces'),data.profiles.length],[t('files'),files],[t('exams'),data.exams.length],[t('average'),score]].map(item => `<div class="card"><strong>${esc(item[1])}</strong><span>${esc(item[0])}</span></div>`).join('');
+    document.querySelector('#exams').innerHTML = data.exams.length ? data.exams.map(item => `<div class="row"><div><div class="title">${esc(item.title || t('exams'))}</div><div class="meta">${esc(item.site)} · ${esc(item.alias)} · ${date(item.createdAt)} · ${esc(item.questionCount)}${t('questions')} · ${item.score == null ? t('ungraded') : esc(item.score) + t('points')}</div></div><a class="button" href="/open-exam?token=${encodeURIComponent(token)}&site=${encodeURIComponent(item.site)}&alias=${encodeURIComponent(item.alias)}&examId=${encodeURIComponent(item.examId)}">${t('openExam')}</a></div>`).join('') : `<div class="empty">${t('emptyExams')}</div>`;
+    document.querySelector('#profiles').innerHTML = data.profiles.length ? data.profiles.map(item => `<span class="profile">${esc(item.site)} / ${esc(item.alias)} / ${esc(item.username)}</span>`).join('') : `<div class="empty">${t('emptySpaces')}</div>`;
+    document.querySelector('#source-error').textContent = data.sourceLibraryError ? t('loadError') : '';
+    document.querySelector('#documents').innerHTML = (data.documents || []).length ? data.documents.map((item, index) => `<div class="row"><div><div class="title">${esc(item.title)}</div><div class="meta">${esc(item.sourceId)} · ${esc(item.site)} / ${esc(item.alias)} · ${esc(item.sectionCount)}${t('sections')}</div></div><button data-source-index="${index}">${t('read')}</button></div>`).join('') : `<div class="empty">${t('emptyDocuments')}</div>`;
+    document.querySelectorAll('[data-source-index]').forEach(button => button.addEventListener('click', () => readSource(data.documents[Number(button.dataset.sourceIndex)])));
+  }
+  async function readSource(item, cursor = null) {
+    const query = new URLSearchParams({token, site:item.site, alias:item.alias, id:item.documentId, ...(cursor || {})});
+    const panel = document.querySelector('#source-panel');
+    const content = document.querySelector('#source-text');
+    const next = document.querySelector('#source-next');
+    panel.hidden = false;
+    document.querySelector('#source-title').textContent = item.title;
+    next.hidden = true;
+    try {
+      const response = await fetch('/api/source?' + query, {cache:'no-store'});
+      const page = await response.json();
+      if (!response.ok) throw new Error(language === 'ko' ? page.error || t('loadError') : t('loadError'));
+      const text = page.location + '\n' + page.text;
+      content.textContent = cursor ? content.textContent + '\n\n' + text : text;
+      next.hidden = !page.next;
+      next.onclick = () => readSource(item, page.next);
+    } catch (error) { content.textContent = error.message; }
+  }
+  function showError() { document.querySelector('#exams').textContent = t('loadError'); }
+  translate();
+  load().catch(showError);
+</script>
+</body>
+</html>

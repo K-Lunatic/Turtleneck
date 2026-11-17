@@ -289,7 +289,10 @@ class MoodleSession:
         parser.feed(login_html)
         form_path = parser.action or login_path
         fields = {**parser.values, "username": username, "password": password}
-        html, response = self._request(form_path, data=urlencode(fields).encode(), referer=login_response.geturl())
+        try:
+            html, response = self._request(form_path, data=urlencode(fields).encode(), referer=login_response.geturl())
+        finally:
+            fields["password"] = None
         has_cookie = any(cookie.name == "MoodleSession" for cookie in self.cookies)
         still_login_form = bool(re.search(r'name=["\']username["\']', html, re.I))
         if not has_cookie or still_login_form or "/login" in response.geturl():
@@ -407,5 +410,42 @@ class MoodleSession:
             if max_bytes is not None and len(payload) > max_bytes:
                 raise ValueError('영상 조각이 너무 커서 가져오기를 멈췄어요.')
             return payload, response
+        finally:
+            response.close()
+
+    def stream_bytes_to_file(self, path: str, target, *, allowed_origin=None,
+                             max_bytes=None, chunk_size=1024 * 1024) -> dict:
+        """Write one binary response directly to a temporary file."""
+        if not self.logged_in:
+            raise LoginError("Call login() before stream_bytes_to_file()")
+        if not isinstance(chunk_size, int) or chunk_size <= 0:
+            raise ValueError('영상 조각 저장 단위가 올바르지 않아요.')
+        url = urljoin(f"{self.base_url}/", path.lstrip("/"))
+        check_download_url(url)
+        check_download_origin(url, allowed_origin)
+        request = Request(url, headers={"User-Agent": "UniversityAgent/0.1", "Accept-Encoding": "identity"})
+        request.allowed_origin = allowed_origin
+        response = self._open(request, kind='file')
+        written = 0
+        try:
+            check_download_url(response.geturl())
+            check_download_origin(response.geturl(), allowed_origin)
+            if "/login" in urlsplit(response.geturl()).path:
+                raise LoginError("TLS session expired; sign in again")
+            if response.headers.get('Content-Encoding', '').lower() not in ('', 'identity'):
+                raise ValueError('영상 응답 형식이 달라 가져오기를 멈췄어요.')
+            response_url = response.geturl()
+            response_headers = response.headers
+            with open(target, 'wb') as output:
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if max_bytes is not None and written > max_bytes:
+                        raise ValueError('영상 조각이 너무 커서 가져오기를 멈췄어요.')
+                    output.write(chunk)
+                output.flush()
+            return {'size': written, 'url': response_url, 'headers': response_headers}
         finally:
             response.close()

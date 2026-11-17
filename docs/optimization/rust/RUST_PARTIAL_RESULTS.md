@@ -126,3 +126,23 @@ backend 설치는 요청 스레드를 시작하기 전에 한 번 수행하며 �
 [partial-tests.json](../../../experiments/rust-core/results/partial-tests.json).
 한계: Windows x64 GNU에서 검증했으며 다른 OS·배포 번들·현재 두 모듈 조합의 최대 메모리는
 아직 비교하지 않았다. `turtleneck`에는 반영하거나 푸시하지 않았다.
+
+## macOS ARM64 재검증
+
+2026-11-17(Asia/Seoul), macOS 26.6.2 ARM64, Python 3.11.6, Rust 1.100.0에서
+`cargo build --release --locked` 후 같은 실험을 다시 실행했다. Rust 단위 6개와 실험
+Python 27개가 통과했고, 활동·개요는 채택 판정을 유지했으며 개념 순위는 여전히 미채택이다.
+
+| 조건 | Python 중앙값 | Rust 경로 중앙값 | 측정된 단축 |
+| --- | ---: | ---: | ---: |
+| 활동 100개 | 1.246 ms | 0.339 ms | 72.76% |
+| 활동 1,000개 | 12.620 ms | 3.405 ms | 73.02% |
+| 섹션 개요 100개 | 2.593 ms | 0.419 ms | 83.84% |
+| 섹션 개요 1,000개 | 25.832 ms | 4.142 ms | 83.97% |
+| 변경 없는 목록 재현 | 44.128 ms | 41.892 ms | 5.07% |
+| 전체 메타데이터 재현 | 221.732 ms | 219.035 ms | 1.22% |
+
+실험 결과 원문은 `experiments/rust-core/results/partial-benchmark.json`, 빌드 환경과
+라이브러리 해시는 `partial-environment-macos.json`에 기록했다. 이 결과는 보조 앱 전체의
+Rust 전환 속도나 학교 서버 트래픽 감소를 뜻하지 않는다. 네트워크·SQLite·AI 분석은 여전히
+별도 병목이며, 현재 운영 진입점은 Python이다.

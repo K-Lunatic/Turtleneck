@@ -22,7 +22,7 @@ if str(ROOT) not in sys.path:
 from features.academic_alerts import collect_alerts, fingerprint, format_alerts, format_daily_report, notice_ids, resource_fingerprint
 from features.deadlines import deadline
 from features.secret_boundary import redact_output
-from providers.credentials import CONFIG_PATH
+from providers.credentials import load_active_alias, load_username, profile_db_path, site_key
 from storage.local_db import LocalDatabase
 
 
@@ -37,12 +37,14 @@ SCHEDULE_JITTER_SECONDS = 15 * 60
 
 
 def paths() -> tuple[Path, str]:
-    db_path = Path(os.environ.get("UNIVERSITY_AGENT_DB", Path.home() / ".university-agent" / "university.db"))
+    base_url = os.environ.get("TLS_BASE_URL", "https://tls.kku.ac.kr")
+    alias = os.environ.get("TLS_ACCOUNT_ALIAS") or load_active_alias(site_key(base_url))
+    db_path = profile_db_path(base_url, alias)
     user_id = os.environ.get("UNIVERSITY_AGENT_USER_ID")
     if not user_id:
         try:
-            user_id = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))["username"]
-        except (OSError, ValueError, KeyError, TypeError):
+            user_id = load_username(alias, site_key(base_url))
+        except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
             user_id = ""
     return db_path, user_id
 

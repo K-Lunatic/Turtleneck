@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from providers.credentials import CredentialInputRequired
 from providers.moodle_session import LoginError
+from providers.credentials import CredentialInputRequired
 from providers.tls_auth import authenticated_session
 
 
@@ -24,9 +24,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True, help="Save fetched HTML to this local file")
     args = parser.parse_args()
     try:
-        username, session = authenticated_session()
-    except CredentialInputRequired as error:
-        raise SystemExit(str(error)) from error
+        username, session = authenticated_session(stored_only=True)
+    except (CredentialInputRequired, RuntimeError, OSError, ValueError) as error:
+        raise SystemExit('저장된 학교 연결을 확인하지 못했어요. 엔드포인트 확인을 위해 로그인 화면을 열지 않았어요.') from error
     try:
         html = session.get(args.path)
     except SocketTimeout as error:

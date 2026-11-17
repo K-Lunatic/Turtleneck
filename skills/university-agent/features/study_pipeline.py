@@ -141,6 +141,9 @@ def start(session, state, selected, material=None):
 
 def analysis_key(state, material, chunk_chars=CHUNK_CHARS):
     configuration = {k: state['settings'][k] for k in ('choices', 'difficulty')}
+    language = state['settings'].get('language', 'ko')
+    if language != 'ko':
+        configuration['language'] = language
     configuration['types'] = sorted(set(state['settings']['types']))
     locations = state['selection'].get('locations', {}).get(material['id'])
     text_formats = {'txt', 'md', 'java', 'py', 'js', 'c', 'cpp', 'html', 'css', 'csv', 'json', 'xml', 'yaml', 'yml'}

@@ -16,21 +16,49 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'integrations/everytime/scripts'))
 
-from providers.credentials import CONFIG_PATH
+from providers import credentials
+from providers.credentials import CONFIG_PATH, load_username
 from scripts.sync_tls import _saved_sync_state, open_connection_terminal
 from scripts.academic_watch import install_schedule, uninstall_schedule
 from everytime_cache import default_path, scope_key
 from features.secret_boundary import redact_output
+from storage.private_files import atomic_write_text, private_dir
+
+
+COMPANION_STATE_PATH = Path.home() / '.university-agent' / 'companion.json'
+
+
+def companion_status() -> dict[str, str]:
+    """Read only the local companion preference; never reads credentials."""
+    try:
+        state = json.loads(COMPANION_STATE_PATH.read_text(encoding='utf-8'))
+        value = state.get('status')
+        if value in {'DECLINED', 'INSTALLED'}:
+            return {'status': value}
+    except (OSError, ValueError, TypeError):
+        pass
+    return {'status': 'OFFER'}
+
+
+def decline_companion() -> dict[str, str]:
+    private_dir(COMPANION_STATE_PATH.parent)
+    atomic_write_text(COMPANION_STATE_PATH, json.dumps({'status': 'DECLINED'}, ensure_ascii=False) + '\n')
+    return {'status': 'DECLINED'}
 
 
 def status() -> dict:
     """Only inspect account metadata and existing DBs, never passwords or cookies."""
     tls = {'status': 'NEEDS_LOGIN'}
     try:
-        account = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
-        user = os.environ.get('UNIVERSITY_AGENT_USER_ID') or account['username']
+        if CONFIG_PATH != credentials.CONFIG_PATH:
+            marker = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+            profiles = marker.get('profiles') if isinstance(marker.get('profiles'), dict) else {}
+            active = marker.get('activeAlias', 'default')
+            user = profiles.get(active, {}).get('username') or marker['username']
+        else:
+            user = load_username()
         username = os.environ.get('TLS_USERNAME')
-        if username and username != account['username']:
+        if username and username != user:
             raise ValueError('A different account was requested')
         db = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent/university.db'))
         saved = _saved_sync_state(db, user)
@@ -55,7 +83,7 @@ def status() -> dict:
                     eta['status'] = 'PARTIAL'
         except (sqlite3.Error, OSError, ValueError, KeyError, TypeError):
             eta = {'status': 'UNAVAILABLE', 'message': '에타 저장소를 읽지 못했어요. 접근 권한과 저장 상태를 먼저 확인해 주세요.'}
-    return {'tls': tls, 'everytime': eta}
+    return {'tls': tls, 'everytime': eta, 'companion': companion_status()}
 
 
 def prepare(only: str | None = None) -> int:
@@ -107,6 +135,7 @@ def main() -> int:
     mode.add_argument('--run', action='store_true', help='사용자의 별도 터미널에서 직접 설정')
     mode.add_argument('--watch-install', action='store_true', help='6시간마다 학교 자료를 확인하도록 등록')
     mode.add_argument('--watch-uninstall', action='store_true', help='학교 자료 자동 확인 해제')
+    mode.add_argument('--companion-decline', action='store_true', help='선택형 보조 앱 권유를 이 기기에서 다시 표시하지 않음')
     parser.add_argument('--only', choices=('tls', 'everytime'), help='빠진 연결 하나만 준비')
     args = parser.parse_args()
     if args.watch_install:
@@ -119,14 +148,19 @@ def main() -> int:
     if args.watch_uninstall:
         print(uninstall_schedule())
         return 0
+    if args.companion_decline:
+        print(json.dumps({'companion': decline_companion(),
+                          'message': '보조 앱은 설치하지 않기로 저장했어요. 핵심 기능은 계속 사용할 수 있어요.'}, ensure_ascii=False))
+        return 0
     if args.run:
         result = prepare(args.only)
         return result
     current = status()
     print(json.dumps(redact_output(current), ensure_ascii=False))
-    if args.status or all(item['status'] == 'READY' for key, item in current.items() if not args.only or key == args.only):
+    services = ('tls', 'everytime')
+    if args.status or all(current[key]['status'] == 'READY' for key in services if not args.only or key == args.only):
         return 0
-    if any(item['status'] in ('RUNNING', 'UNAVAILABLE') for key, item in current.items() if not args.only or key == args.only):
+    if any(current[key]['status'] in ('RUNNING', 'UNAVAILABLE') for key in services if not args.only or key == args.only):
         print('이미 진행 중이거나 저장소 확인이 필요해요. 새 연결창을 열지 않을게요.')
         return 1
     command = [sys.executable, str(Path(__file__).resolve()), '--run']

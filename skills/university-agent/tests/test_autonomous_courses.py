@@ -47,6 +47,21 @@ class FakeSession:
         return self.html
 
 
+class AutonomousStructureSession:
+    base_url = "https://tls.kku.ac.kr"
+
+    def __init__(self):
+        self.paths = []
+
+    def get(self, path):
+        self.paths.append(path)
+        if path == "/local/ubeclass/my.php":
+            return PAGE
+        if path == "/course/view.php?id=65513":
+            return COURSE_PAGE
+        raise AssertionError(f"unexpected path: {path}")
+
+
 class AutonomousCourseTests(unittest.TestCase):
     def test_parser_reads_visible_rows_and_keeps_role_unverified(self):
         courses = parse_autonomous_courses(PAGE)
@@ -60,6 +75,11 @@ class AutonomousCourseTests(unittest.TestCase):
         self.assertNotIn("sesskey", str(courses))
         self.assertNotIn("99999", str(courses))
 
+    def test_parser_accepts_professor_role_when_management_link_is_visible(self):
+        courses = parse_autonomous_courses(PAGE.replace('<td>운영자</td>', '<td>교수</td>', 1))
+        self.assertTrue(courses[0]['ownerControlsVisible'])
+        self.assertEqual(courses[0]['role'], '교수')
+
     def test_provider_uses_read_only_autonomous_listing_once(self):
         session = FakeSession(PAGE)
         provider = MoodleTLSProvider(session)
@@ -67,6 +87,15 @@ class AutonomousCourseTests(unittest.TestCase):
         second = provider.get_autonomous_courses("user")
         self.assertEqual(first, second)
         self.assertEqual(session.paths, ["/local/ubeclass/my.php"])
+
+    def test_autonomous_course_uses_the_same_core_course_page_as_regular_course(self):
+        session = AutonomousStructureSession()
+        provider = MoodleTLSProvider(session)
+        autonomous = provider.get_autonomous_courses("user")
+        self.assertEqual(autonomous[0]["externalId"], "65513")
+        structure = provider.get_course_structure(autonomous[0]["externalId"])
+        self.assertEqual(structure["sections"][1]["activities"][0]["type"], "quiz")
+        self.assertEqual(session.paths, ["/local/ubeclass/my.php", "/course/view.php?id=65513"])
 
     def test_course_structure_keeps_topics_and_visible_activity_names(self):
         blueprint = parse_course_structure(COURSE_PAGE)

@@ -3,6 +3,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import secrets
+import threading
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -53,6 +54,8 @@ def create_exam_server(session, port=0, view='exam'):
             if self.path in files:
                 name, content_type = files[self.path]
                 self.send(200, (assets / name).read_bytes(), content_type)
+                if self.path == '/':
+                    self.server.page_seen.set()
             elif self.path == '/api/exam':
                 try:
                     self.send(200, session.call({'action': 'web_status'}))
@@ -146,5 +149,6 @@ def create_exam_server(session, port=0, view='exam'):
 
     # Browsers preconnect: an idle socket must not block CSS/JS/API requests.
     server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    server.page_seen = threading.Event()
     server.timeout = 1
     return server, f'http://127.0.0.1:{server.server_port}/#{token}'

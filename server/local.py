@@ -17,6 +17,7 @@ from socketserver import ThreadingMixIn
 from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
 
 from server.app import Gateway, ROOT
+from storage.private_files import atomic_write_text, private_dir, private_file
 
 
 class LocalServer(ThreadingMixIn, WSGIServer):
@@ -29,19 +30,16 @@ class QuietHandler(WSGIRequestHandler):
 
 
 def local_config(directory, gpt_id):
-    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(directory, 0o700)
+    private_dir(directory)
     path = directory / 'config.json'
     if path.exists():
+        private_file(path)
         config = json.loads(path.read_text())
     else:
         config = {'client_id': 'university-agent', 'client_secret': secrets.token_urlsafe(48)}
     config['gpt_id'] = gpt_id
     # Private local file; do not print it or return it through an Action.
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, 'w') as target:
-        json.dump(config, target)
-    os.chmod(path, 0o600)
+    atomic_write_text(path, json.dumps(config, separators=(',', ':')))
     return config
 
 
@@ -67,15 +65,13 @@ def start_tunnel(binary, port):
 
 
 def write_settings(directory, app):
+    private_dir(directory)
     path = directory / 'settings.html'
     rows = [('Client ID', app.client_id), ('Client secret', app.client_secret),
             ('Authorization URL', app.base_url + '/oauth/authorize'), ('Token URL', app.base_url + '/oauth/token'), ('Scope', 'academic:read')]
     table = ''.join(f'<tr><th>{escape(name)}</th><td><code>{escape(value)}</code></td></tr>' for name, value in rows)
     page = f'''<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>University Agent 연결 설정</title><style>body{{font:18px system-ui;max-width:950px;margin:40px auto;padding:20px}}td,th{{text-align:left;padding:12px;overflow-wrap:anywhere}}code{{user-select:all}}a{{color:#174f3b}}</style><h1>이 컴퓨터를 ChatGPT에 연결</h1><p>Custom GPT 편집 화면의 Actions에 아래 스키마 주소를 가져오고, 인증을 OAuth로 설정하세요.</p><p><a href="{escape(app.base_url)}/openapi.json">{escape(app.base_url)}/openapi.json</a></p><table>{table}</table><p>Token 교환: POST, application/x-www-form-urlencoded.</p><p>Instructions: 저장소의 server/gpt-instructions.md 내용을 넣으세요.</p><p>이 페이지의 Client secret은 학교 비밀번호가 아닙니다. 채팅에 보내지 마세요. 이 설정 페이지는 기기 파일로만 저장되며 공개 API에서 제공하지 않습니다.</p><p>컴퓨터나 터널을 끄면 연결이 끊깁니다. 임시 터널을 다시 실행하면 주소가 바뀌므로 Actions 주소와 OAuth URL도 갱신해야 합니다.</p></html>'''
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, 'w') as target:
-        target.write(page)
-    os.chmod(path, 0o600)
+    atomic_write_text(path, page)
     return path
 
 

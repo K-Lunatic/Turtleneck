@@ -152,6 +152,9 @@ class Gateway:
     def __call__(self, env, start_response):
         headers = [('Cache-Control', 'no-store'), ('Referrer-Policy', 'no-referrer'),
                    ('X-Content-Type-Options', 'nosniff'), ('X-Frame-Options', 'DENY'),
+                   ('Cross-Origin-Opener-Policy', 'same-origin'),
+                   ('Cross-Origin-Resource-Policy', 'same-origin'),
+                   ('Permissions-Policy', 'camera=(), microphone=(), geolocation=()'),
                    ('Content-Security-Policy', "default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")]
         try:
             status, content, kind, extra = self.route(env)

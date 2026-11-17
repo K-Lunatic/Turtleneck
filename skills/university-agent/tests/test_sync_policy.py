@@ -125,6 +125,46 @@ class SyncPolicyTests(unittest.TestCase):
             self.assertTrue(row['failed'])
             self.assertEqual(row['login_calls'], 0)
 
+    def test_new_selected_files_are_discovered_without_academic_or_other_course_reads(self):
+        before = snapshot(self.db)
+        stamps = sync_tls._saved_sync_state(self.db, 'fixture')
+        for identifier in (110, 111):
+            self.pages['/course/view.php?id=1'] += f'<li class="activity"><a href="/mod/ubfile/view.php?id={identifier}">새 자료 {identifier}</a></li>'
+            self.pages[f'/mod/ubfile/view.php?id={identifier}'] = f'<iframe src="/local/ubdoc/?id={identifier}&amp;tp=m&amp;pg=ubfile"></iframe>'
+            self.pages[f'/local/ubdoc/download.php?id={identifier}&tp=m&pg=ubfile'] = b'%PDF-new-fixture'
+        self.pages['/course/view.php?id=2'] = AssertionError('unrelated course must not be read')
+        with patch.object(sync_tls.MoodleTLSProvider, 'preflight', side_effect=AssertionError('no full scan')):
+            result = self.sync('--resource-only', '--course-id', 'tls-course-1',
+                '--resource-id', 'tls-resource-110', '--resource-id', 'tls-resource-111')
+        after = snapshot(self.db)
+        self.assertEqual(result['requests_by_kind']['file'], 2)
+        self.assertEqual(after['assignments'], before['assignments'])
+        self.assertEqual(after['lectures'], before['lectures'])
+        self.assertTrue({'tls-resource-110', 'tls-resource-111'} <= {row['id'] for row in after['resources']})
+        self.assertEqual({key: value for key, value in sync_tls._saved_sync_state(self.db, 'fixture').items()
+                          if key != 'resource_item_checks'}, stamps)
+
+    def test_resource_only_course_id_prepares_every_resource_without_academic_scan(self):
+        before = snapshot(self.db)
+        from providers.moodle_provider import MoodleTLSProvider
+        with patch.object(MoodleTLSProvider, 'preflight', side_effect=AssertionError('no whole catalog')):
+            result = run_sync(sync_tls, self.pages, self.db, '--resource-only',
+                              '--course-id', 'tls-course-1')
+        after = snapshot(self.db)
+        self.assertEqual(result['requests_by_kind']['file'], 2)
+        self.assertEqual(after['assignments'], before['assignments'])
+        self.assertEqual(after['lectures'], before['lectures'])
+        self.assertEqual({row['id'] for row in after['resources'] if row['courseId'] == 'tls-course-1'},
+                         {'tls-resource-108', 'tls-resource-109'})
+        self.assertEqual({row['id'] for row in after['resources'] if row['courseId'] == 'tls-course-2'},
+                         {row['id'] for row in before['resources'] if row['courseId'] == 'tls-course-2'})
+
+    def test_selected_metadata_preparation_does_not_fetch_file_bytes(self):
+        before = snapshot(self.db)
+        result = self.sync('--resource-only', '--metadata-only', '--resource-id', 'tls-resource-108')
+        self.assertEqual(result.get('requests_by_kind', {}).get('file', 0), 0)
+        self.assertEqual(snapshot(self.db)['assignments'], before['assignments'])
+
     def test_resource_only_failure_keeps_target_and_success_stamps(self):
         from providers.moodle_provider import MoodleTLSProvider
         before = snapshot(self.db)

@@ -63,6 +63,16 @@ class SetupTests(unittest.TestCase):
                 setup.main()
             self.assertEqual(launch.call_count, 1)
 
+    def test_companion_decline_is_local_and_does_not_block_core_setup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'companion.json'
+            with patch.object(setup, 'COMPANION_STATE_PATH', marker), redirect_stdout(io.StringIO()) as out, \
+                    patch.object(sys, 'argv', ['setup', '--companion-decline']):
+                self.assertEqual(setup.main(), 0)
+                self.assertEqual(setup.companion_status(), {'status': 'DECLINED'})
+            self.assertEqual(json.loads(out.getvalue())['companion']['status'], 'DECLINED')
+            self.assertNotIn('password', out.getvalue().lower())
+
     def test_unreadable_or_running_cache_never_triggers_login(self):
         with tempfile.TemporaryDirectory() as folder:
             db = Path(folder) / 'eta.db'

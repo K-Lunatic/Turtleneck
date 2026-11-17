@@ -50,12 +50,16 @@ from scripts.control_tls_quiz_questions import QuizQuestionError, control_questi
 from providers.moodle_session import LoginError
 from providers.forms import FormUnavailable
 from features.secret_boundary import redact_output
-from providers.credentials import CONFIG_PATH
+from providers.credentials import load_username, profile_db_path, site_key
+from features.profile_context import select_profile
+from features import study_sources
+from scripts.gradkuya import add_arguments as gradkuya_arguments, execute as execute_gradkuya
+from features.language import apply_preferred_language
 from storage.local_db import LocalDatabase
 
 try:
-    default_user_id = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))["username"]
-except (OSError, ValueError, KeyError):
+    default_user_id = load_username()
+except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
     default_user_id = ""
 DB_PATH = Path(os.environ.get("UNIVERSITY_AGENT_DB", Path.home() / ".university-agent" / "university.db")).expanduser()
 DEVICE_ID_PATH = DB_PATH.parent / "device-id"
@@ -108,7 +112,9 @@ def _open_exam_web(result: dict[str, Any], conversation: str) -> dict[str, Any]:
         answer = payload.get('answer') or '시험지가 준비됐어요.'
         if not opened:
             answer += ' 브라우저가 자동으로 열렸는지 확인되지 않았어요. 아래 로컬 링크를 직접 열어 주세요.'
-        return {**result, 'webOpened': opened, 'webUrl': payload['url'], 'answer': answer}
+        return {**result, 'webOpened': opened, 'webUrl': payload['url'],
+                'displayTarget': payload.get('displayTarget', 'browser'),
+                'displayRequested': payload.get('displayRequested', opened), 'answer': answer}
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         return {**result, 'webOpened': False,
                 'answer': result.get('answer', '시험지가 준비됐어요.') +
@@ -311,6 +317,7 @@ def _ask(
             return {"toolCalls": ["study"], "needsConversation": True,
                     "answer": "학습 대화를 구분할 세션 ID가 필요합니다. 호출한 AI가 이 대화에서만 유지할 ID를 만들어 다시 호출하세요."}
         event = event_from_text(text, database().get_courses(USER_ID))
+        apply_preferred_language(event, database().get_learner_profile(USER_ID).get('preferredLanguage'))
         try:
             response = StudySession(DB_PATH.parent / "study-sessions.db", USER_ID, conversation or 'context-notes',
                                     database(), DB_PATH.parent / "files").call(event)
@@ -360,8 +367,10 @@ def ask(text: str, **options) -> dict[str, Any]:
 
 
 def main() -> None:
-    global USER_ID
+    global USER_ID, DB_PATH, DEVICE_ID_PATH, DB
     parser = argparse.ArgumentParser(description="터틀넥 local university skill")
+    parser.add_argument('--site', default=None, help='명령에 사용할 LMS 호스트')
+    parser.add_argument('--account-alias', default=None, help='명령에 사용할 계정 별칭')
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("context")
     assignment_parser = sub.add_parser("assignments")
@@ -483,6 +492,8 @@ def main() -> None:
     ask_parser.add_argument("--conversation", default="", help="호스트 대화별 고유 ID")
     ask_parser.add_argument("--checkpoint-json", default=None, help=argparse.SUPPRESS)
     ask_parser.add_argument("--assignment-query", default=None, help="저장 요청의 대화 문맥에서 찾은 검색어 (조회만 수행)")
+    ask_parser.add_argument("--site", default=argparse.SUPPRESS, help="같은 과목이 여러 학교에 있을 때 LMS 호스트")
+    ask_parser.add_argument("--account-alias", default=argparse.SUPPRESS, help="선택할 학교 계정 별칭")
     study_parser = sub.add_parser("study", help="학습 세션 이벤트 처리")
     study_parser.add_argument("--conversation", required=True, help="호스트 대화별 고유 ID")
     study_input = study_parser.add_mutually_exclusive_group(required=True)
@@ -496,9 +507,87 @@ def main() -> None:
     insights_parser.add_argument("--limit", type=int, default=10)
     plan_parser = sub.add_parser("study-plan", help="주차별 학습 순서와 시험 전 복습 비율")
     plan_parser.add_argument("--course", default="", help="과목명 또는 일부")
+    gradkuya_parser = sub.add_parser('gradkuya', help='로컬 성적·졸업요건·시간표 계산')
+    gradkuya_arguments(gradkuya_parser)
+    library_parser = sub.add_parser('source-library', help='이 프로필의 학교 자료와 저장된 학습 자료 검색')
+    library_parser.add_argument('--query', default='')
+    library_parser.add_argument('--offset', type=int, default=0)
+    library_parser.add_argument('--limit', type=int, default=20)
+    document_parser = sub.add_parser('source-document', help='공통 자료 형식 저장·읽기')
+    document_parser.add_argument('operation', choices=('import', 'read', 'list'))
+    document_parser.add_argument('--input', type=Path)
+    document_parser.add_argument('--id')
+    document_parser.add_argument('--query', default='')
+    document_parser.add_argument('--section', type=int, default=0, help='읽기 시작 본문 번호, 0부터')
+    document_parser.add_argument('--text-offset', type=int, default=0, help='본문 내 문자 시작 위치')
+    document_parser.add_argument('--consent', action='store_true', help='사용자가 선택한 자료의 저장·학습 활용 동의')
     args = parser.parse_args()
 
-    if args.command == "context":
+    if args.site or args.account_alias or (args.command == "ask" and not os.environ.get("UNIVERSITY_AGENT_DB")):
+        decision = select_profile(getattr(args, 'text', ''), site=site_key(args.site) if args.site else None,
+                                  alias=args.account_alias)
+        if decision["status"] == "ambiguous":
+            public_profiles = [{key: item[key] for key in ("site", "alias", "active")} for item in decision["profiles"]]
+            lines = ["같은 과목을 여러 학교 계정에서 찾았어요. 어느 연결을 쓸지 정해 주세요:"]
+            lines.extend(f"- {item['site']} / {item['alias']}" for item in public_profiles)
+            lines.append("다시 요청할 때 --site와 --account-alias를 함께 지정하면 해당 공간만 확인합니다.")
+            print(json.dumps({"toolCalls": [], "needsInput": True, "data": {"profiles": public_profiles},
+                              "answer": "\n".join(lines)}, ensure_ascii=False, separators=(",", ":")))
+            return
+        if decision["status"] == "selected":
+            profile = decision["profile"]
+            if DB is not None:
+                DB.close()
+                DB = None
+            DB_PATH = Path(str(profile["dbPath"])).expanduser()
+            DEVICE_ID_PATH = DB_PATH.parent / "device-id"
+            USER_ID = str(profile["username"])
+            os.environ["TLS_BASE_URL"] = f"https://{profile['site']}"
+            os.environ["TLS_ACCOUNT_ALIAS"] = str(profile["alias"])
+        elif args.site or args.account_alias:
+            parser.exit(1, '지정한 학교·계정 프로필을 찾지 못했어요. 연결한 사이트와 별칭을 확인해 주세요.\n')
+
+    if args.command == 'gradkuya':
+        result = execute_gradkuya(args)
+    elif args.command in ('source-document', 'source-library'):
+        try:
+            store = database()
+            if args.command == 'source-library':
+                if args.offset < 0 or not 1 <= args.limit <= 50:
+                    raise ValueError('자료 목록은 offset >= 0, limit 1~50으로 지정해 주세요.')
+                courses = {item['id']: item['name'] for item in store.get_courses(USER_ID)}
+                resources = [{**{k: row.get(k) for k in ('id', 'title', 'courseId', 'downloadStatus')},
+                    'courseName': courses.get(row.get('courseId'), ''), 'sourceId': row.get('source', 'tls'),
+                    'selection': {'courseId': row.get('courseId'), 'resourceIds': [row['id']]}}
+                    for row in store.get_resources(USER_ID)
+                    if args.query.casefold() in (row.get('title', '') + ' ' + courses.get(row.get('courseId'), '')).casefold()]
+                documents = study_sources.list_documents(DB_PATH.parent, USER_ID, args.query)
+                entries = [*resources, *[{**item, 'selection': {'sourceDocumentId': item['documentId']}} for item in documents]]
+                end = args.offset + args.limit
+                result = {'toolCalls': ['source_library'], 'data': {'items': entries[args.offset:end],
+                    'total': len(entries), 'nextOffset': end if end < len(entries) else None},
+                    'answer': '이 프로필에 저장된 자료예요. 학교 원본은 resource-file, 저장한 학습 자료는 source-document read로 열 수 있어요.'}
+            elif args.operation == 'import':
+                if not args.consent or not args.input or not args.input.is_file() or args.input.stat().st_size > 8_000_000:
+                    raise ValueError('선택한 자료의 --input JSON과 저장·학습 동의 --consent가 필요해요.')
+                value = json.loads(args.input.read_text(encoding='utf-8-sig'))
+                if not isinstance(value, dict):
+                    raise ValueError('공통 자료 입력은 JSON 객체여야 해요.')
+                if value.get('courseId') and not any(course['id'] == value['courseId'] for course in store.get_courses(USER_ID)):
+                    raise ValueError('선택한 프로필의 과목 ID를 확인해 주세요.')
+                document = study_sources.save_document(DB_PATH.parent, USER_ID, value)
+                result = {'toolCalls': ['save_source_document'], 'data': study_sources.document_metadata(document),
+                    'answer': '자료와 출처를 저장했어요. 다른 채팅에서도 이 자료 ID로 이어서 사용할 수 있어요.'}
+            elif args.operation == 'read':
+                result = {'toolCalls': ['read_source_document'],
+                    'data': study_sources.read_document(DB_PATH.parent, USER_ID, args.id,
+                        section=args.section, text_offset=args.text_offset)}
+            else:
+                result = {'toolCalls': ['list_source_documents'],
+                    'data': study_sources.list_documents(DB_PATH.parent, USER_ID, args.query)}
+        except (OSError, TypeError, AttributeError, ValueError) as error:
+            result = {'toolCalls': [], 'error': {'code': 'SOURCE_DOCUMENT_FAILED', 'message': str(error)}, 'answer': str(error)}
+    elif args.command == "context":
         store = database()
         result = {
             "toolCalls": ["get_current_context"],
@@ -822,6 +911,7 @@ def main() -> None:
         try:
             event = json.loads(args.event_file.read_text(encoding='utf-8') if args.event_file else args.event_json)
             store = database()
+            apply_preferred_language(event, store.get_learner_profile(USER_ID).get('preferredLanguage'))
             result = {"toolCalls": ["study"], **StudySession(DB_PATH.parent / "study-sessions.db", USER_ID,
                 args.conversation, store, DB_PATH.parent / "files").call(event)}
             result = _open_exam_web(result, args.conversation)

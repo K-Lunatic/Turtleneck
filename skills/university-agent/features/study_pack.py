@@ -11,6 +11,7 @@ import zipfile
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
+from storage.private_files import private_dir, private_file
 
 PACK_FORMAT = "turtleneck-study-pack"
 PACK_VERSION = 1
@@ -177,7 +178,12 @@ def import_pack(root, user: str, path, *, database) -> dict:
     resources = [{**resource, "localPath": None, "downloadStatus": "NOT_DOWNLOADED"} for resource in content["resources"]]
     database.merge_courses_resources(user, courses, resources)
     analysis_path = Path(root) / "analysis-records.db"
-    analysis_path.parent.mkdir(parents=True, exist_ok=True)
+    private_dir(analysis_path.parent)
+    if analysis_path.exists():
+        private_file(analysis_path)
+    else:
+        descriptor = os.open(analysis_path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.close(descriptor)
     imported_analyses = 0
     with closing(sqlite3.connect(analysis_path)) as db, db:
         db.execute("CREATE TABLE IF NOT EXISTS analyses (user TEXT, id TEXT, resource TEXT, created TEXT, metadata TEXT, value TEXT, PRIMARY KEY(user,id))")
@@ -200,6 +206,11 @@ def import_pack(root, user: str, path, *, database) -> dict:
         raise ValueError("학습 기록 형식이 올바르지 않아요.")
     imported_study = 0
     study_path = Path(root) / "study-sessions.db"
+    if study_path.exists():
+        private_file(study_path)
+    else:
+        descriptor = os.open(study_path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.close(descriptor)
     with closing(sqlite3.connect(study_path)) as db, db:
         _ensure_study_tables(db)
         for table, columns in STUDY_TABLES.items():

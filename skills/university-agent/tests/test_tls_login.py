@@ -37,12 +37,15 @@ class TlsLoginTests(unittest.TestCase):
 
             def security(args, **_kwargs):
                 if args[1] == 'add-generic-password':
-                    keychain.append(args[-1])
+                    self.assertNotIn('fixture-cookie', args)
+                    keychain.append(_kwargs['input'].rstrip('\n'))
                 if args[1] == 'find-generic-password':
                     return SimpleNamespace(stdout=keychain[-1] + '\n')
                 return SimpleNamespace(stdout='')
 
-            with patch.object(credentials, 'SESSION_PATH', marker), patch.object(credentials.subprocess, 'run', side_effect=security):
+            with patch.object(credentials, 'SESSION_PATH', marker), \
+                 patch.object(credentials, '_save_keychain_secret', side_effect=lambda service, alias, secret: keychain.append(secret)), \
+                 patch.object(credentials.subprocess, 'run', side_effect=security):
                 credentials.save_session('student', jar)
                 self.assertNotIn('fixture-cookie', marker.read_text(encoding='utf-8'))
                 restored = credentials.load_session('student')
@@ -98,7 +101,7 @@ class TlsLoginTests(unittest.TestCase):
             except PermissionError:
                 self.skipTest("이 실행 환경에서는 localhost 소켓을 열 수 없음")
 
-        self.assertEqual(values, {"username": "student", "password": "secret"})
+        self.assertEqual(values, {"alias": "", "username": "student", "password": "secret"})
         self.assertTrue(urlsplit(opened["url"]).hostname == "127.0.0.1")
 
     def test_browser_handoff_without_a_loaded_page_is_not_reported_as_open(self):
@@ -132,9 +135,11 @@ class TlsLoginTests(unittest.TestCase):
 
         self.assertEqual(username, 'student')
         self.assertEqual(session.calls, 1)
-        self.assertEqual(resolve.call_args_list[0].kwargs, {'force_input': False})
-        self.assertEqual(resolve.call_args_list[1].kwargs, {'force_input': True})
-        save.assert_called_once_with('student', 'new')
+        self.assertEqual(resolve.call_args_list[0].kwargs, {'force_input': False, 'site': 'tls.example'})
+        self.assertEqual(resolve.call_args_list[1].kwargs['force_input'], True)
+        self.assertEqual(resolve.call_args_list[1].kwargs['site'], 'tls.example')
+        self.assertTrue(callable(resolve.call_args_list[1].kwargs['submit_check']))
+        save.assert_called_once_with('student', 'new', 'default', 'tls.example')
         self.assertIn('(1/3)', output.getvalue())
 
     def test_valid_saved_session_skips_password_form(self):
@@ -143,6 +148,87 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(sync_tls, 'resolve', side_effect=AssertionError('form should not open')):
             username, resumed = sync_tls._login_with_retries('https://tls.example', 'student')
         self.assertEqual((username, resumed), ('student', session))
+
+    def test_missing_stored_password_does_not_reopen_form_automatically(self):
+        with patch.object(sync_tls, 'resume_saved_session', return_value=None), \
+             patch.object(sync_tls, 'load', side_effect=ValueError('missing')), \
+             patch.object(sync_tls, 'load_username', return_value='student'), \
+             patch.object(sync_tls, 'resolve', side_effect=AssertionError('form should require explicit reconnect')):
+            with self.assertRaisesRegex(RuntimeError, '연결 명령으로 한 번만'):
+                sync_tls._login_with_retries('https://tls.example', 'student')
+
+    def test_empty_stored_password_does_not_send_login_request(self):
+        with patch.object(sync_tls, 'resume_saved_session', return_value=None), \
+             patch.object(sync_tls, 'load', return_value=('student', '')), \
+             patch.object(sync_tls, 'load_username', return_value='student'), \
+             patch.object(sync_tls, 'MoodleSession') as session:
+            with self.assertRaisesRegex(RuntimeError, '연결 명령으로 한 번만'):
+                sync_tls._login_with_retries('https://tls.example', 'student', stored_only=True)
+        session.assert_not_called()
+
+    def test_shared_authenticated_session_rejects_empty_stored_password_without_network_login(self):
+        with patch.object(tls_auth, 'resume_saved_session', return_value=None), \
+             patch.object(tls_auth, 'load', return_value=('student', '')), \
+             patch.object(tls_auth, 'MoodleSession') as session:
+            with self.assertRaisesRegex(RuntimeError, '연결 명령으로 한 번만'):
+                tls_auth.authenticated_session('https://tls.example', stored_only=True)
+        session.assert_not_called()
+
+    def test_shared_authenticated_session_does_not_reopen_form_when_saved_secret_is_missing(self):
+        with patch.object(tls_auth, 'resume_saved_session', return_value=None), \
+             patch.object(tls_auth, 'load', side_effect=ValueError('missing')), \
+             patch.object(tls_auth, 'resolve_profile') as form, \
+             patch.object(tls_auth, 'MoodleSession') as session:
+            with self.assertRaisesRegex(RuntimeError, '연결 명령으로 한 번만 다시 로그인'):
+                tls_auth.authenticated_session('https://tls.example')
+        form.assert_not_called()
+        session.assert_not_called()
+
+    def test_shared_credential_resolver_does_not_reopen_form_for_empty_secret(self):
+        with patch.object(credentials, 'load', side_effect=ValueError('empty')), \
+             patch.object(credentials, 'load_username', return_value='student'), \
+             patch.object(credentials, 'collect_secure') as form:
+            with self.assertRaisesRegex(FormUnavailable, '연결 명령으로 한 번만'):
+                credentials.resolve_profile(site='tls.example')
+        form.assert_not_called()
+
+    def test_rejected_stored_credentials_explain_reconnection_without_secret(self):
+        class Session:
+            def __init__(self, _base_url):
+                pass
+
+            def login(self, _username, _password):
+                raise LoginError('Moodle errorcode=3')
+
+        with patch.object(sync_tls, 'resume_saved_session', return_value=None), \
+             patch.object(sync_tls, 'load', return_value=('student', 'secret')), \
+             patch.object(sync_tls, 'MoodleSession', Session):
+            with self.assertRaisesRegex(RuntimeError, '연결 화면을 다시 열어 로그인') as caught:
+                sync_tls._login_with_retries('https://tls.example', stored_only=True)
+        self.assertNotIn('secret', str(caught.exception))
+
+    def test_session_store_failure_is_reported_without_exposing_secrets(self):
+        class Session:
+            cookies = object()
+
+            def __init__(self, _base_url):
+                pass
+
+            def login(self, username, password):
+                self.username = username
+
+        with patch.object(sync_tls, 'resume_saved_session', return_value=None), \
+             patch.object(sync_tls, 'resolve', return_value=('student', 'secret')), \
+             patch.object(sync_tls, 'MoodleSession', Session), \
+             patch.object(sync_tls, 'save'), \
+             patch.object(sync_tls, 'save_session', side_effect=RuntimeError('keychain unavailable')), \
+             redirect_stdout(io.StringIO()) as output:
+            username, _session = sync_tls._login_with_retries('https://tls.example', 'student')
+
+        self.assertEqual(username, 'student')
+        message = output.getvalue()
+        self.assertIn('보호 저장소에 세션을 보관하지 못했어요', message)
+        self.assertNotIn('secret', message)
 
     def test_rejected_saved_session_is_removed_before_password_fallback(self):
         class Session:
@@ -157,7 +243,12 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(tls_auth, 'MoodleSession', return_value=Session()), \
              patch.object(tls_auth, 'clear_session') as clear:
             self.assertIsNone(tls_auth.resume_saved_session('https://tls.example'))
-        clear.assert_called_once_with('student')
+        clear.assert_called_once_with('student', 'default', 'tls.example')
+
+    def test_missing_keychain_session_is_treated_as_expired(self):
+        with patch.object(tls_auth, 'load_username', return_value='student'), \
+             patch.object(tls_auth, 'load_session', side_effect=credentials.subprocess.CalledProcessError(44, 'security')):
+            self.assertIsNone(tls_auth.resume_saved_session('https://tls.example'))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,9 @@
+# Runtime readers and media tools are bundled so Python-free installs do not lose
+# PDF extraction or completed-lecture audio conversion.
+pypdf>=5,<7
+imageio-ffmpeg>=0.6,<1
+
+# Optional native menu-bar/notification-area companion for the desktop bundle.
+pystray>=0.19.5,<0.20
+Pillow>=10,<13
+pywebview>=5,<7

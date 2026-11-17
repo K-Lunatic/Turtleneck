@@ -3,8 +3,12 @@ import hashlib
 import json
 import re
 import math
+import os
+import shutil
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 
@@ -131,34 +135,108 @@ def media_window(plan, start, duration):
 
 
 def download_media(session, plan, target, progress=None):
-    """Bounded batches preserve order without queueing a whole lecture in memory."""
+    """Bounded batches preserve order and resume only verified chunk batches."""
     chunks = plan['chunks']
     total = 0
-    def fetch(url):
-        limit = 256_000_000 if plan['format'] == 'mov' else 32_000_000
-        for attempt in range(1, _CHUNK_ATTEMPTS + 1):
-            worker = session.fork()
-            try:
-                data, _ = worker.get_bytes(url, allowed_origin=plan['origin'], max_bytes=limit)
-                if not data or (plan['format'] == 'mpegts' and data[0] != 0x47) or (plan['format'] == 'mov' and data[4:8] != b'ftyp'):
-                    raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
-                return data
-            except HTTPError as error:
-                retry = error.code in _RETRYABLE_HTTP
-                if getattr(error, 'fp', None) is not None:
-                    error.close()
-                if not retry or attempt == _CHUNK_ATTEMPTS:
-                    raise
-            except (URLError, TimeoutError):
-                if attempt == _CHUNK_ATTEMPTS:
-                    raise
-            time.sleep(0.5 * attempt)
-    with target.open('wb') as stream, ThreadPoolExecutor(max_workers=2) as pool:
-        for start in range(0, len(chunks), 4):
-            for data in pool.map(fetch, chunks[start:start + 4]):
-                total += len(data)
-                if total > 1_000_000_000:
-                    raise ValueError('영상이 1GB를 넘어 가져오기를 멈췄어요.')
-                stream.write(data)
-            if progress and (start == 0 or (start + 4) % 40 == 0 or start + 4 >= len(chunks)):
-                progress(f'강의 음성을 가져오고 있어요 · {min(start + 4, len(chunks))}/{len(chunks)} 조각')
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(f'.{target.name}.partial')
+    manifest = partial.with_name(partial.name + '.json')
+    source_key = str(plan.get('sourceKey') or '')
+    identity = {'sourceKey': source_key, 'format': plan.get('format'), 'chunks': len(chunks)}
+
+    def clear_partial():
+        partial.unlink(missing_ok=True)
+        manifest.unlink(missing_ok=True)
+
+    completed = 0
+    written = 0
+    try:
+        saved = json.loads(manifest.read_text(encoding='utf-8')) if source_key and manifest.is_file() else None
+        if (not isinstance(saved, dict) or saved.get('identity') != identity or
+                type(saved.get('completed')) is not int or type(saved.get('bytes')) is not int or
+                not 0 <= saved['completed'] <= len(chunks) or saved['bytes'] < 0 or
+                not partial.is_file() or partial.stat().st_size < saved['bytes']):
+            clear_partial()
+            saved = None
+        if saved:
+            completed, written = saved['completed'], saved['bytes']
+            with partial.open('r+b') as stream:
+                stream.truncate(written)
+        else:
+            clear_partial()
+            partial.touch(mode=0o600)
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        clear_partial()
+        partial.touch(mode=0o600)
+
+    with tempfile.TemporaryDirectory(prefix='.media-', dir=str(target.parent)) as staging:
+        def fetch(url):
+            limit = 256_000_000 if plan['format'] == 'mov' else 32_000_000
+            for attempt in range(1, _CHUNK_ATTEMPTS + 1):
+                worker = session.fork()
+                temporary_file = tempfile.NamedTemporaryFile(prefix='.chunk-', dir=staging, delete=False)
+                temporary = Path(temporary_file.name)
+                temporary_file.close()
+                keep = False
+                try:
+                    if hasattr(worker, 'stream_bytes_to_file'):
+                        result = worker.stream_bytes_to_file(url, temporary, allowed_origin=plan['origin'], max_bytes=limit)
+                        size = result['size'] if isinstance(result, dict) else result
+                    else:
+                        data, _ = worker.get_bytes(url, allowed_origin=plan['origin'], max_bytes=limit)
+                        temporary.write_bytes(data or b'')
+                        size = len(data or b'')
+                    with temporary.open('rb') as stream:
+                        header = stream.read(8)
+                    if not size or (plan['format'] == 'mpegts' and header[:1] != b'G') or (plan['format'] == 'mov' and header[4:8] != b'ftyp'):
+                        raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
+                    keep = True
+                    return temporary, size
+                except HTTPError as error:
+                    retry = error.code in _RETRYABLE_HTTP
+                    if getattr(error, 'fp', None) is not None:
+                        error.close()
+                    if not retry or attempt == _CHUNK_ATTEMPTS:
+                        raise
+                except (URLError, TimeoutError):
+                    if attempt == _CHUNK_ATTEMPTS:
+                        raise
+                finally:
+                    if not keep:
+                        temporary.unlink(missing_ok=True)
+                time.sleep(0.5 * attempt)
+
+        try:
+            with partial.open('r+b') as stream, ThreadPoolExecutor(max_workers=2) as pool:
+                stream.seek(written)
+                for start in range(completed, len(chunks), 4):
+                    for temporary, size in pool.map(fetch, chunks[start:start + 4]):
+                        total += size
+                        if written + total > 1_000_000_000:
+                            raise ValueError('영상이 1GB를 넘어 가져오기를 멈췄어요.')
+                        with temporary.open('rb') as source:
+                            shutil.copyfileobj(source, stream, length=1024 * 1024)
+                        temporary.unlink(missing_ok=True)
+                    written += total
+                    completed = min(start + 4, len(chunks))
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                    manifest_tmp = manifest.with_name(f'.{manifest.name}.{os.getpid()}')
+                    manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': completed,
+                                                        'bytes': written}, ensure_ascii=False), encoding='utf-8')
+                    os.replace(manifest_tmp, manifest)
+                    total = 0
+                    if progress and (start == 0 or (start + 4) % 40 == 0 or start + 4 >= len(chunks)):
+                        message = '강의 음성을 이어받고 있어요' if start >= 4 or completed else '강의 음성을 가져오고 있어요'
+                        progress(f'{message} · {completed}/{len(chunks)} 조각')
+            os.replace(partial, target)
+            manifest.unlink(missing_ok=True)
+        except HTTPError as error:
+            # Policy failures are not safe to resume; retryable server failures keep the checkpoint.
+            if error.code not in _RETRYABLE_HTTP:
+                clear_partial()
+            raise
+        except (DownloadRestricted, ValueError):
+            clear_partial()
+            raise

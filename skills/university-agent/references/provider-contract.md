@@ -26,10 +26,15 @@ credentials only, fetches both status sets before one snapshot commit, and recor
 The report verifies the timestamp belongs to this run and stops after a failed or timed-out sync
 (120 seconds), never reporting an earlier snapshot as fresh. Notices/viewer scans/file bytes are skipped.
 Initial setup uses `--ensure --metadata-only`. File requests pass repeated `--resource-id` values;
+when every file in a known enrolled course is requested, `--resource-only --course-id <ID>` can
+select that course without refreshing academic status; repeat the option for an explicit course set.
 when course lists are unchanged and resource checks are still fresh, only selected resources
-receive detail/viewer/status requests. Other resource records are preserved. Changed, expired,
-forced, or unknown-resource scopes still receive a full detail scan. Selected requests always
-recheck notice restrictions. Individual success times in `resource_item_checks` allow concurrent
+receive detail/viewer/status requests. Other resource records are preserved. New IDs are discovered
+from the visible activity lists of enrolled courses; an optional `--course-id` hint narrows that
+read. A missing target does not trigger a full academic refresh. Only an explicit full/ensure
+scope, a changed or expired selected scope, or a forced check performs broader resource detail
+work. Selected requests always recheck notice restrictions. Individual success times in
+`resource_item_checks` allow concurrent
 requests for the same file to share completed work without advancing whole-course freshness.
 Nonselected files are never downloaded by a selected request. Resource processing
 uses one flat two-worker pool rather than nested per-course/file pools. Database writes remain serial.
@@ -110,6 +115,8 @@ Completed-lecture media is a separate, explicit local operation described in
 visible restriction and official clear playback source. `save_lecture_media` only reads those
 observed media files; no player JavaScript/tracking/attendance requests or decryption keys.
 Metadata stays outside the document-resource contract and never changes completion.
+Media chunks are staged on disk and the destination is replaced only after the complete
+bounded transfer succeeds; a failed or expired session must leave an existing local copy intact.
 
 ## Conditional instructor permission (local only)
 
@@ -127,6 +134,9 @@ Write a temporary host input file with exactly:
 "instructor":"<responsible instructor>","statement":"<human's actual permission statement>",
 "userConfirmed":true}`. Then run, from this skill directory:
 `python3 scripts/download_permitted.py --resource-id <selected ID> --permission-file <input path>`.
+For several explicitly approved files, repeat `--resource-id` once per file and provide one
+matching attestation per file in the permission file. The command shares one authenticated
+session and bounded resource discovery; it never expands the request into a whole academic sync.
 If multiple visible viewers are found, `--viewer-url` may select an already observed link,
 never an invented ID/address. Do not show this internal command/payload to the user by default.
 
@@ -170,6 +180,26 @@ Use ISO-8601 timestamps with timezone offsets and the statuses `NOT_SUBMITTED`, 
 The local user record also returns `lastSyncedAt`, sourced from that user's snapshot import timestamp, not a shared course timestamp.
 
 AI integrations should call the Skill commands or consume their JSON; they should not move TLS logic into a vendor-specific prompt or SDK. Add authentication and secret handling only when a real TLS API is available.
+
+## Canvas provider
+
+Canvas는 Moodle 세션 제공자와 별도인 읽기 전용 API 제공자다. CanvasClient는 사용자가 지정한 HTTPS
+Canvas 도메인의 /api/v1 자원만 호출하고, API 토큰을 Bearer 헤더로만 보낸다. 페이지 이동은 응답의
+같은 도메인 Link rel=next만 따른다.
+
+Canvas 아이디·비밀번호를 API 토큰으로 교환하는 표준 공통 엔드포인트는 없으므로, 이 제공자는 비밀번호를 받지 않는다.
+사용자가 발급한 API 토큰을 보안 폼으로 받아 OS 보호 저장소에 넣고 재사용한다. OAuth를 쓰는 학교는 앱 등록과 별도
+동의 흐름이 필요하므로 후속 연동으로 분리한다.
+
+CanvasProvider는 과목·과제·현재 제출 상태·모듈·파일 목록·공지·캘린더를 공통 로컬 레코드로 바꾼다.
+공통 `TLSProvider` 호출인 `get_resources(user_id)`와 `get_notices(user_id)`는 수강 중인 전체 과목을 반환하고,
+과목 단위가 필요할 때는 `get_course_resources(course_id)`와 `get_course_notices(course_id)`를 사용한다.
+Canvas API만으로 시청 완료를 증명할 수 없으므로 `get_lectures`는 추측하지 않고 빈 목록을 반환한다.
+파일은 목록만 자동으로 읽고, 바이트 다운로드는 API 응답으로 확인된 같은 도메인의 단일 파일을 사용자가
+명시적으로 요청했을 때만 수행한다. 제출·업로드·강좌 수정 메서드는 제공하지 않는다.
+
+Canvas 토큰은 providers/canvas_credentials.py가 TLS 비밀번호와 다른 OS 보호 저장소 항목에 보관한다.
+설정 파일에는 토큰을 기록하지 않으며, 일반 로그·JSON 응답·학습 자료에는 포함하지 않는다.
 
 ## Parallel work
 

@@ -28,6 +28,22 @@ class SecretBoundaryTests(unittest.TestCase):
         value = {"examId": "exam-1", "sessionStatus": "READY", "title": "자료구조"}
         self.assertEqual(redact_output(value), value)
 
+    def test_removes_query_secret_values_while_preserving_other_parameters(self):
+        result = redact_output({'url': 'https://school.example/?token=hidden-value&course=1&password=hidden-password'})
+        self.assertNotIn('hidden-value', result['url'])
+        self.assertNotIn('hidden-password', result['url'])
+        self.assertIn('course=1', result['url'])
+
+    def test_redacts_oauth_and_api_secret_text(self):
+        value = {
+            "query": "?client_secret=oauth-secret&code_verifier=verifier-secret",
+            "details": "client_secret: oauth-secret api_key=api-secret",
+        }
+        result = redact_output(value)
+        self.assertNotIn("oauth-secret", result["query"])
+        self.assertNotIn("verifier-secret", result["query"])
+        self.assertNotIn("api-secret", result["details"])
+
 
 if __name__ == "__main__":
     unittest.main()

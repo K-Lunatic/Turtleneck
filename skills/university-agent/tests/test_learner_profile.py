@@ -32,6 +32,13 @@ class LearnerProfileTests(unittest.TestCase):
         self.assertTrue(inventory["data"]["skills"])
         self.assertTrue(inventory["data"]["capabilities"])
 
+    def test_source_selection_lists_platform_routes_without_private_details(self):
+        result = guidance_request("노션을 기준으로 학습자료를 가져오자")
+        self.assertTrue(result["needsLearningSourceSelection"])
+        self.assertEqual({item["id"] for item in result["data"]["sources"]},
+                         {"notion", "notability", "goodnotes", "local_files"})
+        self.assertNotIn("/Users/", result["answer"])
+
     def test_profile_round_trip_merges_explicit_answers(self):
         with tempfile.TemporaryDirectory() as folder:
             with closing(LocalDatabase(Path(folder) / "school.db")) as db:

@@ -16,6 +16,7 @@ from features import lecture_review
 from features.secret_boundary import redact_output
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import DownloadRestricted, LoginError
+from providers.credentials import load_active_alias, profile_db_path, site_key
 from scripts.sync_tls import _login_with_retries
 from storage.local_db import LocalDatabase
 
@@ -36,7 +37,8 @@ def main():
         if action == 'review': command.add_argument('--input-file', type=Path, required=True)
         if action == 'frame': command.add_argument('--seconds', type=float, action='append', required=True)
     args = parser.parse_args()
-    path = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent/university.db')).expanduser()
+    base_url = os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr')
+    path = profile_db_path(base_url, os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site_key(base_url)))
     if not path.is_file():
         raise SystemExit('먼저 학교 연결과 강의 목록을 준비해 주세요.')
     try:

@@ -10,6 +10,8 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+from providers.credentials import load_active_alias, profile_db_path, site_key
 from providers.moodle_session import _default_ssl_context
 
 MODELS = (
@@ -62,7 +64,8 @@ def main():
     parser = argparse.ArgumentParser(description='로컬 한국어 전사 모델 최초 준비')
     parser.add_argument('--models-dir', type=Path)
     args = parser.parse_args()
-    db = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent/university.db')).expanduser()
+    base_url = os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr')
+    db = profile_db_path(base_url, os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site_key(base_url)))
     folder = (args.models_dir or db.parent / 'models').expanduser()
     try:
         for spec in MODELS:

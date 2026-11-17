@@ -287,6 +287,45 @@ class SyncSafetyTests(unittest.TestCase):
             with contextlib.closing(LocalDatabase(path, read_only=True)) as database:
                 self.assertEqual(database.get_resources('u')[0]['downloadStatus'], 'PROHIBITED')
 
+    def test_permission_batch_reuses_login_and_course_page(self):
+        session, provider, original, permission, _ = self.permitted_fixture()
+        second = {**original, 'id': 'tls-resource-7', 'externalId': '7',
+                  'title': '2주차 보충자료.pdf', 'remotePath': '/mod/resource/view.php?id=7'}
+        another_permission = {**permission, 'resourceId': second['id']}
+        session.requests.clear()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'school.db'
+            with closing(LocalDatabase(path)) as database:
+                database.upsert_tls_snapshot('u', provider.get_courses('u'), [], [], 'u', None, resources=[original, second])
+            source = Path(directory) / 'permissions.json'
+            source.write_text(json.dumps([permission, another_permission]), encoding='utf-8')
+            with patch.object(sys, 'argv', ['download_permitted.py', '--resource-id', original['id'],
+                    '--resource-id', second['id'], '--permission-file', str(source)]), \
+                 patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': 'u'}), \
+                 patch.object(download_permitted, 'authenticated_session', return_value=('u', session)) as auth, \
+                 contextlib.redirect_stdout(io.StringIO()):
+                download_permitted.main()
+            auth.assert_called_once()
+            self.assertEqual(session.requests.count('/course/view.php?id=1'), 1)
+            with closing(LocalDatabase(path, read_only=True)) as database:
+                self.assertTrue(all(row['downloadStatus'] == 'DOWNLOADED' for row in database.get_resources('u')))
+
+    def test_permission_network_timeout_is_not_reported_as_folder_failure(self):
+        session, provider, original, permission, _ = self.permitted_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'school.db'
+            with closing(LocalDatabase(path)) as database:
+                database.upsert_tls_snapshot('u', provider.get_courses('u'), [], [], 'u', None, resources=[original])
+            source = Path(directory) / 'permission.json'
+            source.write_text(json.dumps(permission), encoding='utf-8')
+            with patch.object(sys, 'argv', ['download_permitted.py', '--resource-id', original['id'], '--permission-file', str(source)]), \
+                 patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': 'u'}), \
+                 patch.object(download_permitted, 'authenticated_session', side_effect=TimeoutError()):
+                with self.assertRaises(SystemExit) as error:
+                    download_permitted.main()
+            self.assertIn('응답이 늦어', str(error.exception))
+            self.assertNotIn('폴더', str(error.exception))
+
     def test_progress_and_public_restriction_do_not_expose_internals(self):
         session = FakeTLSSession()
         messages = []

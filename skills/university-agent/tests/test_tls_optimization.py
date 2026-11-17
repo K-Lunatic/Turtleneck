@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -151,6 +152,17 @@ class TLSOptimizationTests(unittest.TestCase):
         path = Path(self.temp.name) / name
         shutil.copyfile(self.seed, path)
         return path
+
+    def test_live_benchmark_help_does_not_start_authentication(self):
+        script = ROOT / 'scripts' / 'benchmark_tls_live.py'
+        result = subprocess.run(
+            [sys.executable, str(script), '--help'],
+            cwd=str(ROOT.parents[1]), capture_output=True, text=True,
+            env={**os.environ, 'PYTHONPATH': str(ROOT)},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('usage: benchmark_tls_live.py', result.stdout)
+        self.assertNotIn('NOT_MEASURED', result.stdout)
 
     def test_one_changed_course_reuses_pages_and_preserves_other_courses(self):
         pages = dict(self.pages)

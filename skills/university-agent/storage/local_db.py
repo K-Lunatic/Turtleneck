@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 import re
 import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+from storage.private_files import private_dir, private_file
 
 SCHEMA = Path(__file__).resolve().parents[1] / "database" / "schema.sql"
 
@@ -21,8 +23,15 @@ def permission_source_key(resource, course):
 class LocalDatabase:
     def __init__(self, path: Path, *, read_only: bool = False):
         self.read_only = read_only
+        path = Path(path).expanduser()
+        if path.exists():
+            private_file(path)
         if not read_only:
-            path.parent.mkdir(parents=True, exist_ok=True)
+            private_dir(path.parent)
+            if not path.exists():
+                descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+                os.close(descriptor)
+            private_file(path)
         self.connection = sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True) if read_only else sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
@@ -78,6 +87,7 @@ class LocalDatabase:
         """Return shared, user-confirmed learning metadata without source contents."""
         default = {
             "learningStyle": None,
+            "preferredLanguage": None,
             "preferredSources": [],
             "availableSources": [],
             "skillInventory": [],
@@ -107,12 +117,15 @@ class LocalDatabase:
         """Merge explicit answers; never infer a learning style from activity."""
         if self.read_only:
             raise sqlite3.OperationalError("readonly database")
-        if not isinstance(updates, dict) or set(updates) - {"learningStyle", "preferredSources", "availableSources", "skillInventory", "consents", "evidence"}:
+        if not isinstance(updates, dict) or set(updates) - {"learningStyle", "preferredLanguage", "preferredSources", "availableSources", "skillInventory", "consents", "evidence"}:
             raise ValueError("학습 프로필에는 허용된 항목만 저장할 수 있어요.")
         profile = self.get_learner_profile(user_id)
         profile.pop("updatedAt", None)
         for key, value in updates.items():
-            if key == "learningStyle":
+            if key == 'preferredLanguage':
+                from features.language import normalize_language
+                profile[key] = normalize_language(value) if value is not None else None
+            elif key == "learningStyle":
                 if value is not None and (not isinstance(value, str) or not value.strip()):
                     raise ValueError("learningStyle은 확인된 문자열이거나 null이어야 해요.")
                 profile[key] = value.strip() if isinstance(value, str) else value

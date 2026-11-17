@@ -111,6 +111,19 @@ Turtleneck is listed as a public corpus on the [XERJ Corpus Hub](https://hub.xer
 
 For a standard Moodle site, Turtleneck first discovers the signed-in user's courses from `/my/` or `/course/index.php`, then reads visible topics and `/mod/.../view.php?id=...` activities. Unknown activity types are kept in the local catalog instead of being discarded. School-specific SSO, video viewers, downloads, submission status, autonomous-course management, and write paths stay behind an observed school profile; Turtleneck never guesses KKU-only `/local/ubion`, `/local/ubeclass`, or `/local/ubdoc` paths on another school.
 
+Basic Moodle and Canvas connections are available immediately. Users can help optimize another school's adapter by exporting a local migration report after normal read-only use:
+
+```bash
+python3 skills/university-agent/scripts/moodle_migration.py \
+  --base-url https://lms.example.ac.kr \
+  --account-alias main \
+  --output ~/Downloads/turtleneck-moodle-migration.json
+```
+
+The report keeps only the host, activity types, counts, and request totals. It excludes course names and IDs, raw pages, files, passwords, cookies, and sessions. Attach it to a [feature request](https://github.com/K-Lunatic/Turtleneck/issues); we use it to propose a module, add secret-free fixtures, measure traffic, and optimize one school at a time. Public issues are the default contribution channel; use private contact only when a school representative needs confidential coordination.
+
+We plan to contact universities directly, validate their LMS in an approved read-only environment, and optimize one adapter at a time. Public institution lists are discovery references, not support guarantees. See the [university collaboration and optimization roadmap](docs/UNIVERSITY_COLLABORATION_PLAN.md) for the verification gates and release rules.
+
 ## Documentation
 
 - [Skill instructions](skills/university-agent/SKILL.md)

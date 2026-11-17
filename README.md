@@ -81,6 +81,53 @@
 오프라인 fixture 결과이며, [최신 상세 결과](docs/optimization/BENCHMARK_RESULTS.md)에 실행 환경과
 파트별 타임스탬프를 함께 기록합니다.
 
+### 건국대학교 TLS 기준 트래픽 분석
+
+다른 학교 비교를 시작하기 전에는 실제로 측정된 `tls.kku.ac.kr` 결과를 기준선으로 사용합니다. 아래 수치는
+건국대 TLS 9개 과목 계정에서 로그인·초기 준비를 제외하고, 파일 원본 바이트를 받지 않은 읽기 작업을
+비교한 값입니다. 응답 본문량은 헤더·TLS·TCP·압축 조건을 모두 포함하지 않으므로 학교 회선 전체 사용량이나
+서버 CPU·DB 부하와 같은 값으로 해석하지 않습니다.
+
+| 건국대 TLS 시나리오 | 변경 전 → 현재 | 감소 효과 |
+| --- | ---: | ---: |
+| 9개 중 1과목 변경 감지·상세 갱신 | 294 → 18 요청 | **93.88% 감소** |
+| 같은 작업의 응답 본문량 | 1,125,750B → 202,623B | **82.00% 감소** |
+| 같은 작업의 소요 시간 | 67.297초 → 8.031초 | **88.07% 감소** |
+| 15분 이내 과제·강의 상태 재조회 재사용 | 57 → 0 요청 | **100% 감소** |
+| 같은 재사용 구간의 응답 본문량 | 520,427B → 0B | **100% 감소** |
+| 공지 7개 일반 재조회 | 8 → 1 요청 | **87.50% 감소** |
+| 같은 공지 구간의 응답 본문량 | 85,620B → 10,402B | **87.85% 감소** |
+
+강제로 최신 상태를 확인하면 57개 요청을 다시 보내며, 이는 캐시를 무시하고 현재 값을 확인하기 위한
+의도된 동작입니다. 대신 실측 피크 요청 빈도는 7→4로 낮아졌습니다. 현재 동기화는 한 계정에서 읽기 작업을
+최대 2개까지만 병렬화하고, 요청 사이에 0.25초 간격을 두며, 서버가 요구한 대기 시간과 실패 재시도를
+따릅니다. 이미 확인한 자료·공지·상태는 로컬 캐시를 재사용하므로 시험기간에 같은 내용을 반복해서 읽을 때
+학교 서버로 다시 보내는 요청을 줄입니다.
+
+이 기준은 “모든 학생의 브라우저보다 항상 적다”는 증명이 아니라, 건국대 TLS에서 중복 조회를 줄인 현재
+설계의 실측 기준입니다. 실제 학생 브라우저와의 직접 비교는 이후 같은 시나리오의 HAR가 확보될 때 추가하며,
+그 전까지는 사용자보다 몇 % 적다고 주장하지 않습니다. 원시 측정은
+[TLS 최적화 결과](docs/optimization/BENCHMARK_RESULTS.md)와
+[단계별 트래픽 비교 절차](docs/optimization/BENCHMARK_PROTOCOL.md#서버-트래픽-비교)에 보관합니다.
+
+#### 사용자·스킬 트래픽 곡선
+
+동일 시나리오를 여러 번 기록하면 사용자 브라우저와 터틀넥의 누적 트래픽 하한을 곡선으로 만들 수 있습니다.
+브라우저 HAR가 아직 저장소에 없어 현재 README에는 임의의 사용자 수치를 그리지 않으며, 다음 도구가 실제
+HAR 비교 결과를 받아 두 선을 생성합니다.
+
+```bash
+python experiments/benchmarks/traffic_profile.py \
+  --har '<브라우저 HAR>' --scenario academic_sync \
+  --skill-json '<터틀넥 계측 JSON>' --output /tmp/traffic-compare.json
+python experiments/benchmarks/traffic_curve.py \
+  --input /tmp/traffic-compare.json /tmp/traffic-compare-2.json \
+  --output docs/optimization/kku-traffic-curve.svg
+```
+
+초록 실선은 터틀넥, 주황 점선은 실제 사용자 브라우저입니다. 같은 시나리오·같은 로그인 제외 범위·비슷한
+캐시 상태의 비교 파일만 한 곡선에 넣으며, 곡선의 값도 실제 회선 총량이 아닌 기록된 HTTP 본문량의 하한입니다.
+
 ## 빠른 시작
 
 터틀넥은 GitHub에서 `Turtleneck AI Skill` 또는 `터틀넥 스킬`로 찾을 수 있고, Codex·Claude Code
@@ -96,7 +143,7 @@ python3 skills/university-agent/scripts/install_turtleneck.py --apply
 
 ### 1. 설치
 
-로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 macOS·Windows 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.
+로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-arm64-unsigned`, `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 번들에는 PDF 읽기와 완료된 강의 오디오 변환에 필요한 런타임도 포함합니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.
 
 무설치 번들은 압축을 푼 뒤 macOS의 `turtleneck` 또는 Windows의 `turtleneck.exe`를 실행합니다. 플러그인 자체는 사용하는 Codex·Claude Code의 설치 명령으로 등록하고, 번들은 로컬 실행기와 Python 런타임을 제공하는 방식입니다. 배포 절차는 [릴리스 정책](RELEASE.md), 변경 내역은 [변경 기록](CHANGELOG.md)에서 확인할 수 있습니다.
 
@@ -182,12 +229,77 @@ python3 scripts/run_agent.py autonomous-course-verify \
 건국대 TLS에서 실제로 확인한 경로만 학교 전용 기능으로 활성화하고, 다른 학교에 `/local/ubion`이나
 `/local/ubeclass` 같은 주소를 추측해서 요청하지 않습니다. 따라서 다른 학교에서는 공통 강좌·활동 지도부터
 사용할 수 있고, 세부 기능은 해당 학교 화면을 확인한 뒤 별도 프로필로 추가해야 합니다.
+정규 강좌와 자율강좌에서 공통으로 쓰는 Moodle 경로와 학교별로 분리된 경계는
+[Moodle 호환성 기록](skills/university-agent/references/moodle-compatibility.md)에 정리했습니다.
+
+학교별 실제 환경은 담당자와 협의한 뒤 읽기 전용으로 확인하고, 요청량과 캐시 동작을 측정해 순서대로 최적화할 계획입니다.
+공개 기관 목록은 후보를 찾는 참고 자료일 뿐 지원 보장이 아닙니다. 자세한 협력 절차와 배포 기준은
+[대학교 협력·최적화 로드맵](docs/UNIVERSITY_COLLABORATION_PLAN.md)을 확인해 주세요.
+
+### 교수용 제출물 정리
+
+교수 계정으로 강좌의 실제 관리 링크가 보일 때만 제출물 정리 기능을 엽니다. 먼저 목록만 확인하고, 사용자가
+확인한 뒤에만 제출 파일을 한 번에 내려받습니다. 파일명은 `{index}`, `{course}`, `{assignment}`, `{label}`,
+`{filename}`을 조합해 정할 수 있고, 같은 이름 덮어쓰기는 기본적으로 막습니다. 기존 파일을 덮어쓸 때는
+더 강한 확인 문구가 필요합니다.
+
+```bash
+python3 skills/university-agent/scripts/moodle_teacher.py capabilities \
+  --course-id '<확인된 자율강좌 ID>' --autonomous-only
+```
+
+자율강좌 기준으로 확인하면 먼저 현재 계정의 자율강좌 목록에서 같은 ID를 찾고, `운영자` 또는 `교수` 역할과
+수정 링크가 함께 보이는지 확인합니다. 그 다음 실제 강좌 화면의 교수용 링크를 읽습니다. 둘 중 하나라도 없으면
+교수 기능을 열지 않습니다.
+
+```bash
+python3 skills/university-agent/scripts/moodle_teacher.py download-submissions \
+  --assignment-id '<확인된 과제 ID>' --output './제출물' \
+  --name-template '{index:03d}_{label}_{filename}'
+python3 skills/university-agent/scripts/moodle_teacher.py download-submissions \
+  --assignment-id '<확인된 과제 ID>' --output './제출물' \
+  --name-template '{index:03d}_{label}_{filename}' --apply --confirm 다운로드
+```
+
+채점 화면은 실제로 확인된 Moodle 양식만 계획 단계에서 보여주며, 점수 저장은 별도 확인 없이는 실행하지 않습니다.
+자료 업로드도 학교별 양식 차이가 커서, 현재 공통 기능은 실제 추가 양식 확인까지입니다. 표준 Moodle에서 확인되지
+않은 교수용 링크는 권한이 없다고 단정하지 않고 사용할 수 없음으로 보고합니다.
+
+### Canvas도 연결할 수 있어요
+
+Canvas를 사용하는 학교는 별도 Canvas 연결로 수강 과목, 성적 요약, 과제·제출 상태, 모듈, 공지와 파일 목록을
+읽기 전용으로 가져올 수 있습니다. Canvas 주소와 API 토큰은 보안 입력 화면에서 직접 입력하며, 토큰은
+macOS Keychain 또는 Windows 보호 저장소에만 보관합니다. TLS의 비밀번호·쿠키·DB와는 분리됩니다.
+Canvas는 아이디·비밀번호를 받아 API 토큰으로 바꿔 주는 공통 로그인 절차가 없으므로, 비밀번호를 Canvas 토큰 발급에
+사용하지 않습니다. 학교가 OAuth를 제공하는 경우는 별도 앱 등록이 필요하며, 현재 연결은 사용자가 직접 만든 API 토큰만 받습니다.
+
+~~~bash
+python3 skills/university-agent/scripts/canvas_sync.py \
+  --domain https://canvas.example.edu --account-alias 본계정
+~~~
+
+첫 버전은 읽기와 로컬 정리만 지원합니다. 과제 제출, 파일 업로드, 강좌 수정은 권한·학교 정책·실제 양식을
+확인한 뒤 별도 기능으로 검토합니다. 토큰을 입력할 수 없거나 학교가 API를 막아 둔 경우에는 Canvas
+웹 화면을 우회하지 않고 연결 실패로 안내합니다.
 
 ### 2. 처음 한 번 연결
 
-처음 호출하면 이 컴퓨터의 브라우저에 한 번만 쓰는 터틀넥 연결 화면이 열립니다. TLS 아이디와 비밀번호를 그 화면에 입력하면 학교 로그인을 확인한 뒤 macOS Keychain 또는 Windows 보호 저장소에만 저장합니다. 아이디나 비밀번호가 틀리면 실패했다고 숨기지 않고 입력 화면을 다시 열어요. 에브리타임을 함께 쓰려면 이어지는 공식 로그인 화면에서 로그인과 2차 인증을 직접 마칩니다.
+처음 호출하면 이 컴퓨터의 브라우저에 한 번만 쓰는 터틀넥 연결 화면이 열립니다. 학교 이름이 아니라 **사이트별 계정 별칭**도 함께 입력할 수 있어요. 예를 들어 `건국대학교 TLS / 본계정`, `목원대학교 LMS / 본계정`, 같은 학교의 `조교계정`을 따로 저장합니다. 비밀번호는 macOS Keychain 또는 Windows 보호 저장소에만 저장합니다. 아이디나 비밀번호가 틀리면 실패했다고 숨기지 않고 입력 화면을 다시 열어요. 에브리타임을 함께 쓰려면 이어지는 공식 로그인 화면에서 로그인과 2차 인증을 직접 마칩니다.
 
 비밀번호를 채팅이나 터미널에 입력하지 마세요. 이미 연결한 계정과 캐시는 다음 실행에서 재사용합니다.
+
+요청에 과목명이 들어 있으면 터틀넥은 각 프로필의 **로컬 과목 목록만** 대조해 연결을 고릅니다. `자료구조 과제 확인해줘`가 한 프로필에서만 발견되면 그 공간의 DB와 파일만 읽고, 두 학교나 두 계정에 같은 과목이 있으면 임의로 고르지 않고 선택을 요청합니다. 직접 고르려면 `--site`와 `--account-alias`를 함께 지정할 수 있습니다.
+
+같은 학교 계정을 여러 학교 서비스에서 쓰는 경우에도 자동으로 추측하지 않습니다. 사용자가 명시적으로 원본 프로필을 지정하면 대상 사이트의 로그인 프로필이 원본 OS 보호 저장소를 참조합니다. 예를 들어 다음은 건국 TLS의 `본계정` 인증정보를 IM에 명시적으로 연결하는 흐름입니다.
+
+```bash
+python3 scripts/sync_tls.py --base-url https://im.kku.ac.kr \
+  --account-alias 본계정 \
+  --reuse-site https://tls.kku.ac.kr \
+  --reuse-account-alias 본계정 --connect
+```
+
+이 연결은 비밀번호를 JSON·DB·로그로 복사하지 않습니다. IM과 KIS의 세션 쿠키, 학사 DB, 내려받은 파일은 각 사이트 프로필에 따로 저장되며, 연결을 요청하지 않은 사이트에는 인증정보를 사용하지 않습니다.
 
 ### 3. 원하는 일을 말하기
 
@@ -403,6 +515,8 @@ python3 scripts/run_agent.py tls-backup-restore \
 | TLS 비밀번호 | macOS Keychain 또는 Windows DPAPI |
 | TLS 쿠키 | OS 보호 세션 저장소와 요청 중 메모리 |
 
+사이트나 별칭이 기본 프로필과 다르면 같은 구조를 `~/.university-agent/profiles/<사이트>/<별칭>/` 아래에 따로 만듭니다. 그 안에 해당 프로필의 DB·파일·학습 세션을 두므로 건국대학교 자료와 목원대학교 자료, 본계정과 부계정이 한 과목 목록이나 파일 경로에 섞이지 않습니다. 표시 파일에는 사이트·별칭·아이디만 남고 비밀번호와 쿠키는 남지 않습니다.
+
 비밀번호는 SQLite·JSON 응답·로그에 넣지 않습니다. 다만 무제한 로컬 명령 실행 권한을 가진 AI 프로세스와 OS 보호 저장소가 완전히 격리된다고 보장하지는 않습니다. 출제와 채점에 쓰는 자료 본문·답안은 현재 대화의 AI에 전달됩니다.
 
 에브리타임 계정·캐시와 TLS 계정·DB는 서로 분리합니다. 에브리타임 변경 기능은 미리보기와 사용자 승인 후에만 적용합니다.
@@ -488,7 +602,12 @@ Actions는 과목·과제·강의·공지·할 일 조회, 동기화, 연결 해
 ├── assets/                       터틀넥 아이콘
 ├── skills/university-agent/
 │   ├── SKILL.md                  사용 지침
-│   ├── providers/                TLS 연결·계정 보호
+│   ├── providers/                공통 Moodle·학교별 연결·계정 보호
+│   │   ├── moodle_provider.py    공통 Moodle 활동·자료 처리
+│   │   ├── moodle_site.py        학교 모듈 선택 경계
+│   │   ├── moodle_kku.py         건국대 TLS 전용 최적화·권한 처리
+│   │   ├── canvas_provider.py    Canvas 읽기 전용 API
+│   │   └── canvas_credentials.py Canvas 토큰 보호 저장
 │   ├── storage/                  로컬 학사 DB
 │   ├── features/                 학사 조회·자료 분석·시험지
 │   ├── assets/                   시험지 HTML·CSS·JavaScript
@@ -501,6 +620,27 @@ Actions는 과목·과제·강의·공지·할 일 조회, 동기화, 연결 해
 
 기능 코드는 `features/`에 두고, TLS 접근은 `TLSProvider` 계약 뒤에 둡니다. 모든 기능은 공통 로컬 데이터와 로컬 학습 DB를 사용하며 TLS 엔드포인트를 직접 호출하지 않습니다.
 
+### 다른 학교의 협업을 기다리고 있어요
+
+터틀넥은 한 학교의 화면을 모든 학교에 억지로 적용하지 않습니다. 표준 Moodle 흐름은 공통으로 사용하고,
+로그인·동영상·파일 권한·자율강좌처럼 학교마다 다른 부분은 별도 모듈로 관리합니다.
+
+다른 학교에서 사용하려면 첫 연결 때 읽기 전용 마이그레이션 확인을 진행합니다. 에이전트는 관찰된 차이를
+바탕으로 학교 모듈 제안과 비밀값 없는 테스트 자료를 만들고, 사용자가 확인한 뒤에만 활성화합니다.
+비밀번호·쿠키·세션·개인 자료는 모듈이나 GitHub에 들어가지 않습니다. 학교별 모듈 기여와 검증을 함께해 줄
+학생·개발자의 협업을 기다리고 있습니다. 자세한 기준은
+[학교별 Moodle 모듈 기여 안내](skills/university-agent/references/moodle-adapters.md)에 적었습니다.
+
+기본 Moodle과 Canvas 연결은 바로 사용할 수 있고, 학교별 로그인·동영상·파일 권한 차이는 사용 중 관찰한
+마이그레이션 리포트로 제안받습니다. 리포트에는 요청량과 활동 유형만 담기므로 학교 서버 부하를 장기간
+측정하고, 일반 사용자의 반복 조회보다 적은 트래픽을 목표로 모듈을 하나씩 최적화할 수 있습니다.
+학교 담당자의 비공개 협조가 필요한 경우를 제외하면 공개 이슈가 기본 기여 창구이며, 개인 메일 주소와
+계정 정보는 공개 문서에 남기지 않습니다.
+
+개발 흐름과 PR 체크리스트는 [CONTRIBUTING.md](CONTRIBUTING.md), 버그·기능·검증 작업은
+저장소의 [Issue 양식](https://github.com/K-Lunatic/Turtleneck/issues/new/choose)을 사용합니다.
+통합 기준은 `turtleneck`이며, 기능 브랜치는 PR과 CI 통과 후에만 병합합니다.
+
 ### 테스트
 
 ```bash
@@ -510,7 +650,10 @@ node skills/university-agent/tests/test_exam_client.js
 python3 skills/university-agent/integrations/everytime/scripts/self_check.py
 ```
 
-2026-10-12 기준 로컬 테스트 **211개 중 210개 통과·1개 건너뜀**, 게이트웨이 **12개**, 시험 화면 점검 **4개**가 통과했습니다. 선택적 `pypdf`가 없어 해당 직접 실행 검사만 건너뛰었습니다.
+2026-11-15 기준 로컬 회귀 테스트는 **455개 실행 통과·2개 건너뜀**입니다. 이번 실행은
+Canvas 읽기 전용 연결, Moodle 이식성·교수 기능, 비밀값 없는 마이그레이션 리포트와 기존 학습 흐름을
+포함했으며, 건너뛴 검사는 선택적 환경 의존 검사입니다. 게이트웨이와 시험 화면 검사는 별도 명령으로
+분리해 실행합니다.
 Claude Code 2.1.218에서 플러그인·마켓플레이스 엄격 검사, 로컬 설치 및 스킬 인식을 확인했습니다.
 과제 저장 지침을 조건부 문서로 분리해 호출 시 지침량 추정치를 약 9,900→7,600토큰으로 줄였습니다.
 실제 Claude 모델의 출제·채점과 Windows 실기기는 이번에 검사하지 않았습니다.

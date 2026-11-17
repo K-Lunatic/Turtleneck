@@ -16,6 +16,8 @@ from features.assignment_selection import normalize
 from features import study_pipeline
 from features import pre_exam_summary
 from features import material_cache, analysis_records
+from features.study_sources import document_material
+from features.language import normalize_language, localize_handoff, concept_cache_key
 from features.concept_insights import build_insights
 from features.learning_plan import select_review_questions
 
@@ -136,12 +138,13 @@ def event_from_text(text, courses):
 
 
 def settings(raw):
-    value = {'count': 10, 'types': ['mcq', 'mcq', 'mcq', 'short', 'essay'] * 2, 'choices': 4, 'difficulty': '기본 개념', 'mode': 'quiz', 'delivery': 'web', 'timeLimitMinutes': None}
+    value = {'count': 10, 'types': ['mcq', 'mcq', 'mcq', 'short', 'essay'] * 2, 'choices': 4, 'difficulty': '기본 개념', 'mode': 'quiz', 'delivery': 'web', 'timeLimitMinutes': None, 'language': 'ko'}
     if not isinstance(raw, dict) or set(raw) - set(value):
-        raise ValueError('설정은 count/types/choices/difficulty/mode/delivery/timeLimitMinutes만 지원합니다.')
+        raise ValueError('설정은 count/types/choices/difficulty/mode/delivery/timeLimitMinutes/language를 지원합니다.')
     if 'types' in raw and 'count' not in raw and isinstance(raw['types'], list):
         raw = {**raw, 'count': len(raw['types'])}
     value.update(raw)
+    value['language'] = normalize_language(value['language'])
     if value['delivery'] not in ('batch', 'single', 'web'):
         raise ValueError('모드나 난이도를 확인하세요.')
     if value['mode'] == 'quiz':
@@ -1155,7 +1158,7 @@ class StudySession:
                 encoded = json.dumps(state, ensure_ascii=False, separators=(',', ':'))
                 if not row or row[0] != encoded:
                     db.execute('INSERT OR REPLACE INTO study_sessions VALUES (?,?,?)', (self.user, self.conversation, encoded))
-            return result
+            return localize_handoff(result, state.get('settings', {}).get('language', 'ko'))
 
     def transition(self, state, event):
         action = event.get('action')
@@ -1229,7 +1232,7 @@ class StudySession:
                         analysis_records.save(self.files_root.parent, self.user, sources,
                             state['settings'], 'concepts', {'concepts': concepts}, operation_id=state['requestId'])
                 material_cache.put(self.files_root.parent / 'cache', 'concepts', self.user,
-                    material_cache.key(['concepts-v1', state['sources']]), items)
+                    concept_cache_key(state['sources'], state['settings'].get('language', 'ko')), items)
                 return {'status': 'concepts', 'concepts': items, 'offerId': state['offerId'],
                         'answer': '필수 개념을 훑어봤어요. 이 자료로 문제를 풀어볼까요?',
                         'nextCommands': ['문제 10개 풀기', '문제 20개 풀기(권장)', '개념 다시 설명해줘']}
@@ -1258,24 +1261,27 @@ class StudySession:
 
     def prepare(self, state):
         selection = state['selection']
-        if selection.get('attachmentPath'):
+        if selection.get('attachmentPath') or selection.get('sourceDocumentId'):
+            if selection.get('attachmentPath') and selection.get('sourceDocumentId'):
+                raise ValueError('첨부 파일과 저장 자료 중 하나를 선택해 주세요.')
             try:
-                attachment = Path(selection['attachmentPath']).expanduser().resolve(strict=True)
-                attachment.relative_to((self.files_root.parent / 'attachments').resolve())
+                if selection.get('sourceDocumentId'):
+                    material = document_material(self.files_root.parent, self.user, selection['sourceDocumentId'])
+                else:
+                    attachment = Path(selection['attachmentPath']).expanduser().resolve(strict=True)
+                    attachment.relative_to((self.files_root.parent / 'attachments').resolve())
+                    material = attached_material(str(attachment), title=selection.get('attachmentTitle', ''),
+                        max_chars=10_000_000 if state['settings']['delivery'] == 'web' else 30000,
+                        cache_root=self.files_root.parent / 'cache')
             except (OSError, TypeError, ValueError):
-                return {'status': 'selecting', 'answer': '첨부 파일을 열 수 없어요. 파일을 다시 첨부하거나 다른 수업자료를 골라 주세요.'}
-            try:
-                material = attached_material(str(attachment), title=selection.get('attachmentTitle', ''),
-                    max_chars=10_000_000 if state['settings']['delivery'] == 'web' else 30000,
-                    cache_root=self.files_root.parent / 'cache')
-            except ValueError as exc:
-                return {'status': 'selecting', 'answer': str(exc) + ' 다른 파일을 첨부하거나 수업자료를 선택해주세요.'}
-            course_id = selection.get('courseId', 'user-attachment')
+                return {'status': 'selecting', 'answer': '선택한 자료를 읽지 못했어요. 저장 자료 ID나 첨부 파일을 확인해 주세요.'}
+            course_id = selection.get('courseId') or material.get('courseId') or 'user-attachment'
             if course_id != 'user-attachment' and not any(c['id'] == course_id for c in self.provider.get_courses(self.user)):
                 raise ValueError('현재 사용자의 과목이 아닙니다.')
             if selection.get('resourceIds'):
                 raise ValueError('직접 첨부 자료와 학교 자료를 한 세션에 섞을 수 없습니다.')
             course = next((c for c in self.provider.get_courses(self.user) if c['id'] == course_id), {'id': course_id})
+            selection['attachmentTitle'] = material['title']
             state['focusNotes'] = self._focus_notes(course_id, selection.get('resourceName'))
             state['examReferences'] = exam_references(selection.get('examReferences', []), course)
             if state['settings']['mode'] == 'quiz' and state['settings']['delivery'] == 'web':
@@ -1366,7 +1372,7 @@ class StudySession:
                 )['concepts']
         if state['settings']['mode'] == 'concepts' and state['selection'].get('rebuildAnalysis') is not True:
             cached = material_cache.get(self.files_root.parent / 'cache', 'concepts', self.user,
-                material_cache.key(['concepts-v1', sources]))
+                concept_cache_key(sources, state['settings'].get('language', 'ko')))
             if cached:
                 state.update(phase='offered', concepts=cached, offerId=secrets.token_hex(12))
                 return {'status': 'concepts', 'concepts': cached, 'offerId': state['offerId'], 'reusedAnalysis': True,

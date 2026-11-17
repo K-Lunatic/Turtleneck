@@ -8,12 +8,16 @@ from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 import mimetypes
+import os
+import tempfile
 from typing import Any, Callable, Mapping
-from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlsplit
+from urllib.parse import parse_qs, unquote, urljoin, urlsplit
 from urllib.error import HTTPError, URLError
 from concurrent.futures import ThreadPoolExecutor
 
 from providers.moodle_session import MoodleSession, LoginError, DownloadRestricted, RequestBackoff, check_download_url, check_download_origin
+from providers.moodle_kku import permitted_download_url
+from providers.moodle_site import module_for
 from features import sync_policy
 
 
@@ -58,19 +62,6 @@ def validate_permission(permission, user_id, resource_id):
         not all(isinstance(permission.get(k), str) and 0 < len(permission[k].strip()) <= limit
                 for k, limit in (('instructor', 200), ('statement', 2000)))):
         raise ValueError('이 자료에 대해 확인된 허락 내용이 없어 가져오지 않았어요.')
-
-
-def permitted_download_url(viewer_url):
-    """Only the observed KKU ubdoc viewer is eligible; never guess document IDs."""
-    check_download_origin(viewer_url, 'tls.kku.ac.kr')
-    parts = urlsplit(viewer_url)
-    query = parse_qs(parts.query, keep_blank_values=True)
-    if (parts.path != '/local/ubdoc/' or parts.fragment or
-        set(query) != {'id', 'tp', 'pg'} or query['tp'] != ['m'] or query['pg'] != ['ubfile'] or
-        len(query['id']) != 1 or not re.fullmatch(r'[1-9][0-9]*', query['id'][0])):
-        raise ValueError('자료의 원래 주소를 확인하지 못해 가져오지 않았어요.')
-    return 'https://tls.kku.ac.kr/local/ubdoc/download.php?' + urlencode({
-        'id': query['id'][0], 'tp': 'm', 'pg': 'ubfile'})
 
 
 def _file_extension(name):
@@ -451,6 +442,11 @@ def _autonomous_course_id(href: str) -> str | None:
     return values[0] if len(values) == 1 and re.fullmatch(r"[1-9][0-9]*", values[0]) else None
 
 
+def autonomous_management_role(value: str) -> bool:
+    """Accept observed Moodle teacher/manager labels, not a single Korean label."""
+    return bool(re.search(r"운영자|관리자|교수(?:자)?|교사|teacher|manager|editingteacher", value or "", re.I))
+
+
 def parse_autonomous_courses(html: str) -> list[dict[str, Any]]:
     """Normalize visible `/local/ubeclass/my.php` rows without exposing form values."""
     parser = _AutonomousCourseParser()
@@ -475,6 +471,7 @@ def parse_autonomous_courses(html: str) -> list[dict[str, Any]]:
             continue
         seen.add(stable_id)
         management_link = any("/local/ubeclass/request.php" in href for href, _title in row[6].get("links", []))
+        role = cells[4]
         result.append({
             "id": stable_id,
             "externalId": external_id,
@@ -482,9 +479,9 @@ def parse_autonomous_courses(html: str) -> list[dict[str, Any]]:
             "visibility": cells[1],
             "category": cells[2],
             "period": next((line.strip() for line in raw_cells[3].splitlines()[1:] if line.strip()), None),
-            "role": cells[4],
+            "role": role,
             "status": cells[5],
-            "ownerControlsVisible": cells[4] == "운영자" and management_link,
+            "ownerControlsVisible": autonomous_management_role(role) and management_link,
             "ownerRoleVerified": False,
             "source": "tls_autonomous",
         })
@@ -498,10 +495,14 @@ class MoodleTLSProvider:
     def __init__(self, session: MoodleSession, progress=None):
         self.session = session
         self.progress = progress
+        self.site = module_for(getattr(session, "base_url", "https://tls.kku.ac.kr"))
         self._courses: list[dict[str, Any]] | None = None
         self._autonomous_courses: list[dict[str, Any]] | None = None
         self._course_pages: dict[str, str] = {}
         self._activity_links: dict[str, list[tuple[str, str]]] = {}
+
+    def _origin_host(self) -> str:
+        return self.site.host or urlsplit(getattr(self.session, "base_url", "")).hostname or ""
 
     def _parallel_courses(self, method, user, **kwargs):
         courses = self.get_courses(user)
@@ -533,11 +534,9 @@ class MoodleTLSProvider:
         if self._courses is not None:
             return [dict(course) for course in self._courses]
         result: list[dict[str, Any]] = []
-        host = urlsplit(getattr(self.session, "base_url", "https://tls.kku.ac.kr")).hostname
-        source = "tls" if host == "tls.kku.ac.kr" else "moodle"
+        source = self.site.source
         id_prefix = "tls" if source == "tls" else "moodle"
-        paths = ("/local/ubion/user/", "/my/", "/course/index.php") if host == "tls.kku.ac.kr" else ("/my/", "/course/index.php")
-        for path in paths:
+        for path in self.site.course_paths:
             links = self._links(self.session.get(path))
             seen: set[str] = set()
             for href, title in links:
@@ -553,8 +552,11 @@ class MoodleTLSProvider:
 
     def get_autonomous_courses(self, _user_id: str) -> list[dict[str, Any]]:
         """List the signed-in user's autonomous courses; this is read-only."""
+        if not self.site.autonomous_course_path:
+            return []
         if self._autonomous_courses is None:
-            self._autonomous_courses = parse_autonomous_courses(self.session.get("/local/ubeclass/my.php"))
+            self._autonomous_courses = parse_autonomous_courses(
+                self.session.get(self.site.autonomous_course_path))
         return [dict(course) for course in self._autonomous_courses]
 
     def get_course_structure(self, external_id: str) -> dict[str, Any]:
@@ -602,30 +604,33 @@ class MoodleTLSProvider:
 
     def _resource_download_path(self, href, title, notices):
         """Inspect response/visible navigation, independent of course or filename."""
-        if "/mod/ubfile/view.php" not in urlsplit(href).path:
+        path = urlsplit(href).path
+        if not (self.site.is_kku_resource_view(path) or
+                self.site.is_standard_resource_view(path)):
             return href, None
         path, issue, _ = self._resolve_resource_page(href, title, notices)
         return path, issue
 
     def _resolve_resource_page(self, href, title, notices, *, permitted=False, viewer_url=None):
         origin = getattr(self.session, 'base_url', 'https://tls.kku.ac.kr').rstrip('/') + '/'
+        origin_host = self._origin_host()
         current = urljoin(origin, href)
         activity_id = parse_qs(urlsplit(current).query).get('id')
         visited = set()
         for _ in range(4):
-            check_download_origin(current, 'tls.kku.ac.kr')
+            check_download_origin(current, origin_host)
             check_download_url(current)
             if current in visited:
                 return None, '자료의 보기 화면이 반복되어 주소 확인을 멈췄어요.', None
             visited.add(current)
             headers = {}
             if hasattr(self.session, 'get_page_info'):
-                html, page_url, headers = self.session.get_page_info(current, allowed_origin='tls.kku.ac.kr')
+                html, page_url, headers = self.session.get_page_info(current, allowed_origin=origin_host)
             elif hasattr(self.session, 'get_page'):
-                html, page_url = self.session.get_page(current, allowed_origin='tls.kku.ac.kr')
+                html, page_url = self.session.get_page(current, allowed_origin=origin_host)
             else:
                 html, page_url = self.session.get(href), current
-            check_download_origin(page_url, 'tls.kku.ac.kr')
+            check_download_origin(page_url, origin_host)
             check_download_url(page_url)
             restriction = _download_restriction(_plain_text(html), title, notices)
             if restriction and not permitted:
@@ -643,15 +648,19 @@ class MoodleTLSProvider:
             for link in (page_url, *parser.links):
                 candidate = urljoin(page_url, link)
                 try:
-                    check_download_origin(candidate, 'tls.kku.ac.kr')
+                    check_download_origin(candidate, origin_host)
                 except DownloadRestricted:
                     continue
-                if urlsplit(candidate).path in ('/local/ubdoc/', '/mod/ubfile/viewer.php'):
-                    check_download_url(candidate)
+                check_download_url(candidate)
+                parts = urlsplit(candidate)
+                generic_file = self.site.is_standard_file(parts.path)
+                if not self.site.custom_viewers:
+                    if generic_file:
+                        observed.add(candidate)
+                    continue
                 try:
                     permitted_download_url(candidate)
                 except ValueError:
-                    parts = urlsplit(candidate)
                     query = parse_qs(parts.query, keep_blank_values=True)
                     if parts.path == '/mod/ubfile/viewer.php' and not parts.fragment and set(query) == {'id'} and query['id'] == activity_id:
                         children.add(candidate)
@@ -661,7 +670,8 @@ class MoodleTLSProvider:
                 chosen = viewer_url if viewer_url in observed else next(iter(observed)) if len(observed) == 1 and viewer_url is None else None
                 if chosen is None:
                     return None, '원본 주소가 여러 개이거나 선택한 주소를 확인하지 못해 가져오지 않았어요.', None
-                if hasattr(self.session, 'document_state'):
+                custom_document = self.site.is_custom_document(urlsplit(chosen).path)
+                if custom_document and hasattr(self.session, 'document_state'):
                     try:
                         state = self.session.document_state(chosen)
                     except ValueError:
@@ -674,9 +684,9 @@ class MoodleTLSProvider:
                         raise DownloadRestricted('학교 문서 보기에서 다운로드 금지가 확인되어 파일을 가져오지 않았습니다.')
                     if allowed not in (0, '0', False, 1, '1', True) and not permitted:
                         raise ResourceUnavailable('학교의 다운로드 허용 여부를 확인하지 못해 가져오지 않았어요.')
-                elif not permitted:
+                elif custom_document and not permitted:
                     raise ResourceUnavailable('학교의 다운로드 허용 여부를 확인하지 못해 가져오지 않았어요.')
-                return permitted_download_url(chosen), None, chosen
+                return (permitted_download_url(chosen) if custom_document else chosen), None, chosen
             if len(children) != 1 or not (hasattr(self.session, 'get_page') or hasattr(self.session, 'get_page_info')):
                 return None, 'TLS 자료 화면에서 원본 다운로드 주소를 확인하지 못했어요.', None
             current = next(iter(children))
@@ -772,6 +782,28 @@ class MoodleTLSProvider:
         child._course_pages = self._course_pages.copy()
         child._activity_links = self._activity_links.copy()
         return child
+
+    def locate_resource_courses(self, user_id: str, resource_ids: set[str], course_ids=None) -> set[str]:
+        """Locate newly posted targets from activity lists without reading other activities."""
+        if not resource_ids or any(not re.fullmatch(r'tls-resource-[1-9][0-9]*', item) for item in resource_ids):
+            raise ValueError('요청한 자료 ID를 확인해 주세요.')
+        courses = self.get_courses(user_id)
+        if course_ids and not set(course_ids) <= {course['id'] for course in courses}:
+            raise ValueError('현재 수강 중인 과목을 지정해 주세요.')
+        found = {}
+        for course in courses:
+            if course_ids and course['id'] not in course_ids:
+                continue
+            parser = _ActivityParser()
+            parser.feed(self._course_page(course))
+            for activity in parser.items:
+                match = re.search(r'/mod/(?:resource|ubfile)/view\.php\?id=([1-9][0-9]*)', activity['href'])
+                identifier = 'tls-resource-' + match.group(1) if match else None
+                if identifier in resource_ids:
+                    found[identifier] = course['id']
+            if set(found) == resource_ids:
+                return set(found.values())
+        raise ValueError('현재 수강 과목의 자료 목록에서 요청한 파일을 찾지 못했어요. 파일 주소와 과목을 확인해 주세요.')
 
     def activity_fingerprints(self, user_id: str) -> dict[str, str]:
         """Return fingerprints for course pages already fetched during a full sync."""
@@ -989,6 +1021,7 @@ class MoodleTLSProvider:
         restriction = _download_restriction(activity["text"], title, notices)
         if restriction:
             return {**record, 'downloadStatus': 'PROHIBITED', 'downloadReason': restriction}
+        streamed_path = None
         try:
             check_download_url(href)
             download_path, download_issue = self._resource_download_path(href, title, notices)
@@ -1019,21 +1052,43 @@ class MoodleTLSProvider:
         if not download_new_files:
             return {**record, "downloadReason": "이번에는 목록만 확인했어요. 필요한 자료를 요청하면 해당 파일만 받을게요."}
         try:
-            content, response = self.session.revalidate(download_path, cached) if reusable else self.session.get_bytes(download_path, allowed_origin='tls.kku.ac.kr')
+            if not reusable and save_file and hasattr(self.session, 'stream_bytes_to_file'):
+                temporary = tempfile.NamedTemporaryFile(prefix='.resource-', delete=False)
+                streamed_path = temporary.name
+                temporary.close()
+                result = self.session.stream_bytes_to_file(
+                    download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
+                content = Path(streamed_path).read_bytes()[:4096]
+                response = type('StreamResponse', (), {
+                    'headers': result['headers'],
+                    'geturl': lambda _self: result['url'],
+                })()
+            else:
+                content, response = self.session.revalidate(download_path, cached) if reusable else self.session.get_bytes(download_path, allowed_origin=self._origin_host())
         except DownloadRestricted as error:
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, 'downloadStatus': 'PROHIBITED', 'downloadReason': str(error)}
         except HTTPError as error:
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, **_resource_http_error(error)}
         except RequestBackoff:
             raise
         except (URLError, TimeoutError):
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, '_checkFailed': True, 'downloadReason': '자료를 받는 중 연결이 끊기거나 응답이 늦었어요. 잠시 후 다시 확인해 주세요.'}
         if content is None and reusable:
             return reused
         if not content:
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, 'downloadReason': '학교에서 빈 파일 응답을 보내 원본을 저장하지 않았어요.'}
         mime_type = response.headers.get_content_type()
         if _looks_like_viewer_page(content, mime_type, response.geturl()) or mime_type in {"text/html", "application/xhtml+xml"}:
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, 'mimeType': mime_type,
                     'downloadReason': '학교에서 원본 대신 문서 보기 또는 안내 화면을 보내 파일로 저장하지 않았어요.'}
         final_path = unquote(urlsplit(response.geturl()).path)
@@ -1047,22 +1102,35 @@ class MoodleTLSProvider:
             if extension:
                 file_name = (Path(title).name if _file_extension(title) == extension else f"resource-{resource_id}.{extension}")
         if not extension or extension in ('html', 'htm', 'php'):
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, 'mimeType': mime_type, 'downloadReason': '원본 파일의 종류를 확인하지 못해 저장하지 않았어요.'}
         signature = {'pdf': b'%PDF-', 'zip': b'PK',
             'ppt': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1', 'doc': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1',
             'hwp': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1', 'pptx': b'PK\x03\x04',
             'docx': b'PK\x03\x04', 'hwpx': b'PK\x03\x04'}.get(extension)
         if signature and not content.startswith(signature):
+            if streamed_path:
+                os.unlink(streamed_path) if os.path.exists(streamed_path) else None
             return {**record, 'mimeType': mime_type, 'downloadReason': '파일로 표시됐지만 원본 형식과 내용이 달라 저장하지 않았어요.'}
         item = {**record, "title": title or file_name, "fileName": file_name, "extension": extension,
-                "mimeType": mime_type, "_content": content,
+                "mimeType": mime_type,
                 '_validators': {'etag': response.headers.get('ETag'), 'lastModified': response.headers.get('Last-Modified')}}
-        return save_file(item) if save_file else item
+        item['_content_path' if streamed_path else '_content'] = streamed_path or content
+        if save_file:
+            try:
+                return save_file(item)
+            finally:
+                if streamed_path and os.path.exists(streamed_path):
+                    os.unlink(streamed_path)
+        return item
 
 
     def download_permitted_resource(self, user_id, resource, permission, viewer_url=None):
+        if not self.site.custom_viewers:
+            raise ValueError('이 학교는 아직 별도 다운로드 허용 흐름을 확인하지 않았어요.')
         validate_permission(permission, user_id, resource['id'])
-        check_download_origin(self.session.base_url, 'tls.kku.ac.kr')
+        check_download_origin(self.session.base_url, self._origin_host())
         if resource.get('source') != 'tls' or resource.get('downloadStatus') != 'PROHIBITED':
             raise ValueError('현재 확인된 제한 자료가 아니어서 별도로 가져오지 않았어요.')
         if str(resource.get('downloadReason', '')).startswith('TLS 서버가'):
@@ -1070,9 +1138,9 @@ class MoodleTLSProvider:
         course = next((c for c in self.get_courses(user_id) if c['id'] == resource['courseId']), None)
         if not course or (course.get('professor') and course['professor'].strip() != permission['instructor'].strip()):
             raise ValueError('수업과 담당 교수님을 확인하지 못해 가져오지 않았어요.')
-        origin = 'https://tls.kku.ac.kr/'
+        origin = self.site.origin + '/'
         source_url = urljoin(origin, resource['remotePath'])
-        check_download_origin(source_url, 'tls.kku.ac.kr')
+        check_download_origin(source_url, self._origin_host())
         check_download_url(source_url)
         activities = _ActivityParser()
         activities.feed(self._course_page(course))
@@ -1083,11 +1151,26 @@ class MoodleTLSProvider:
             source_url, resource['title'], [], permitted=True, viewer_url=viewer_url)
         if not download_path:
             raise ValueError(issue or '이 자료의 주소를 하나로 확인하지 못해 가져오지 않았어요.')
-        content, response = self.session.get_bytes(download_path, allowed_origin='tls.kku.ac.kr')
+        streamed_path = None
+        if hasattr(self.session, 'stream_bytes_to_file'):
+            temporary = tempfile.NamedTemporaryFile(prefix='.resource-permitted-', delete=False)
+            streamed_path = temporary.name
+            temporary.close()
+            result = self.session.stream_bytes_to_file(
+                download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
+            content = Path(streamed_path).read_bytes()[:4096]
+            response = type('StreamResponse', (), {
+                'headers': result['headers'],
+                'geturl': lambda _self: result['url'],
+            })()
+        else:
+            content, response = self.session.get_bytes(download_path, allowed_origin=self._origin_host())
         mime_type = response.headers.get_content_type()
         sample = content[:4096].lstrip().lower() if content else b''
         if not content or mime_type in ('text/html', 'application/xhtml+xml') or any(
                 marker in sample for marker in (b'<html', b'<!doctype', b'<form', b'<script', b'<body')):
+            if streamed_path and os.path.exists(streamed_path):
+                os.unlink(streamed_path)
             raise DownloadRestricted('원본 자료를 받지 못했어요. 이번에는 저장하지 않을게요.')
         name = _header_filename(response.headers) or resource['fileName']
         extension = Path(name).suffix.lower().lstrip('.')
@@ -1096,14 +1179,19 @@ class MoodleTLSProvider:
             extension = extension or (resource.get('extension') if resource.get('extension') != 'unknown' else '')
             name += '.' + extension if extension else ''
         if not extension or extension in ('html', 'htm', 'php'):
+            if streamed_path and os.path.exists(streamed_path):
+                os.unlink(streamed_path)
             raise DownloadRestricted('허락받은 자료의 원본을 확인하지 못했어요.')
         signature = {'pdf': b'%PDF-', 'ppt': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1',
             'doc': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1', 'hwp': b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1',
             'pptx': b'PK\x03\x04', 'docx': b'PK\x03\x04', 'hwpx': b'PK\x03\x04'}.get(extension)
         if signature and not content.startswith(signature):
+            if streamed_path and os.path.exists(streamed_path):
+                os.unlink(streamed_path)
             raise DownloadRestricted('원본 파일의 형식을 확인하지 못해 저장하지 않았어요.')
         return {**resource, 'fileName': name, 'extension': extension, 'mimeType': mime_type,
-                '_content': content, '_viewerUrl': viewer_url}
+                ('_content_path' if streamed_path else '_content'): streamed_path or content,
+                '_viewerUrl': viewer_url}
 
 
 def _download_restriction(activity_text: str, title: str, notices: list[dict[str, Any]], *, videos=False) -> str | None:

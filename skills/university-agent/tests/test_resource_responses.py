@@ -50,6 +50,13 @@ class Session:
         self.bytes_read.append(path)
         return self.content, SimpleNamespace(headers=self.response_headers, geturl=lambda: path)
 
+
+class StreamingResourceSession(Session):
+    def stream_bytes_to_file(self, path, target, **kwargs):
+        self.bytes_read.append(path)
+        Path(target).write_bytes(self.content)
+        return {'size': len(self.content), 'url': path, 'headers': self.response_headers}
+
 def provider(session):
     result = MoodleTLSProvider(session)
     result._courses = [{'id': 'course-a', 'externalId': '1', 'name': '임의 과목'}]
@@ -80,6 +87,21 @@ class ResourceResponseTests(unittest.TestCase):
                 self.assertEqual(item['_content'], content)
                 self.assertEqual(session.bytes_read, [direct])
                 self.assertEqual(session.states_read, [])
+
+    def test_allowed_resource_uses_stream_when_a_file_sink_is_present(self):
+        session = StreamingResourceSession()
+        saved = []
+
+        def sink(item):
+            path = Path(item['_content_path'])
+            self.assertTrue(path.is_file())
+            saved.append(path.read_bytes())
+            path.unlink()
+            return {key: value for key, value in item.items() if key != '_content_path'}
+
+        item = provider(session).get_resources('u', save_file=sink)[0]
+        self.assertEqual(saved, [b'%PDF-fixture'])
+        self.assertEqual(item['downloadStatus'], 'NOT_DOWNLOADED')
 
     def test_nested_visible_viewer_uses_observed_document_id_and_server_permission(self):
         session = Session()
@@ -164,6 +186,20 @@ class ResourceResponseTests(unittest.TestCase):
         with self.assertRaises(DownloadRestricted):
             adapter.download_permitted_resource('u', original, permission)
         self.assertEqual(session.bytes_read, [])
+
+    def test_permitted_resource_can_stream_after_the_same_explicit_checks(self):
+        session = StreamingResourceSession()
+        session.state['file_download'] = '0'
+        adapter = provider(session)
+        original = {'id': 'tls-resource-10', 'courseId': 'course-a', 'title': '단원. 자료',
+            'fileName': 'note.pdf', 'extension': 'pdf', 'source': 'tls', 'remotePath': ACTIVITY,
+            'downloadStatus': 'PROHIBITED', 'downloadReason': '다운로드 금지'}
+        permission = {'userId': 'u', 'resourceId': original['id'], 'instructor': '테스트 교수',
+            'statement': '모의 자료에 대한 파일별 허락 진술', 'userConfirmed': True}
+        item = adapter.download_permitted_resource('u', original, permission)
+        path = Path(item['_content_path'])
+        self.assertEqual(path.read_bytes(), b'%PDF-fixture')
+        path.unlink()
 
     def test_html_masquerading_as_pdf_is_not_saved_and_chapter_title_is_not_extension(self):
         session = Session()

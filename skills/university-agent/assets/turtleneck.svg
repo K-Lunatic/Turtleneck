@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Turtleneck">
+  <g fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 43c-4-7-4-16 1-23C22 11 34 7 44 11c8 3 13 10 13 18 0 8-5 14-13 17-5 2-11 3-15 7-2 2-3 5-3 7"/>
+    <path d="M10 44c2 5 7 8 13 9 5 1 9 4 11 8H15c-4-4-6-9-5-17Z"/>
+    <circle cx="31" cy="28" r="8"/>
+    <path d="M39 28c3-4 7-5 11-1"/>
+    <ellipse cx="49" cy="27" rx="5" ry="7"/>
+    <path d="M29 25v6M47 25v5M45 36c2 2 5 2 7 0"/>
+    <path d="M17 52c1 3 3 6 6 8M24 51c1 4 3 7 6 9M32 53c1 3 3 5 5 7"/>
+  </g>
+</svg>

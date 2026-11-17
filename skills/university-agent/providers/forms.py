@@ -6,6 +6,7 @@ import secrets
 import threading
 import time
 import webbrowser
+from features.presentation import open_local_page
 from dataclasses import dataclass
 from getpass import getpass
 from html import escape
@@ -35,10 +36,34 @@ class FormDefinition:
 
 TLS_CREDENTIALS_FORM = FormDefinition(
     form_id="tls_credentials",
-    title="KKU TLS 로그인",
+    title="학교 LMS 로그인",
     fields=(
+        FormField("alias", "계정 별칭", required=False),
         FormField("username", "아이디"),
         FormField("password", "비밀번호", secret=True),
+    ),
+)
+
+
+CANVAS_CONNECTION_FORM = FormDefinition(
+    form_id="canvas_connection",
+    title="Canvas 연결",
+    fields=(
+        FormField("alias", "계정 별칭", required=False),
+        FormField("domain", "Canvas 주소"),
+        FormField("token", "API 토큰", secret=True),
+    ),
+)
+
+
+MOODLE_API_CONNECTION_FORM = FormDefinition(
+    form_id="moodle_api_connection",
+    title="Moodle API 연결",
+    fields=(
+        FormField("alias", "계정 별칭", required=False),
+        FormField("domain", "Moodle 주소"),
+        FormField("service", "Web Service 이름", required=False),
+        FormField("token", "Web Service 토큰", secret=True),
     ),
 )
 
@@ -47,6 +72,7 @@ def collect_local(
     form: FormDefinition,
     *,
     initial: Mapping[str, str] | None = None,
+    submit_check: Callable[[Mapping[str, str]], str | None] | None = None,
     input_fn: Callable[[str], str] = input,
     secret_input_fn: Callable[[str], str] = getpass,
 ) -> dict[str, str]:
@@ -62,6 +88,10 @@ def collect_local(
         if field.required and not value:
             raise ValueError(f"{field.label}은(는) 필수입니다.")
         values[field.name] = value
+    if submit_check:
+        message = submit_check(dict(values))
+        if message:
+            raise FormUnavailable(message)
     return values
 
 
@@ -69,6 +99,8 @@ def collect_browser(
     form: FormDefinition,
     *,
     initial: Mapping[str, str] | None = None,
+    submit_check: Callable[[Mapping[str, str]], str | None] | None = None,
+    success_message: str | None = None,
     timeout: int = 600,
 ) -> dict[str, str]:
     """Collect secrets in a one-use localhost page, never in the model PTY."""
@@ -87,7 +119,7 @@ def collect_browser(
             fields.append(
                 f'<label>{escape(field.label)}<input name="{escape(field.name)}" '
                 f'type="{"password" if field.secret else "text"}" value="{value}" '
-                f'autocomplete="{autocomplete}" required></label>'
+                f'autocomplete="{autocomplete}"{" required" if field.required else ""}></label>'
             )
         body = (
             '<div class="mark">T</div><h1>터틀넥에 학교 연결하기</h1>'
@@ -98,7 +130,7 @@ def collect_browser(
         if message:
             body = f'<div class="message {"success" if success else "error"}">{escape(message)}</div>' + body
         if success:
-            body = '<div class="message success">입력을 받았어요. 학교 연결을 확인하고 있어요. 이 창을 닫아도 괜찮아요.</div><script>setTimeout(()=>window.close(),1200)</script>'
+            body = f'<div class="message success">{escape(success_message or "입력을 안전하게 확인했어요.")} 이 창을 닫아도 괜찮아요.</div><script>setTimeout(()=>window.close(),1200)</script>'
         return f'''<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(form.title)}</title><style>
         :root{{color-scheme:light}}body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#edf8ef;color:#17231a;font:16px system-ui,-apple-system,sans-serif}}main{{width:min(420px,calc(100% - 40px));padding:32px;border:1px solid #c8dfcc;border-radius:24px;background:#fff;box-shadow:0 16px 50px #17391c1a}}.mark{{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#bdebc4;color:#17391c;font-weight:800;font-size:24px}}h1{{margin:20px 0 8px;font-size:25px}}p{{margin:0 0 24px;line-height:1.6;color:#5b6c5e}}label{{display:block;margin:16px 0 6px;font-weight:650}}input{{box-sizing:border-box;width:100%;margin-top:8px;padding:13px 14px;border:1px solid #c9d8cb;border-radius:12px;font-size:16px}}button{{width:100%;margin-top:24px;padding:14px;border:0;border-radius:12px;background:#226b35;color:white;font-size:16px;font-weight:700;cursor:pointer}}.message{{margin-bottom:18px;padding:12px;border-radius:10px;line-height:1.5}}.error{{background:#fff0ed;color:#9b3424}}.success{{background:#e7f7e9;color:#226b35}}</style><main>{body}</main></html>'''
 
@@ -146,14 +178,31 @@ def collect_browser(
             if missing:
                 self.send_page(page(f"{missing.label}을(를) 입력해 주세요.", values=values), 400)
                 return
-            result.update({field.name: values.get(field.name, "") for field in form.fields})
-            self.send_page(page(success=True))
+            submitted = {field.name: values.get(field.name, "") for field in form.fields}
+            if submit_check:
+                try:
+                    message = submit_check(dict(submitted))
+                except (FormUnavailable, ValueError, RuntimeError) as error:
+                    message = str(error)
+                except Exception:
+                    message = "학교 연결을 확인하지 못했어요. 입력 내용을 다시 확인해 주세요."
+                if message:
+                    self.send_page(page(message, values=values), 400)
+                    return
+            result.update(submitted)
             finished.set()
+            # The credential payload is already received; a browser closing early must
+            # not make the parent process wait as if the form was never submitted.
+            try:
+                self.send_page(page(success=True))
+            except OSError:
+                pass
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     httpd.timeout = 0.2
     url = f"http://127.0.0.1:{httpd.server_port}/?token={token}"
-    if not webbrowser.open(url):
+    display = open_local_page(url, kind='login')
+    if not display['requested']:
         httpd.server_close()
         raise FormUnavailable("학교 연결 화면을 자동으로 열지 못했어요. 기본 브라우저를 확인해 주세요.")
     # webbrowser.open() only reports an OS handoff; the GET proves the browser reached this form.

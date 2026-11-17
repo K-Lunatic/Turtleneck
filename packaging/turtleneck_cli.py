@@ -38,6 +38,8 @@ def main() -> int:
         return 0
     if args and args[0].endswith(".py"):
         return run_script(args[0], args[1:])
+    if args and args[0] == "companion":
+        return run_script("skills/university-agent/scripts/companion.py", args[1:])
     return run_script("server/local.py", args)
 
 

@@ -6,6 +6,7 @@ import time
 import threading
 import sys
 import webbrowser
+from features.presentation import open_local_page
 from run_agent import DB_PATH, USER_ID, database
 from features.study import StudySession
 from features.exam_web import create_exam_server
@@ -66,12 +67,12 @@ def main():
                 'sets': '문제 세트를 준비했어요. 풀고 싶은 세트를 골라 주세요.',
             }[view]
             opened = False
+            display = {'target': 'none', 'requested': False}
             if not args.no_open:
-                try:
-                    opened = bool(webbrowser.open(url))
-                except (webbrowser.Error, OSError):
-                    opened = False
-            print(json.dumps(redact_output({'url': url, 'answer': answer, 'opened': opened}), ensure_ascii=False), flush=True)
+                display = open_local_page(url, kind='exam')
+                opened = display['requested'] and server.page_seen.wait(2)
+            print(json.dumps(redact_output({'url': url, 'answer': answer, 'opened': opened,
+                'displayTarget': display['target'], 'displayRequested': display['requested']}), ensure_ascii=False), flush=True)
             if not opened and not args.no_open:
                 print('브라우저를 자동으로 열지 못했어요. 위 시험 링크를 직접 열어 주세요.', file=sys.stderr, flush=True)
             worker.join()

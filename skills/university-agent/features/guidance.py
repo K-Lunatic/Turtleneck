@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from features.deadlines import format_deadline
+from features.study_sources import source_selection_answer
 
 
 CAPABILITY_INVENTORY = [
@@ -12,6 +13,8 @@ CAPABILITY_INVENTORY = [
     {"name": "수업자료 분석", "description": "PDF·PPT·DOCX·코드의 개념·근거·문제 후보", "access": "읽을 수 있고 허용된 자료"},
     {"name": "학습 기록", "description": "저장된 분석·문제 풀이·채점·취약 개념", "access": "이 기기의 공용 학습 저장소"},
     {"name": "Notability", "description": "노트·필기·녹음·완료 전사 연결", "access": "사용자 동의 후 선택한 노트만"},
+    {"name": "Notion", "description": "페이지·블록·데이터베이스에 저장한 학습 내용 연결", "access": "사용자 연결·선택 범위만"},
+    {"name": "Goodnotes", "description": "내보낸 PDF·이미지 노트 분석", "access": "사용자가 직접 고른 파일만"},
     {"name": "학습 팩", "description": "분석 결과와 문제 세트의 다른 기기 이동", "access": "사용자가 직접 내보내고 가져올 때"},
 ]
 
@@ -19,9 +22,11 @@ CAPABILITY_INVENTORY = [
 SKILL_INVENTORY = [
     {"name": "터틀넥 대학생활", "description": "TLS·에타·과제·강의·시험 흐름"},
     {"name": "Notability 학습", "description": "노트·녹음·전사·필기 연결"},
+    {"name": "학습 자료 위치 선택", "description": "Notion·Notability·Goodnotes·로컬 파일별 읽기 경로 선택"},
     {"name": "문서·PDF·PPT 분석", "description": "원본 자료 읽기와 근거 확인"},
     {"name": "웹 시험·채점", "description": "문제 풀이·채점·오답 복습"},
     {"name": "학습 기록·학습 팩", "description": "여러 채팅·기기에서 학습 결과 재사용"},
+    {"name": "GradKUya", "description": "성적표·요람 기준 졸업요건·시간표 로컬 계산"},
 ]
 
 
@@ -135,8 +140,18 @@ def usage_guide(text: str = "") -> dict:
 
 
 def guidance_request(text: str) -> dict | None:
+    if re.search(r'GradKUya|졸업\s*(?:요건|학점|조건)|성적표.{0,12}(?:분석|확인)|시간표.{0,12}(?:추천|조합|설계)', text, re.I):
+        return {'toolCalls': [], 'needsGradKUya': True,
+                'nextCommands': ['python3 scripts/run_agent.py gradkuya --status'],
+                'answer': '성적표는 사용자가 선택한 PDF·TXT로, 시간표는 과목과 공강·학점 조건으로 계산해요. GradKUya 실행 상태를 확인한 뒤 필요한 입력으로 이어갈게요.'}
+    if re.search(r'(?:예전|이전|저장|수집|사용했던|학습했던).{0,12}(?:자료|파일)|자료\s*(?:보관함|라이브러리)', text):
+        return {'toolCalls': [], 'needsSourceLibrary': True,
+                'nextCommands': ['python3 scripts/run_agent.py source-library'],
+                'answer': '이 프로필의 학교 자료와 저장한 학습 자료를 찾아볼게요. 전에 사용한 자료도 골라 다시 읽거나 새 학습에 쓸 수 있어요.'}
     if re.search(r'(?:사용\s*가능한|접근\s*가능한|쓸\s*수\s*있는).{0,16}(?:스킬|기능|자료|정보)|(?:스킬|기능).{0,16}(?:목록|뭐가|무엇)', text, re.I):
         return learning_inventory_answer()
+    if re.search(r'(?:학습|수업|강의|노트|자료).{0,24}(?:어디|저장|노션|노타빌리티|굿노트|goodnotes|notability)|(?:노션|노타빌리티|굿노트|goodnotes|notability).{0,24}(?:기준|연결|가져|읽|분석)', text, re.I):
+        return source_selection_answer()
     if re.search(r'학습\s*(?:프로필|스타일).{0,20}(?:확인|저장|설정|파악)|노타빌리티.{0,20}(?:공부|학습|사용)', text, re.I):
         return {
             'toolCalls': [], 'needsLearningProfile': True,

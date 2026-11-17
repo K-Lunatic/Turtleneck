@@ -50,7 +50,7 @@ OpenAI의 [GPT Action 인증](https://developers.openai.com/api/docs/actions/aut
 
 ## 데이터와 실패 처리
 
-- TLS 비밀번호는 브라우저→터널→컴퓨터→학교 TLS로 전송되며 저장하지 않습니다. Action 스키마에 로그인 비밀번호를 받는 경로는 없습니다. HTTPS 터널 제공자는 연결을 중계합니다.
+- TLS 비밀번호는 브라우저→터널→컴퓨터→학교 TLS로 전송되며 저장하지 않습니다. Action 스키마에 로그인 비밀번호를 받는 경로는 없습니다. HTTPS 터널 제공자는 연결을 중계하므로, 터널 제공자까지 포함한 외부 무노출이 요구되면 이 게이트웨이를 사용하지 말고 기기 내부의 로컬 연결 폼을 사용해야 합니다.
 - TLS 쿠키·OAuth 토큰은 실행 중인 프로세스 메모리에만 있고 학사 데이터는 `.university-agent/chatgpt/data/`의 사용자별 DB에 있습니다. 기존 Codex DB를 자동 업로드하거나 합치지 않습니다. 설정·DB·터널 실행 파일은 `.gitignore`로 제외합니다.
 - 로그인 ticket 10분, OAuth 코드 2분, Access token 1시간, Refresh token 30일입니다. 코드와 Refresh token은 일회용이며 state·콜백·선택적 S256 PKCE를 검증합니다.
 - 로그인 이후 동기화는 백그라운드에서 실행합니다. 과제를 저장한 뒤 강의 조회가 실패해도 과제는 조회할 수 있습니다. 실패 시 이미 저장된 과제를 지우지 않습니다.

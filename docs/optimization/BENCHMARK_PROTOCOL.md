@@ -56,3 +56,19 @@ python experiments/benchmarks/traffic_profile.py \
 본문량은 헤더·TLS·TCP·압축 전송 조건을 모두 포함하지 않는 하한이므로 회선 전체 사용량이나 학교
 내부 CPU·DB 부하와 동일한 값으로 해석하지 않는다.
 
+### 일반 크롤러 기준선
+
+브라우저 HAR와 별개로 반복 조회 정책의 효과를 확인할 때는 `experiments/benchmarks/compare_crawler_baseline.py`를
+사용한다. 기준선은 특정 라이브러리나 서비스의 성능값이 아니라, 캐시와 변경 감지를 사용하지 않는
+단순 depth-first 크롤러의 명시적 모델이다. 인증 이후 매 실행마다 수강목록, 모든 과목 페이지,
+모든 활동 페이지, 공지 본문을 다시 요청한다. 파일 원본과 동영상은 비교 범위에서 제외한다.
+
+```bash
+python experiments/benchmarks/compare_crawler_baseline.py \
+  --courses 8 --samples 3 --output /tmp/crawler-baseline.json
+```
+
+cold 결과는 첫 수집 비용 비교로만 보고, warm 결과에서 같은 범위를 반복 조회할 때의 차이를 본다.
+기준선보다 적은 요청이 나와도 실제 학생 브라우저보다 적다는 뜻은 아니다. 실제 사용자 비교는
+동일 시나리오 HAR가 확보된 뒤에만 별도로 판정한다.
+

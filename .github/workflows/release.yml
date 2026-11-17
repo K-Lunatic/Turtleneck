@@ -8,7 +8,7 @@ on:
       release_tag:
         description: Existing or new release tag to update
         required: true
-        default: v0.6.1
+        default: v0.6.2
 
 permissions:
   contents: write
@@ -21,6 +21,8 @@ jobs:
         include:
           - os: macos-15-intel
             artifact: turtleneck-macos-x64-unsigned
+          - os: macos-14
+            artifact: turtleneck-macos-arm64-unsigned
           - os: windows-latest
             artifact: turtleneck-windows-x64-unsigned
     runs-on: ${{ matrix.os }}
@@ -35,7 +37,20 @@ jobs:
         shell: bash
         run: |
           python -m pip install pyinstaller==6.11.1
+          python -m pip install -r packaging/desktop-requirements.txt
           pyinstaller packaging/turtleneck.spec --noconfirm --clean
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            pyinstaller packaging/companion.spec --noconfirm --clean \
+              --distpath dist/companion --workpath build/companion
+          fi
+      - name: Smoke test bundled runtime
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            dist/turtleneck/turtleneck.exe --version
+          else
+            dist/turtleneck/turtleneck --version
+          fi
       - name: Package and checksum
         shell: bash
         env:
@@ -52,6 +67,16 @@ jobs:
                       bundle.write(path, path.as_posix())
           digest = hashlib.sha256(output.read_bytes()).hexdigest()
           Path(f'{artifact}.sha256').write_text(f'{digest}  {output.name}\n', encoding='utf-8')
+          if os.environ.get('RUNNER_OS') == 'macOS':
+              companion = Path('dist/companion/Turtleneck Companion.app')
+              companion_output = Path(f'{artifact}-companion.zip')
+              with zipfile.ZipFile(companion_output, 'w', zipfile.ZIP_DEFLATED) as bundle:
+                  for path in companion.rglob('*'):
+                      if path.is_file():
+                          bundle.write(path, path.as_posix())
+              companion_digest = hashlib.sha256(companion_output.read_bytes()).hexdigest()
+              Path(f'{artifact}-companion.sha256').write_text(
+                  f'{companion_digest}  {companion_output.name}\n', encoding='utf-8')
           PY
       - uses: actions/upload-artifact@v4
         with:
@@ -59,9 +84,45 @@ jobs:
           path: |
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.sha256
+            ${{ matrix.artifact }}-companion.zip
+            ${{ matrix.artifact }}-companion.sha256
+          if-no-files-found: ignore
+
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+      - name: Package verified source update
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, os, zipfile
+          from pathlib import Path
+          tag = os.environ.get('GITHUB_REF_NAME', 'source')
+          root_name = f'Turtleneck-{tag}'
+          output = Path('turtleneck-source.zip')
+          with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as bundle:
+              for base in (Path('skills/university-agent'), Path('plugin.json'), Path('.claude-plugin')):
+                  if base.is_file():
+                      bundle.write(base, f'{root_name}/{base.as_posix()}')
+                  elif base.is_dir():
+                      for path in base.rglob('*'):
+                          if path.is_file():
+                              bundle.write(path, f'{root_name}/{path.as_posix()}')
+          digest = hashlib.sha256(output.read_bytes()).hexdigest()
+          Path('turtleneck-source.sha256').write_text(f'{digest}  {output.name}\n', encoding='utf-8')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: turtleneck-source
+          path: |
+            turtleneck-source.zip
+            turtleneck-source.sha256
 
   publish:
-    needs: build
+    needs: [build, source]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

@@ -1,0 +1,11 @@
+{
+  "measurement": "live TLS, controlled one-course fingerprint mismatch",
+  "status": "NOT_MEASURED",
+  "reason": "저장된 학교 계정의 비밀번호가 비어 있어요. 연결 명령으로 한 번만 다시 입력해 주세요.",
+  "requests": 0,
+  "response_body_bytes": 0,
+  "elapsed_seconds": 0,
+  "notes": [
+    "Stored-only authentication stopped before network login; no live comparison was run."
+  ]
+}

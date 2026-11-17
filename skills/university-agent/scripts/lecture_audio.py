@@ -16,6 +16,7 @@ from features.lecture_audio import extract_audio, select_lectures
 from features.secret_boundary import redact_output
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import DownloadRestricted, LoginError
+from providers.credentials import load_active_alias, profile_db_path, site_key
 from scripts.sync_tls import _login_with_retries
 from storage.local_db import LocalDatabase
 
@@ -31,7 +32,8 @@ def main():
     args = parser.parse_args()
     if args.all_completed and not args.check and not args.allow_bulk_traffic:
         raise SystemExit('전체 강의 음원 추출은 학교 트래픽을 크게 사용할 수 있어요. 확인했다면 --allow-bulk-traffic를 함께 지정해 주세요.')
-    path = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent/university.db')).expanduser()
+    base_url = os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr')
+    path = profile_db_path(base_url, os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site_key(base_url)))
     if not path.is_file():
         raise SystemExit('먼저 학교 계정을 연결하고 강의 목록을 가져와 주세요.')
     try:
@@ -45,6 +47,9 @@ def main():
                                    lecture_ids=args.lecture_id, all_completed=args.all_completed)
         names = {course['id']: course['name'] for course in courses}
         provider = MoodleTLSProvider(session)
+        # Reuse one live enrollment/catalog response for every selected lecture.
+        # Per-lecture media and permission checks remain fresh below.
+        provider.get_courses(user)
         results, notices = [], {}
         for index, lecture in enumerate(selected, 1):
             item = {'courseName': names[lecture['courseId']], 'title': lecture['title']}
@@ -63,6 +68,7 @@ def main():
                         raise ValueError('현재 수강 중인 과목이 아니에요.')
                     notices[lecture['courseId']] = reader.get_notices(user)
                     provider._course_pages.update(reader._course_pages)
+                    provider._activity_links.update(reader._activity_links)
                 stage = '재생 주소·제한 확인'
                 plan = provider.get_lecture_media(user, lecture, notices[lecture['courseId']])
                 if args.check:

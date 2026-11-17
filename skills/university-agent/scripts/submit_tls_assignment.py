@@ -142,7 +142,8 @@ def inspect_assignment(assignment_id: str) -> dict:
 
 
 def submit(assignment_id: str, *, file_path: Path | None = None, text: str | None = None,
-           apply: bool = False, confirm_word: str = '', course: str = '') -> dict:
+           apply: bool = False, confirm_word: str = '', course: str = '',
+           allow_resubmit: bool = False) -> dict:
     if file_path is None and not (isinstance(text, str) and text.strip()):
         raise AssignmentSubmissionError('제출할 파일 또는 본문을 하나 이상 지정해 주세요.')
     if file_path is not None:
@@ -154,12 +155,15 @@ def submit(assignment_id: str, *, file_path: Path | None = None, text: str | Non
     _, session = authenticated_session()
     page_url = urljoin(session.base_url.rstrip('/') + '/', f'mod/assign/view.php?id={_assignment_id(assignment_id)}')
     html, page_url = session.get_page(page_url)
+    title_match = re.search(r'<title[^>]*>(.*?)</title>', html, re.I | re.S)
+    title = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', title_match.group(1))).strip() if title_match else 'TLS 과제'
+    if confirmed(html) and not allow_resubmit:
+        return submission_result(course=course, title=title, status='이미 제출됨', page_url=page_url,
+                                 verified=True, detail='중복 제출을 막기 위해 다시 보내지 않았어요. 다시 제출하려면 별도 허용이 필요해요.')
     found = find_submission_form(html)
     draft = found.get('draft')
     if not draft:
         raise AssignmentSubmissionError('현재 과제에서 답안 작성 양식을 찾지 못했어요.')
-    title_match = re.search(r'<title[^>]*>(.*?)</title>', html, re.I | re.S)
-    title = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', title_match.group(1))).strip() if title_match else 'TLS 과제'
     form_info = inspect(html, page_url)
     if file_path and not (form_info['supportsDirectFile'] or form_info['supportsFileManager']):
         raise AssignmentSubmissionError('이 과제의 파일 선택기 양식을 아직 확인하지 못했어요. 제출하지 않았습니다.')
@@ -202,11 +206,13 @@ def main() -> None:
     parser.add_argument('--inspect', action='store_true', help='제출하지 않고 현재 양식만 확인')
     parser.add_argument('--apply', action='store_true', help='실제 제출 실행')
     parser.add_argument('--confirm', default='', help='실제 제출 확인 문구: 제출')
+    parser.add_argument('--allow-resubmit', action='store_true', help='이미 제출된 과제를 다시 제출할 때만 사용')
     args = parser.parse_args()
     try:
         result = inspect_assignment(args.assignment_id) if args.inspect else submit(
             _assignment_id(args.assignment_id), file_path=args.file, text=args.text,
-            apply=args.apply, confirm_word=args.confirm, course=args.course)
+            apply=args.apply, confirm_word=args.confirm, course=args.course,
+            allow_resubmit=args.allow_resubmit)
         if args.inspect:
             result['status'] = '제출 양식 확인'
         print(json.dumps({'toolCalls': ['submit_tls_assignment'], 'data': result,

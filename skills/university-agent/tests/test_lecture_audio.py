@@ -59,6 +59,20 @@ class Session:
         return '', url, headers
 
 
+class StreamingSession(Session):
+    def get_bytes(self, url, **kwargs):
+        if url.endswith('.m3u8'):
+            return super().get_bytes(url, **kwargs)
+        raise AssertionError('streaming media must not materialize a complete chunk')
+
+    def stream_bytes_to_file(self, url, target, **kwargs):
+        content = self.files[url]
+        with open(target, 'wb') as output:
+            for offset in range(0, len(content), 2):
+                output.write(content[offset:offset + 2])
+        return len(content)
+
+
 class LectureAudioTests(unittest.TestCase):
     def test_asr_keeps_cpu_headroom_and_falls_back_when_gpu_fails(self):
         with patch.object(lecture_review.os, 'cpu_count', return_value=8):
@@ -217,6 +231,20 @@ class LectureAudioTests(unittest.TestCase):
         response.read.assert_called_once_with(11)
         response.close.assert_called_once()
 
+    def test_stream_bytes_to_file_writes_in_chunks_and_closes_response(self):
+        session = MoodleSession()
+        session.logged_in = True
+        headers = Message()
+        headers['Content-Type'] = 'video/mp2t'
+        response = Mock(headers=headers, geturl=lambda: SOURCE)
+        response.read.side_effect = [b'Gfirst', b'Gsecond', b'']
+        with tempfile.TemporaryDirectory() as folder, patch.object(session.opener, 'open', return_value=response):
+            target = Path(folder) / 'chunk.ts'
+            result = session.stream_bytes_to_file(SOURCE, target, allowed_origin='tlsvod.kku.ac.kr:8443')
+            self.assertEqual(result['size'], 13)
+            self.assertEqual(target.read_bytes(), b'GfirstGsecond')
+        response.close.assert_called_once()
+
     def test_download_order_is_preserved_and_html_or_http_denial_never_succeeds(self):
         session = Session()
         plan = media_plan(session, SOURCE)
@@ -228,6 +256,56 @@ class LectureAudioTests(unittest.TestCase):
             with self.assertRaises(ValueError): download_media(session, plan, path)
             with patch.object(session, 'get_bytes', side_effect=HTTPError(SOURCE, 403, 'denied', None, None)), self.assertRaises(HTTPError):
                 download_media(session, plan, path)
+
+    def test_streaming_chunks_are_staged_and_concatenated_in_order(self):
+        session = StreamingSession()
+        plan = media_plan(session, SOURCE)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'media.bin'
+            download_media(session, plan, path)
+            self.assertEqual(path.read_bytes(), b'GfirstGsecond')
+            self.assertEqual(list(Path(folder).glob('.media-*')), [])
+
+    def test_failed_download_preserves_existing_target_and_cleans_partial_output(self):
+        session = Session()
+        plan = media_plan(session, SOURCE)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'media.bin'
+            path.write_bytes(b'previous-good-copy')
+            session.files[plan['chunks'][1]] = b'<html>expired session</html>'
+            with self.assertRaises(ValueError):
+                download_media(session, plan, path)
+            self.assertEqual(path.read_bytes(), b'previous-good-copy')
+            self.assertEqual(list(Path(folder).glob('.media-*')), [])
+            self.assertEqual(list(Path(folder).glob('.media.bin.partial*')), [])
+
+    def test_transient_failure_keeps_checkpoint_and_resumes_without_refetching_completed_chunks(self):
+        session = Session()
+        plan = media_plan(session, SOURCE)
+        session.files[SOURCE.rsplit('/', 1)[0] + '/three.ts'] = b'Gthird'
+        plan = {**plan, 'sourceKey': 'resume-fixture',
+                'chunks': [plan['chunks'][0], plan['chunks'][1], plan['chunks'][0],
+                           plan['chunks'][1], SOURCE.rsplit('/', 1)[0] + '/three.ts']}
+        attempts = {'three.ts': 0}
+        original = session.get_bytes
+
+        def flaky(url, **kwargs):
+            if url.endswith('/three.ts') and attempts['three.ts'] < 3:
+                attempts['three.ts'] += 1
+                raise URLError('temporary reset')
+            return original(url, **kwargs)
+
+        session.get_bytes = flaky
+        with tempfile.TemporaryDirectory() as folder, patch('providers.lecture_media.time.sleep'):
+            path = Path(folder) / 'media.bin'
+            with self.assertRaises(URLError):
+                download_media(session, plan, path)
+            self.assertFalse(path.exists())
+            self.assertTrue((Path(folder) / '.media.bin.partial').exists())
+            session.calls.clear()
+            download_media(session, plan, path)
+            self.assertEqual(path.read_bytes(), b'GfirstGsecondGfirstGsecondGthird')
+            self.assertNotIn(plan['chunks'][0], session.calls)
 
     def test_transient_chunk_failure_retries_but_server_denial_does_not(self):
         session = Session()
@@ -248,7 +326,7 @@ class LectureAudioTests(unittest.TestCase):
         denied = Session()
         denied.get_bytes = Mock(side_effect=HTTPError(SOURCE, 403, 'denied', None, None))
         with tempfile.TemporaryDirectory() as folder, self.assertRaises(HTTPError):
-            download_media(denied, plan, Path(folder) / 'media.bin')
+            download_media(denied, {**plan, 'chunks': [plan['chunks'][0]]}, Path(folder) / 'media.bin')
         self.assertEqual(denied.get_bytes.call_count, 1)
 
     def test_atomic_audio_reuse_and_failure_cleanup_do_not_change_saved_copy(self):

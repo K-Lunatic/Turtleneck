@@ -8,13 +8,14 @@ from typing import Any
 
 _SECRET_KEY = re.compile(
     r"(?:password|passwd|pwd|secret|token|cookie|authorization|"
-    r"moodlesession|sesskey|sessionid)", re.IGNORECASE,
+    r"moodlesession|sesskey|sessionid|codeverifier|apikey|api_key|csrf)", re.IGNORECASE,
 )
 _SECRET_TEXT = (
     re.compile(r"(?i)(\b(?:moodlesession|sesskey)\s*=\s*)[^;\s,]+"),
     re.compile(r"(?i)(\b(?:cookie|set-cookie|authorization)\s*:\s*)[^\r\n]+"),
     re.compile(r"(?i)(\b(?:authorization)\s+bearer\s+)[^\s,]+"),
-    re.compile(r"(?i)([?&](?:password|passwd|pwd|secret|token|access_token|refresh_token|sesskey)=[^&#\s]+)"),
+    re.compile(r"(?i)([?&](?:password|passwd|pwd|secret|token|access_token|refresh_token|sesskey|client_secret|code_verifier|api_key)=)[^&#\s]+"),
+    re.compile(r"(?i)(\b(?:client_secret|code_verifier|api[_-]?key)\s*[:=]\s*)[^\s,;]+"),
 )
 
 

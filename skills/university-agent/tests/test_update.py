@@ -1,5 +1,6 @@
 """Version checks never overwrite a development checkout."""
 import json
+import hashlib
 import io
 import zipfile
 from pathlib import Path
@@ -73,7 +74,15 @@ class UpdateTests(unittest.TestCase):
             (root / 'plugin.json').write_text('{"version":"0.4.2"}')
             (root / '.claude-plugin').mkdir()
             (root / '.claude-plugin/plugin.json').write_text('{"version":"0.4.2"}')
-            with patch.object(update_turtleneck, 'package_root', return_value=root), patch.object(update_turtleneck, 'skill_root', return_value=target), patch.object(update_turtleneck, 'check', return_value={'status': 'UPDATE_AVAILABLE', 'remoteVersion': '0.5.0'}) as check, patch.object(update_turtleneck, '_fetch', return_value=archive.getvalue()):
+            digest = hashlib.sha256(archive.getvalue()).hexdigest()
+            release = json.dumps({
+                'tag_name': 'v0.5.0',
+                'assets': [
+                    {'name': 'turtleneck-source.zip', 'browser_download_url': 'https://release/source.zip'},
+                    {'name': 'turtleneck-source.sha256', 'browser_download_url': 'https://release/source.sha256'},
+                ],
+            }).encode()
+            with patch.object(update_turtleneck, 'package_root', return_value=root), patch.object(update_turtleneck, 'skill_root', return_value=target), patch.object(update_turtleneck, 'check', return_value={'status': 'UPDATE_AVAILABLE', 'remoteVersion': '0.5.0'}) as check, patch.object(update_turtleneck, '_fetch', side_effect=[release, archive.getvalue(), f'{digest}  turtleneck-source.zip\n'.encode()]):
                 result = update_turtleneck.apply_update()
             self.assertEqual(result['status'], 'UPDATED')
             check.assert_called_once_with(force=False)

@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/K-Lunatic/GradKUya",
+  "files": {
+    "lib/transcript.ts": "11754e1b8a18e7b02cb6d6f09dace58b5d28b123ce8ec2c38e91a8040567ad5a",
+    "lib/graduation.ts": "7b60a310ee44df523db0bfe25fd6e802c90ab2b280864d308cf3a5a8df02cbf8",
+    "lib/handbooks.ts": "d1a98e62d9d87d808a23f6aa59cf7fb387a601709ed6125d5d080567f94b9dab",
+    "lib/schedule.ts": "6ecb9a646753a8cdc923e83f6ba5d8b435eb41e68d30d660597f082eecd0c6ca",
+    "lib/kupis.ts": "1656161f449906ecaceb8bb0f0111bfa0601c638be7a30c0b4fd54b56fdb156f",
+    "data/requirements.ts": "b042cb927c1a4141dcbbcd0ace7639b3ad3ea2e15656fe94526eb646f5518ac2",
+    "data/handbooks/index.json": "569dc1b432824b48063e27a3e3809f870a9bdd0ec551ccc3594576fcb423d09c"
+  },
+  "adaptations": [
+    "Offline calculations only",
+    "Failed courses do not satisfy required courses",
+    "Exact admission-year handbook required",
+    "Sample timetable removed"
+  ]
+}

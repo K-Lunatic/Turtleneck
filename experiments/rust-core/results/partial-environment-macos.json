@@ -1,0 +1,14 @@
+{
+  "python": "3.11.6 (main, Oct  2 2023, 13:45:54) [Clang 15.0.0 (clang-1500.0.40.1)]",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "machine": "arm64",
+  "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09) (Homebrew)",
+  "cargo": "cargo 1.100.0 (3acc79c0c 2026-11-05) (Homebrew)",
+  "target": "aarch64-apple-darwin",
+  "build": "cargo build --release --locked --manifest-path experiments/rust-core/Cargo.toml",
+  "dll_sha256": "173cab97f2cea260848d93d24b1cd1d4561e0890790b941d12fd4453ce701796",
+  "cargo_lock_sha256": "74cc9b8ac8878f2d25763f9c4827e9cfa3ef78f7a9a17c4c5b366c626de2af55",
+  "adopted_modules": ["activity", "overview"],
+  "excluded_modules": ["concept"],
+  "benchmark_timestamp": "2026-11-17 Asia/Seoul"
+}

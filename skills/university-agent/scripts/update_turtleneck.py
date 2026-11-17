@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -17,7 +18,9 @@ from urllib.error import URLError
 REPO = "K-Lunatic/Turtleneck"
 BRANCH = "turtleneck"
 REMOTE_PLUGIN = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/plugin.json"
-REMOTE_ARCHIVE = f"https://github.com/{REPO}/archive/refs/heads/{BRANCH}.zip"
+REMOTE_RELEASE_API = f"https://api.github.com/repos/{REPO}/releases/latest"
+SOURCE_ARCHIVE_NAME = "turtleneck-source.zip"
+SOURCE_CHECKSUM_NAME = "turtleneck-source.sha256"
 CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 
 
@@ -63,6 +66,30 @@ def _fetch(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "turtleneck-updater/0.4"})
     with urllib.request.urlopen(request, timeout=20) as response:
         return response.read()
+
+
+def _verified_source_archive(remote_version: str) -> bytes:
+    """Download only the tagged source asset whose published checksum matches."""
+    release = json.loads(_fetch(REMOTE_RELEASE_API))
+    tag = str(release.get("tag_name", "")).lstrip("v")
+    if version_tuple(tag) != version_tuple(remote_version):
+        raise ValueError("업데이트 버전과 릴리스 태그가 일치하지 않아요.")
+    assets = {
+        str(asset.get("name")): str(asset.get("browser_download_url"))
+        for asset in release.get("assets", [])
+        if isinstance(asset, dict) and asset.get("name") and asset.get("browser_download_url")
+    }
+    archive_url = assets.get(SOURCE_ARCHIVE_NAME)
+    checksum_url = assets.get(SOURCE_CHECKSUM_NAME)
+    if not archive_url or not checksum_url:
+        raise ValueError("검증 가능한 업데이트 파일이 릴리스에 없어요.")
+    archive = _fetch(archive_url)
+    checksum_lines = _fetch(checksum_url).decode("utf-8", "strict").splitlines()
+    expected = next((line.split()[0] for line in checksum_lines if SOURCE_ARCHIVE_NAME in line), "")
+    actual = hashlib.sha256(archive).hexdigest()
+    if len(expected) != 64 or expected.casefold() != actual:
+        raise ValueError("업데이트 파일 체크섬이 일치하지 않아요.")
+    return archive
 
 
 def _cache_path() -> Path:
@@ -125,8 +152,12 @@ def apply_update(*, force: bool = False) -> dict[str, str | bool]:
     state = check(force=force)
     if state.get("status") != "UPDATE_AVAILABLE":
         return state
+    staging = None
+    backup_dir = None
+    staged_files: list[tuple[Path, Path]] = []
+    moved_backups: list[tuple[Path, Path]] = []
     try:
-        archive = _fetch(REMOTE_ARCHIVE)
+        archive = _verified_source_archive(str(state["remoteVersion"]))
         with tempfile.TemporaryDirectory() as folder:
             archive_path = Path(folder) / "turtleneck.zip"
             archive_path.write_bytes(archive)
@@ -135,17 +166,51 @@ def apply_update(*, force: bool = False) -> dict[str, str | bool]:
             extracted = next(Path(folder).glob(f"{REPO.rsplit('/', 1)[1]}-*/skills/university-agent"), None)
             if extracted is None:
                 raise ValueError("업데이트 파일 구조를 확인하지 못했어요.")
-            staging = Path(folder) / "staging"
+            staging = Path(tempfile.mkdtemp(prefix=f".{target.name}.staging-", dir=target.parent))
+            staging.rmdir()
             shutil.copytree(extracted, staging)
-            shutil.copytree(staging, target, dirs_exist_ok=True)
             source_plugin = extracted.parents[1] / "plugin.json"
             if source_plugin.is_file():
-                shutil.copy2(source_plugin, installed_package / "plugin.json")
+                plugin_stage = Path(tempfile.mkstemp(prefix=".plugin.json.stage-", dir=installed_package)[1])
+                shutil.copy2(source_plugin, plugin_stage)
+                staged_files.append((plugin_stage, installed_package / "plugin.json"))
             source_claude = extracted.parents[1] / '.claude-plugin/plugin.json'
             if source_claude.is_file() and (installed_package / '.claude-plugin/plugin.json').is_file():
-                shutil.copy2(source_claude, installed_package / '.claude-plugin/plugin.json')
+                claude_stage = Path(tempfile.mkstemp(prefix=".claude-plugin.json.stage-", dir=installed_package)[1])
+                shutil.copy2(source_claude, claude_stage)
+                staged_files.append((claude_stage, installed_package / '.claude-plugin/plugin.json'))
+        backup_dir = Path(tempfile.mkdtemp(prefix=".turtleneck-update-backup-", dir=target.parent))
+        os.replace(target, backup_dir / "skill")
+        os.replace(staging, target)
+        for staged, destination in staged_files:
+            backup = backup_dir / f"file-{len(moved_backups)}"
+            if destination.exists():
+                os.replace(destination, backup)
+                moved_backups.append((backup, destination))
+            os.replace(staged, destination)
+        shutil.rmtree(backup_dir, ignore_errors=True)
+        backup_dir = None
         return {"status": "UPDATED", "message": f"터틀넥 {state['remoteVersion']} 버전으로 업데이트했어요."}
     except (OSError, ValueError, zipfile.BadZipFile, URLError):
+        if backup_dir is not None:
+            try:
+                if target.exists():
+                    shutil.rmtree(target)
+                backup_skill = backup_dir / "skill"
+                if backup_skill.exists():
+                    os.replace(backup_skill, target)
+                for backup, destination in reversed(moved_backups):
+                    if destination.exists():
+                        destination.unlink()
+                    if backup.exists():
+                        os.replace(backup, destination)
+            except OSError:
+                pass
+            shutil.rmtree(backup_dir, ignore_errors=True)
+        if staging is not None and staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        for staged, _destination in staged_files:
+            staged.unlink(missing_ok=True)
         return {"status": "FAILED", "message": "업데이트를 끝내지 못했어요. 설치본을 다시 확인해 주세요. 로그인·학습 데이터는 변경하지 않았어요."}
 
 

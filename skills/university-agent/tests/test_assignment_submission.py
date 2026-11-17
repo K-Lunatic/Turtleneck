@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 
 from features.assignment_submission import confirmed, format_submission_result, inspect, safe_url
+from scripts.submit_tls_assignment import submit
 
 
 class AssignmentSubmissionTests(unittest.TestCase):
@@ -41,4 +43,16 @@ class AssignmentSubmissionTests(unittest.TestCase):
     def test_safe_url_removes_secret_query_values(self):
         self.assertEqual(safe_url('https://tls.example/x?id=42&sesskey=private'),
                          'https://tls.example/x?id=42')
+
+    def test_already_submitted_assignment_is_not_posted_again_by_default(self):
+        class Session:
+            base_url = 'https://tls.example'
+            def get_page(self, _url):
+                return '<title>실습 과제</title><p>제출 완료</p>', 'https://tls.example/mod/assign/view.php?id=42'
+
+        with patch('scripts.submit_tls_assignment.authenticated_session', return_value=('student', Session())):
+            result = submit('42', text='본문', course='자료구조')
+        self.assertEqual(result['status'], '이미 제출됨')
+        self.assertTrue(result['verified'])
+        self.assertIn('중복 제출', result['detail'])
 

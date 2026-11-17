@@ -16,6 +16,9 @@ __pycache__/
 settings.html
 files/
 data/
+# Bundled GradKUya handbook snapshots and rules, not user storage.
+!skills/university-agent/integrations/gradkuya/engine/data/
+!skills/university-agent/integrations/gradkuya/engine/data/**
 build/
 dist/
 

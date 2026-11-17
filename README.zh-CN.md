@@ -110,6 +110,19 @@ Turtleneck 已被收录为 [XERJ Corpus Hub](https://hub.xerj.org/contributors/K
 
 对于标准 Moodle 站点，Turtleneck 会先从 `/my/` 或 `/course/index.php` 读取当前账号的课程，再读取可见的主题和 `/mod/.../view.php?id=...` 活动。未知活动类型也会保留在本地目录中。SSO、视频播放器、下载、提交状态、自主课程管理和写入操作因学校而异，只在确认过的学校配置中启用；不会在其他学校猜测 KKU 专用的 `/local/ubion`、`/local/ubeclass` 或 `/local/ubdoc` 路径。
 
+基本 Moodle 和 Canvas 连接可以直接使用。用户正常完成只读使用后，可以导出本地迁移报告，帮助优化其他学校的适配模块：
+
+```bash
+python3 skills/university-agent/scripts/moodle_migration.py \
+  --base-url https://lms.example.ac.kr \
+  --account-alias main \
+  --output ~/Downloads/turtleneck-moodle-migration.json
+```
+
+报告只保留学校主机、活动类型、数量和请求量，不包含课程名称与 ID、原始页面、文件、密码、Cookie 或会话。可以将报告附在[功能建议](https://github.com/K-Lunatic/Turtleneck/issues)中，我们会据此提出模块、加入无敏感信息的 fixture、测量流量并逐校优化。公开 Issue 是默认贡献方式；学校工作人员需要保密协作时再使用私下联系方式。
+
+我们计划直接联系各大学，在获得许可的只读环境中验证 LMS，并逐校优化适配模块。公开机构列表只用于寻找候选学校，并不代表当前兼容或获得学校授权。验证门槛和发布规则请参阅[大学协作与优化路线图](docs/UNIVERSITY_COLLABORATION_PLAN.md)。
+
 ## 文档
 
 - [技能说明](skills/university-agent/SKILL.md)

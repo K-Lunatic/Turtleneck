@@ -9,6 +9,7 @@ import sys
 import json
 import subprocess
 import hashlib
+import shutil
 import tempfile
 from contextlib import closing
 from datetime import datetime, timezone
@@ -23,7 +24,9 @@ if str(ROOT) not in sys.path:
 
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import LoginError, MoodleSession, RequestBackoff
-from providers.credentials import CredentialInputRequired, load, load_username, resolve, save, save_session
+from providers.credentials import (CredentialInputRequired, load, load_active_alias, load_username,
+                                   link_account, normalize_alias, profile_db_path, resolve, save, save_session,
+                                   set_active_alias, site_key)
 from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
 from features.autonomous_course_watch import refresh as refresh_autonomous_course
@@ -85,7 +88,10 @@ def _cached_resources(db_path: Path, user_id: str, file_root: Path) -> dict[str,
 
 def store_resource(file_root, item):
     """Keep original names, isolate activities and versions, publish only complete files."""
-    content = item.pop('_content')
+    content = item.pop('_content', None)
+    content_path = item.pop('_content_path', None)
+    if content is None and not content_path:
+        raise ValueError('자료 원본이 없어 저장하지 않았어요.')
     course, resource = item['courseId'], item['id']
     if not all(re.fullmatch(r'[A-Za-z0-9_-]+', value) for value in (course, resource)):
         raise ValueError('자료 저장 식별자가 올바르지 않습니다.')
@@ -95,7 +101,15 @@ def store_resource(file_root, item):
     if re.fullmatch(r'(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?', name, re.I):
         name = '_' + name
     root = file_root.resolve()
-    target = root / course / resource / hashlib.sha256(content).hexdigest() / name
+    if content_path:
+        digest = hashlib.sha256()
+        with open(content_path, 'rb') as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                digest.update(chunk)
+        content_hash = digest.hexdigest()
+    else:
+        content_hash = hashlib.sha256(content).hexdigest()
+    target = root / course / resource / content_hash / name
     if not target.resolve().is_relative_to(root):
         raise ValueError('자료 저장 위치가 허용된 폴더 밖입니다.')
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -105,7 +119,11 @@ def store_resource(file_root, item):
     try:
         with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as stream:
             temporary = Path(stream.name)
-            stream.write(content)
+            if content_path:
+                with open(content_path, 'rb') as source:
+                    shutil.copyfileobj(source, stream, length=1024 * 1024)
+            else:
+                stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, target)
@@ -113,6 +131,8 @@ def store_resource(file_root, item):
         if temporary is not None:
             temporary.unlink(missing_ok=True)
     validators = item.pop('_validators', {})
+    if content_path:
+        Path(content_path).unlink(missing_ok=True)
     target.with_name(target.name + '.http.json').write_text(json.dumps(validators), encoding='utf-8')
     item.update(localPath=str(target), downloadedAt=datetime.now(timezone.utc).isoformat(), downloadStatus='DOWNLOADED')
     return item
@@ -218,7 +238,7 @@ def _progress(step: int, total: int, message: str) -> None:
 
 def open_connection_terminal(command: list[str] | None = None) -> None:
     """Start the private local flow without opening a terminal window."""
-    command = command or [sys.executable, str(Path(__file__).resolve())]
+    command = command or [sys.executable, str(Path(__file__).resolve()), '--reconnect']
     options = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
     if os.name == 'nt':
         options['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
@@ -228,40 +248,105 @@ def open_connection_terminal(command: list[str] | None = None) -> None:
     print('학교 연결 절차를 시작했어요. 브라우저에 입력 화면이 실제로 보이는지 확인해 주세요.', flush=True)
 
 
-def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False) -> tuple[str, MoodleSession]:
+def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False,
+                        profile_alias: str | None = None, force_input=False) -> tuple[str, MoodleSession]:
     """Login without ever returning the password to the caller."""
-    resumed = resume_saved_session(base_url, requested_username)
+    site = site_key(base_url)
+    profile_alias = profile_alias or os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site)
+    resumed = resume_saved_session(base_url, requested_username, profile_alias)
     if resumed:
         print("저장된 학교 연결을 재사용했어요.", flush=True)
+        try:
+            resumed[1].profile_alias = profile_alias
+        except AttributeError:
+            pass
         return resumed
+    if not force_input and not os.environ.get('UNIVERSITY_AGENT_DB'):
+        try:
+            stored_username, stored_password = load(profile_alias, site)
+        except (OSError, KeyError, ValueError, subprocess.SubprocessError):
+            try:
+                load_username(profile_alias, site)
+            except (OSError, KeyError, ValueError, subprocess.SubprocessError):
+                pass
+            else:
+                raise RuntimeError('저장된 학교 계정의 비밀번호를 읽지 못했어요. 연결 명령으로 한 번만 다시 입력해 주세요.')
+        else:
+            if stored_username and not stored_password:
+                raise RuntimeError('저장된 학교 계정의 비밀번호가 비어 있어요. 연결 명령으로 한 번만 다시 입력해 주세요.')
     total_attempts = 1 if stored_only else 3
     for attempt in range(1, total_attempts + 1):
+        verified = {}
+
+        def verify_form(values):
+            """Validate credentials before the browser can show completion."""
+            selected_alias = normalize_alias(values.get('alias') or profile_alias)
+            candidate_username = values.get('username', '')
+            candidate_password = values.get('password', '')
+            if not candidate_username or not candidate_password:
+                return '아이디와 비밀번호를 모두 입력해 주세요.'
+            candidate_session = MoodleSession(base_url)
+            try:
+                candidate_session.login(candidate_username, candidate_password)
+                save(candidate_username, candidate_password, selected_alias, site)
+                save_session(candidate_username, candidate_session.cookies, selected_alias, site)
+            except LoginError:
+                return '학교 로그인에 실패했어요. 아이디와 비밀번호를 다시 확인해 주세요.'
+            except (OSError, RuntimeError, ValueError, subprocess.SubprocessError):
+                return '로그인은 확인했지만 보호 저장소에 안전하게 등록하지 못했어요. 다시 시도해 주세요.'
+            candidate_session.profile_alias = selected_alias
+            verified['result'] = (candidate_username, candidate_session, selected_alias)
+            return None
+
         if stored_only:
             try:
-                username, password = load()
+                username, password = load(profile_alias, site)
             except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
                 raise RuntimeError('저장된 학교 연결 정보가 없어요. 학교 연결을 다시 마쳐 주세요.') from error
             if requested_username and username != requested_username:
                 raise RuntimeError('저장된 학교 계정이 달라요. 학교 연결을 다시 확인해 주세요.')
+            if not username or not password:
+                raise RuntimeError('저장된 학교 계정의 비밀번호가 비어 있어요. 연결 명령으로 한 번만 다시 입력해 주세요.')
         else:
-            username, password = resolve(requested_username, force_input=attempt > 1)
+            input_mode = force_input or attempt > 1
+            resolve_options = {'force_input': input_mode, 'site': site}
+            if input_mode:
+                resolve_options['submit_check'] = verify_form
+            username, password = resolve(requested_username, **resolve_options)
+            if verified.get('result'):
+                username, session, profile_alias = verified['result']
+                print("학교 로그인과 보호 저장소 등록을 확인했어요.", flush=True)
+                return username, session
+            profile_alias = load_active_alias(site)
         print(f"학교 로그인을 확인 중이에요… ({attempt}/{total_attempts})", flush=True)
         session = MoodleSession(base_url)
         try:
             session.login(username, password)
         except LoginError:
-            if stored_only or attempt == 3:
+            password = None
+            if stored_only:
+                raise RuntimeError(
+                    '저장된 학교 연결이 더 이상 유효하지 않아요. 터틀넥 연결 화면을 다시 열어 로그인해 주세요. '
+                    '비밀번호는 채팅이나 터미널에 입력하지 마세요.'
+                ) from None
+            if attempt == 3:
                 raise
             requested_username = username
             print("로그인이 되지 않았어요. 아이디나 비밀번호를 다시 확인할게요.", flush=True)
             continue
-        if not stored_only:
-            save(username, password)
+        try:
+            if not stored_only:
+                save(username, password, profile_alias, site)
+        finally:
+            password = None
         if hasattr(session, "cookies"):
             try:
-                save_session(username, session.cookies)
+                save_session(username, session.cookies, profile_alias, site)
             except (OSError, RuntimeError, ValueError):
-                pass
+                # A successful login must remain usable, but do not hide why the
+                # next run may need another login when the OS store is unavailable.
+                print("학교 연결은 성공했지만 이 컴퓨터의 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 로그인할 수 있어요.", flush=True)
+        session.profile_alias = profile_alias
         return username, session
     raise AssertionError("unreachable")
 
@@ -334,37 +419,55 @@ def _can_reuse(args, state, scope, db_path, user_id, requested_at):
 def _main() -> None:
     parser = argparse.ArgumentParser(description="Sync KKU TLS data into the local SQLite database")
     parser.add_argument('--connect', action='store_true', help='Open a private native terminal for account connection')
+    parser.add_argument('--reconnect', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--base-url', help='사용할 학교 LMS 주소 (예: https://lms.example.ac.kr)')
+    parser.add_argument('--account-alias', help='사이트별 저장 계정 별칭')
+    parser.add_argument('--reuse-site', help='명시적으로 인증정보를 재사용할 원본 LMS 주소')
+    parser.add_argument('--reuse-account-alias', help='명시적으로 인증정보를 재사용할 원본 계정 별칭')
     parser.add_argument('--metadata-only', action='store_true', help='Refresh records without downloading new file contents')
     parser.add_argument('--academic-only', action='store_true', help='Check assignment/watch status; reuse a successful check for up to 15 minutes')
     parser.add_argument('--ensure', action='store_true', help='Check course changes and refresh only required scopes')
     parser.add_argument('--full', action='store_true', help='Force a complete refresh')
     parser.add_argument('--force', action='store_true', help='Bypass successful-check ages; still respect active syncs and server cooldowns')
     parser.add_argument('--resource-id', action='append', default=[], help='Prepare the requested original file after checking current permissions')
-    parser.add_argument('--resource-only', action='store_true', help='Prepare only known requested files and their course restrictions')
+    parser.add_argument('--resource-only', action='store_true', help='Prepare selected files, discovering new IDs from enrolled course lists only')
+    parser.add_argument('--course-id', action='append', default=[], help='새 자료를 찾을 현재 수강 과목 ID; --resource-only와 함께 사용')
     parser.add_argument('--metrics', action='store_true', help='Print private aggregate HTTP request counters to stderr')
     args = parser.parse_args()
-    if args.resource_only and (not args.resource_id or args.full or args.metadata_only or args.academic_only or args.connect):
-        parser.error('--resource-only는 --resource-id와 함께 쓰며 전체/학사/연결/목록 전용 모드와 함께 쓸 수 없습니다.')
+    if args.resource_only and (not args.resource_id and not args.course_id or args.full or args.academic_only or args.connect):
+        parser.error('--resource-only는 --resource-id 또는 --course-id와 함께 쓰며 전체/학사/연결 모드와 함께 쓸 수 없습니다.')
+    if args.course_id and not args.resource_only:
+        parser.error('--course-id는 --resource-only와 함께 사용해 주세요.')
     if args.academic_only and (args.ensure or args.full or args.resource_id or args.connect):
         parser.error('--academic-only는 다른 동기화 범위나 연결 모드와 함께 사용할 수 없습니다.')
     if args.ensure and args.full:
         parser.error('--ensure와 --full은 함께 사용할 수 없습니다.')
+    if bool(args.reuse_site) != bool(args.reuse_account_alias):
+        parser.error('--reuse-site와 --reuse-account-alias는 함께 지정해야 합니다.')
+    base_url = args.base_url or os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr')
+    target_site = site_key(base_url)
+    explicit_profile_alias = args.account_alias or os.environ.get('TLS_ACCOUNT_ALIAS')
+    profile_alias = explicit_profile_alias or load_active_alias(target_site)
+    if args.reuse_site:
+        link_account(target_site, profile_alias, args.reuse_site, args.reuse_account_alias)
     if args.connect:
+        if args.account_alias:
+            set_active_alias(args.account_alias, site_key(base_url), allow_missing=True)
         try:
-            open_connection_terminal()
+            open_connection_terminal([sys.executable, str(Path(__file__).resolve()), '--reconnect', '--base-url', base_url,
+                                     *(['--account-alias', args.account_alias] if args.account_alias else [])])
         except (OSError, subprocess.SubprocessError) as error:
             raise SystemExit('연결창을 자동으로 열지 못했어요. 직접 터미널에서 sync_tls.py를 실행해 주세요.') from error
         return
-    db_path = Path(os.environ.get('UNIVERSITY_AGENT_DB', Path.home() / '.university-agent' / 'university.db'))
-    base_url = os.environ.get('TLS_BASE_URL', 'https://tls.kku.ac.kr')
+    db_path = profile_db_path(base_url, explicit_profile_alias or ("default" if os.environ.get("UNIVERSITY_AGENT_DB") else profile_alias))
     requested_at = sync_policy.now()
     try:
-        local_username = os.environ.get('TLS_USERNAME') or load_username()
+        local_username = os.environ.get('TLS_USERNAME') or load_username(profile_alias, site_key(base_url))
     except (OSError, KeyError, TypeError, ValueError):
         local_username = None
     scope = sync_policy.scope_key(base_url, local_username) if local_username else None
     try:
-        with sync_policy.SyncLock(db_path) as guard:
+        with sync_policy.SyncLock(db_path, timeout=5 if args.resource_only else 120) as guard:
             try:
                 previous_scope = scope
                 previous_failure = bool(guard.state(scope).get('failed')) if scope else False
@@ -378,7 +481,18 @@ def _main() -> None:
                         print('최근에 성공한 학교 확인 결과를 재사용했어요. 기존 확인 시각을 유지해요.')
                         return
                     guard.record(scope, failed=True)
-                username, session = _login_with_retries(base_url, os.environ.get('TLS_USERNAME'), stored_only=args.academic_only)
+                if explicit_profile_alias:
+                    set_active_alias(profile_alias, site_key(base_url), allow_missing=True)
+                username, session = _login_with_retries(base_url, os.environ.get('TLS_USERNAME'),
+                                                       stored_only=args.academic_only,
+                                                       profile_alias=profile_alias,
+                                                       force_input=args.reconnect)
+                selected_alias = getattr(session, 'profile_alias', profile_alias)
+                if selected_alias != profile_alias:
+                    # The browser form may choose a new alias during first login.
+                    # Keep that first sync out of the previous profile's database.
+                    profile_alias = selected_alias
+                    db_path = profile_db_path(base_url, profile_alias)
                 user_id = os.environ.get('UNIVERSITY_AGENT_USER_ID', username)
                 scope = sync_policy.scope_key(base_url, username)
                 if guard.remaining(scope):
@@ -397,23 +511,28 @@ def _main() -> None:
         raise SystemExit(f'학교 요청을 잠시 쉬고 있어요. 약 {max(1, int(error.seconds + 0.999))}초 후 다시 확인해 주세요. 기존 기록의 확인 시각은 갱신하지 않았어요.') from error
     except LoginError as error:
         raise SystemExit('학교에 연결하지 못했어요. 아이디와 비밀번호를 확인해 주세요.') from error
-    except (sync_policy.SyncBusy, CredentialInputRequired, RuntimeError) as error:
+    except (sync_policy.SyncBusy, CredentialInputRequired, RuntimeError, ValueError) as error:
         raise SystemExit(str(error)) from error
+    except (URLError, TimeoutError, ConnectionError) as error:
+        raise SystemExit('학교 확인이 끝나지 않았어요. 기존 기록은 보존했으며 잠시 후 다시 확인할 수 있어요.') from error
     except OSError as error:
         raise SystemExit('학교 정보 저장 폴더에 접근할 수 없어요. 저장 위치 권한을 확인한 뒤 다시 시도해 주세요.') from error
-    except (URLError, TimeoutError) as error:
-        raise SystemExit('학교 확인이 끝나지 않았어요. 기존 기록은 보존했으며 잠시 후 다시 확인할 수 있어요.') from error
 
 
 def _prepare_requested_resources(args, db_path, user_id, username, provider, scope, state):
     if state.get('sync_scope') != scope or not db_path.exists():
         raise RuntimeError('자료의 연결 범위를 먼저 전체 목록 갱신으로 확인해 주세요.')
-    requested = _requested_course_ids(db_path, user_id, args.resource_id)
+    targets = set(args.resource_id)
+    requested = (_requested_course_ids(db_path, user_id, args.resource_id)
+                 if targets else set(args.course_id))
     courses = provider.get_courses(user_id)
     ids = {c['id'] for c in courses}
     # Reconcile enrollment even when a formerly accessible target is no longer available.
     persist(db_path, user_id, username, courses)
-    if requested is None or not requested <= ids:
+    if requested is None:
+        print('새 자료의 위치를 강좌 목록에서 찾고 있어요. 과제·동영상 상태는 확인하지 않아요.', flush=True)
+        requested = provider.locate_resource_courses(user_id, set(args.resource_id), set(getattr(args, 'course_id', [])))
+    if not requested <= ids:
         raise RuntimeError('현재 수강 중인 과목의 알려진 자료만 준비할 수 있어요. 자료 목록을 갱신해 주세요.')
     reader = provider.for_courses(user_id, requested)
     with closing(LocalDatabase(db_path, read_only=True)) as database:
@@ -421,17 +540,23 @@ def _prepare_requested_resources(args, db_path, user_id, username, provider, sco
         previous_resources = database.get_resources(user_id, include_permissions=False)
     notices = reader.get_notices(user_id, existing_notices=previous_notices, force_details=True)
     persist(db_path, user_id, username, courses, notices=notices, refreshed_course_ids=requested)
-    targets = set(args.resource_id)
     file_root = db_path.parent / 'files'
     resources = reader.get_resources(user_id, notices=notices,
-        existing_resources=_cached_resources(db_path, user_id, file_root), resource_ids=targets,
-        detail_course_ids=set(), download_new_files=True, save_file=lambda item: store_resource(file_root, item))
+        existing_resources=_cached_resources(db_path, user_id, file_root), resource_ids=targets or None,
+        detail_course_ids=requested if not targets else set(),
+        download_new_files=not args.metadata_only, save_file=lambda item: store_resource(file_root, item))
     if any(item.get('_checkFailed') for item in resources):
         raise URLError('요청한 자료의 현재 상태를 확인하지 못했어요.')
     seen = {item['id'] for item in resources}
-    resources += [{**item, 'downloadStatus': 'PROHIBITED', 'downloadReason': '현재 과목 자료 목록에서 확인되지 않습니다.'}
-                  for item in previous_resources if item['id'] in targets - seen]
-    resources += [item for item in previous_resources if item['courseId'] in requested and item['id'] not in targets]
+    if targets:
+        resources += [{**item, 'downloadStatus': 'PROHIBITED', 'downloadReason': '현재 과목 자료 목록에서 확인되지 않습니다.'}
+                      for item in previous_resources if item['id'] in targets - seen]
+    if targets:
+        resources += [item for item in previous_resources
+                      if item['id'] not in seen and item['id'] not in targets]
+    else:
+        resources += [item for item in previous_resources
+                      if item['courseId'] not in requested and item['id'] not in seen]
     persist(db_path, user_id, username, courses, resources=resources, refreshed_course_ids=requested)
     try:
         checks = json.loads(state.get('resource_item_checks', '{}'))
@@ -439,10 +564,11 @@ def _prepare_requested_resources(args, db_path, user_id, username, provider, sco
         checks = {}
     if not isinstance(checks, dict):
         checks = {}
-    checks.update(dict.fromkeys(seen & targets, sync_policy.now().isoformat()))
+    checks.update(dict.fromkeys(seen if not targets else seen & targets, sync_policy.now().isoformat()))
     with closing(LocalDatabase(db_path)) as database:
         database.merge_sync_state(user_id, {'resource_item_checks': json.dumps(checks)})
-    print(f'요청한 자료 확인 완료 · 대상 {len(targets)}개 · 관련 과목 {len(requested)}개')
+    label = f'자료 {len(targets)}개' if targets else f'강좌 자료 전체 ({len(seen)}개)'
+    print(f'요청한 자료 확인 완료 · 대상 {label} · 관련 과목 {len(requested)}개')
 
 
 def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_failed=False):

@@ -1,0 +1,51 @@
+name: Moodle 학교 모듈 제안
+description: 비밀값 없는 마이그레이션 리포트로 학교별 최적화를 제안합니다.
+title: "[Moodle 모듈] "
+labels: [moodle, adapter]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        계정·쿠키·세션·서명된 URL·원본 자료는 올리지 마세요. 먼저 `moodle_migration.py`가 만든 리포트에서 민감한 내용이 없는지 확인해 주세요.
+  - type: input
+    id: host
+    attributes:
+      label: 학교 Moodle 호스트
+      description: https:// 뒤의 학교 LMS 호스트만 적어 주세요.
+      placeholder: lms.example.ac.kr
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 플랫폼
+      options:
+        - 표준 Moodle
+        - Coursemos 기반 Moodle
+        - Canvas
+        - 확인 필요
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: 마이그레이션 리포트
+      description: 생성된 JSON 파일을 끌어놓거나, 공개 저장소에 올린 안전한 링크를 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: 관찰한 차이
+      description: 동영상·자료·공지·자율강좌 등 어떤 부분이 표준 흐름과 달랐는지 적어 주세요. 계정이나 원문은 제외합니다.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 공유 전 확인
+      options:
+        - label: 비밀번호·쿠키·세션·OAuth 비밀값·개인 강좌 ID·서명된 URL·원본 자료를 제거했습니다.
+          required: true
+        - label: 학교 정책과 해당 자료의 접근·공유 권한을 확인했습니다.
+          required: true

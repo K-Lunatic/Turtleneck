@@ -495,7 +495,7 @@ class ProjectTests(ProjectTestBase):
 
     def test_credentials_storage_using_mock_keychain_only(self):
         config = Path(self.temp.name) / 'account.json'
-        with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials.subprocess, 'run') as keychain:
+        with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials, '_save_keychain_secret'), patch.object(credentials.subprocess, 'run') as keychain:
             credentials.save('fixture-user', 'fixture-password')
             if os.name != 'nt':
                 self.assertEqual(config.stat().st_mode & 0o777, 0o600)
