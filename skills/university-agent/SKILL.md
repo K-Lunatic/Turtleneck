@@ -208,6 +208,8 @@ python3 scripts/run_agent.py tls-backup-assemble --template '<기존 .mbz>' --qu
 python3 scripts/run_agent.py tls-backup-rebuild --template '<기존 .mbz>' --output '<깨끗한 .mbz>'
 # 백업·대상 소유권·복구 폼을 확인만 하는 계획 단계
 python3 scripts/run_agent.py tls-backup-restore --backup '<깨끗한 .mbz>' --course-url 'https://tls.kku.ac.kr/course/view.php?id=<내 자율강좌 ID>'
+# 확인된 로컬 백업을 브라우저 없이 Python 세션으로 업로드하고 복구 마법사를 진행
+python3 scripts/run_agent.py tls-backup-restore --backup '<깨끗한 .mbz>' --course-url 'https://tls.kku.ac.kr/course/view.php?id=<내 자율강좌 ID>' --apply --execute
 # 관찰된 강좌 설정 저장 양식으로 허용된 설정만 수정
 python3 scripts/run_agent.py tls-course-update --course-url 'https://tls.kku.ac.kr/course/view.php?id=<내 자율강좌 ID>' --set numsections=8
 # 활동 추가 양식과 저장 경로를 읽기 전용으로 확인 (활동 생성 없음)
