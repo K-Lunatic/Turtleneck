@@ -1060,7 +1060,8 @@ class MoodleTLSProvider:
         if not download_new_files:
             return {**record, "downloadReason": "이번에는 목록만 확인했어요. 필요한 자료를 요청하면 해당 파일만 받을게요."}
         partial_path = partial_manifest = None
-        if partial_root is not None and save_file and hasattr(self.session, 'stream_bytes_to_file'):
+        if (not reusable and partial_root is not None and save_file
+                and hasattr(self.session, 'stream_bytes_to_file')):
             partial_dir = Path(partial_root) / '.partials' / str(course['id'])
             if not re.fullmatch(r'[A-Za-z0-9_-]+', str(course['id'])):
                 raise ValueError('자료 저장 식별자가 올바르지 않습니다.')
