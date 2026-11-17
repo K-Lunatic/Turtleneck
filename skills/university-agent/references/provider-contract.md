@@ -183,6 +183,15 @@ The local user record also returns `lastSyncedAt`, sourced from that user's snap
 
 AI integrations should call the Skill commands or consume their JSON; they should not move TLS logic into a vendor-specific prompt or SDK. Add authentication and secret handling only when a real TLS API is available.
 
+## Error reports
+
+Command errors return a stable `error.code` and a random `error.reportId`. The runner writes a
+redacted JSON report under the active profile's private `error-reports/` directory with mode 0600
+where the platform supports it. The report contains only command name, platform/runtime, timestamp,
+and the redacted error code/message; passwords, cookies, sessions, tokens, headers and raw request
+URLs are never included. If the report cannot be saved, the response keeps the error code and tells
+the user to attach it manually.
+
 ## Canvas provider
 
 Canvas는 Moodle 세션 제공자와 별도인 읽기 전용 API 제공자다. CanvasClient는 사용자가 지정한 HTTPS

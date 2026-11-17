@@ -9,6 +9,7 @@ import re
 import secrets
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +57,7 @@ from features import study_sources
 from scripts.gradkuya import add_arguments as gradkuya_arguments, execute as execute_gradkuya
 from features.language import apply_preferred_language
 from storage.local_db import LocalDatabase
+from storage.private_files import atomic_write_text
 
 try:
     default_user_id = load_username()
@@ -75,6 +77,36 @@ def _load_device_id() -> str:
 
 USER_ID = os.environ.get("UNIVERSITY_AGENT_USER_ID", default_user_id or _load_device_id())
 DB: LocalDatabase | None = None
+
+
+def _attach_error_report(result: dict[str, Any], command: str) -> dict[str, Any]:
+    """Persist a redacted, attachable diagnostic without recording credentials or cookies."""
+    error = result.get("error")
+    if not isinstance(error, dict):
+        return result
+    report_id = f"bug-{secrets.token_hex(8)}"
+    report_path = DB_PATH.parent / "error-reports" / f"{report_id}.json"
+    payload = redact_output({
+        "schema": "turtleneck-error-report/v1",
+        "reportId": report_id,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "command": command,
+        "platform": sys.platform,
+        "python": sys.version.split()[0],
+        "error": {
+            "code": str(error.get("code") or "UNSPECIFIED_ERROR"),
+            "message": str(error.get("message") or result.get("answer") or "오류가 발생했어요."),
+        },
+    })
+    try:
+        atomic_write_text(report_path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    except (OSError, ValueError, PermissionError):
+        return {**result, "error": {**error, "reportId": report_id,
+                                     "reportSaved": False,
+                                     "reportHint": "오류 코드를 그대로 버그 리포트에 첨부해 주세요."}}
+    return {**result, "error": {**error, "reportId": report_id,
+                                 "reportPath": str(report_path),
+                                 "reportSaved": True}}
 
 
 def database(*, write: bool = False) -> LocalDatabase:
@@ -924,6 +956,8 @@ def main() -> None:
             result = {"toolCalls": ["study"], "status": "error", "error": {"code": "STUDY_INVALID", "message": str(exc)}, "answer": str(exc)}
     if args.command not in ("ask", "study"):
         result = with_next_commands(result)
+    if "error" in result:
+        result = _attach_error_report(result, args.command)
     print(json.dumps(redact_output(study_pipeline.host_response(result)), ensure_ascii=False, separators=(',', ':')))
     if DB is not None:
         DB.close()
