@@ -110,6 +110,17 @@ class RestoreBackupTests(unittest.TestCase):
                 with self.assertRaisesRegex(MoodleBackupRestoreError, '저장된 학교 연결'):
                     restore_backup(backup, 'https://tls.kku.ac.kr/course/view.php?id=65513')
 
+    def test_content_backup_is_rejected_before_login_without_explicit_opt_in(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backup = Path(directory) / 'content.mbz'
+            backup.write_bytes(b'backup')
+            with patch('scripts.restore_moodle_backup.validate_backup', return_value={
+                'activityCount': 1, 'hasFiles': True,
+            }), patch('scripts.restore_moodle_backup.authenticated_session') as login:
+                with self.assertRaisesRegex(MoodleBackupRestoreError, '--allow-content'):
+                    restore_backup(backup, 'https://tls.kku.ac.kr/course/view.php?id=65513')
+                login.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

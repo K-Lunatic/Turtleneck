@@ -13,7 +13,7 @@ Playwright, 화면 클릭·스크린샷 순회는 기본 조회 경로에 포함
 | 이전에 받은 자료 | `run_agent.py source-library --query "검색어"` |
 | 과제 제출 | `scripts/submit_tls_assignment.py`로 양식 확인 후 승인된 전송 |
 | 강좌·활동·퀴즈 관리 | 기존 `tls-activity-*`, `tls-quiz-question-*`, 강좌 관리 실행기 |
-| 자율강좌 백업 파일 등록·복구 | `run_agent.py tls-backup-restore --backup <로컬 .mbz> --course-url <확인된 강좌 URL> --apply [--execute]` |
+| 자율강좌 백업 파일 등록·복구 | `run_agent.py tls-backup-restore --backup <로컬 .mbz> --course-url <확인된 강좌 URL> --apply [--execute] [--allow-content]` |
 | 에타 조회·수정 | `integrations/everytime/scripts/` 실행기와 승인 계약 |
 | 성적표·졸업·시간표 계산 | `run_agent.py gradkuya` |
 | 시험 풀이 화면 | 기존 `scripts/exam_web.py` |
@@ -31,7 +31,9 @@ Playwright, 화면 클릭·스크린샷 순회는 기본 조회 경로에 포함
 지정한 로컬 `.mbz` 경로를 Python이 검증한 뒤 저장된 학교 세션으로 업로드하고, 관찰된 Moodle
 복구 엔드포인트와 CSRF 값으로 각 단계를 POST한다. 파일 경로가 없거나 백업 검증이 실패하면
 디렉터리를 열어 대체하지 않고 중단한다. `--apply`는 업로드·복구 준비, `--execute`는 최종
-복구 실행이므로 두 단계 모두 사용자 승인이 있는 경우에만 사용한다.
+복구 실행이므로 두 단계 모두 사용자 승인이 있는 경우에만 사용한다. 활동·파일이 포함된
+백업은 기본적으로 거부하며, 비어 있는 소유 자율강좌에 넣을 때만 `--allow-content`를 함께
+지정한다. 콘텐츠 복구 실행 전 대상 강좌에 기존 활동이 있으면 자동으로 중단한다.
 
 `webOpened: false`여도 `webUrl`이 반환되면 같은 서버의 링크를 안내한다. 이미 준비된 시험을 위해
 서버를 다시 시작하지 않는다. `displayTarget`은 `companion` 또는 `browser`이고,

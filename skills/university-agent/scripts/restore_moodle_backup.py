@@ -234,17 +234,20 @@ def _upload(session: MoodleSession, page_url: str, meta: dict[str, str], backup:
 
 
 def restore_backup(backup: Path, course_url: str, *, apply: bool = False,
-                   execute: bool = False) -> dict[str, object]:
+                   execute: bool = False, allow_content: bool = False) -> dict[str, object]:
     backup = backup.expanduser().resolve()
     try:
         course_id = course_external_id_from_url(course_url)
     except AutonomousCoursePolicyError as error:
         raise MoodleBackupRestoreError(str(error)) from error
     report = validate_backup(backup)
-    # Reject non-empty backups before login or repository upload; an invalid
-    # restore must not leave a large draft file in Moodle storage.
-    if report.get("activityCount") != 0 or report.get("hasFiles"):
-        raise MoodleBackupRestoreError("파일이나 기존 활동이 들어 있는 백업은 자율강좌 빈 구조 복구에 사용할 수 없어요.")
+    has_content = report.get("activityCount") != 0 or report.get("hasFiles")
+    # Content restore is opt-in; an invalid restore must not leave a large
+    # draft file in Moodle storage by accident.
+    if has_content and not allow_content:
+        raise MoodleBackupRestoreError(
+            "파일이나 활동이 들어 있는 백업이에요. 콘텐츠 복구는 --allow-content를 명시해야 해요."
+        )
     try:
         username, session = authenticated_session()
     except (CredentialInputRequired, RuntimeError) as error:
@@ -253,10 +256,16 @@ def restore_backup(backup: Path, course_url: str, *, apply: bool = False,
     target = next((course for course in courses if str(course.get("externalId")) == course_id), None)
     if not target or target.get("role") not in {"운영자", "교수"}:
         raise MoodleBackupRestoreError("내 운영 권한이 확인된 자율강좌가 아니어서 복구하지 않았어요.")
+    if allow_content and execute:
+        structure = MoodleTLSProvider(session).get_course_structure(course_id)
+        if any(section.get("activities") for section in structure.get("sections", [])):
+            raise MoodleBackupRestoreError(
+                "콘텐츠 복구 대상 자율강좌에 기존 활동이 있어 실행하지 않았어요. 먼저 비어 있는 강좌를 사용해 주세요."
+            )
     page_url, context_id, hidden, meta = _restore_page(session, course_id)
     plan = {"courseId": course_id, "courseName": target.get("name"),
             "contextId": context_id, "backup": report, "restoreForm": meta,
-            "apply": bool(apply)}
+            "apply": bool(apply), "allowContent": bool(allow_content)}
     if execute and not apply:
         raise MoodleBackupRestoreError("최종 복구는 --apply와 --execute를 함께 지정해야 해요.")
     if not apply:
@@ -283,8 +292,11 @@ def restore_backup(backup: Path, course_url: str, *, apply: bool = False,
     })
     review_form = _first_wizard_form(html, "복구 실행")
     review_fields = _wizard_fields(review_form)
-    if review_fields.get("setting_root_activities") != "0":
-        raise MoodleBackupRestoreError("복구 검토 단계에서 활동 포함이 해제되지 않아 중단했어요.")
+    expected_activity_setting = "1" if allow_content else "0"
+    if review_fields.get("setting_root_activities") != expected_activity_setting:
+        raise MoodleBackupRestoreError(
+            "복구 검토 단계에서 활동 포함 설정이 예상과 달라 중단했어요."
+        )
     ready = {**plan, "upload": upload, "status": "ready_to_restore", "wizard": "review"}
     if not execute:
         return ready
@@ -295,8 +307,10 @@ def restore_backup(backup: Path, course_url: str, *, apply: bool = False,
     expected_topics = max(int(report.get("sectionCount", 1)) - 1, 0)
     if len(sections) != expected_topics or any(re.fullmatch(r"토픽 [1-9][0-9]*", name) for name in section_names):
         raise MoodleBackupRestoreError("복구 후 TLS에서 과목 토픽 이름을 확인하지 못했어요.")
-    if sum(len(section.get("activities", [])) for section in sections) != 0:
-        raise MoodleBackupRestoreError("복구 후 TLS에 기존 활동이 남아 있어 결과를 확정하지 않았어요.")
+    activity_count = sum(len(section.get("activities", [])) for section in sections)
+    expected_activity_count = int(report.get("activityCount", 0)) if allow_content else 0
+    if activity_count != expected_activity_count:
+        raise MoodleBackupRestoreError("복구 후 TLS 활동 수가 백업과 달라 결과를 확정하지 않았어요.")
     return {**ready, "status": "restored", "completedPath": urlsplit(final_response).path,
             "sectionNames": section_names}
 
@@ -316,9 +330,14 @@ def main() -> None:
     parser.add_argument("--course-url", required=True)
     parser.add_argument("--apply", action="store_true", help="파일을 TLS 복구 마법사에 전송")
     parser.add_argument("--execute", action="store_true", help="검증된 대상 강좌의 기존 내용을 삭제 후 복구")
+    parser.add_argument("--allow-content", action="store_true",
+                        help="활동·파일이 포함된 백업 복구를 명시적으로 허용")
     args = parser.parse_args()
     try:
-        print(json.dumps(restore_backup(args.backup, args.course_url, apply=args.apply, execute=args.execute), ensure_ascii=False))
+        print(json.dumps(restore_backup(
+            args.backup, args.course_url, apply=args.apply, execute=args.execute,
+            allow_content=args.allow_content,
+        ), ensure_ascii=False))
     except (MoodleBackupRestoreError, LoginError, OSError, ValueError) as error:
         raise SystemExit(str(error)) from error
 

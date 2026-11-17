@@ -454,6 +454,8 @@ def main() -> None:
     backup_restore.add_argument('--course-url', required=True)
     backup_restore.add_argument('--apply', action='store_true', help='파일을 TLS 복구 마법사에 전송')
     backup_restore.add_argument('--execute', action='store_true', help='기존 강좌 내용을 삭제 후 복구')
+    backup_restore.add_argument('--allow-content', action='store_true',
+                                help='활동·파일이 포함된 백업 복구를 명시적으로 허용')
     autonomous_verify = sub.add_parser('autonomous-course-verify', help='지정한 TLS 자율강좌 주소를 로컬 수강 목록과 대조')
     autonomous_verify.add_argument('--url', required=True)
     autonomous_verify.add_argument('--remember-watch', action='store_true', help='이 자율강좌를 매일 읽기 전용으로 확인할 대상으로 저장')
@@ -774,7 +776,10 @@ def main() -> None:
                       'error': {'code': 'MOODLE_BACKUP_REBUILD_INVALID', 'message': str(error)}, 'answer': str(error)}
     elif args.command == 'tls-backup-restore':
         try:
-            data = restore_backup(args.backup, args.course_url, apply=args.apply, execute=args.execute)
+            data = restore_backup(
+                args.backup, args.course_url, apply=args.apply, execute=args.execute,
+                allow_content=args.allow_content,
+            )
             result = {'toolCalls': ['restore_moodle_backup'], 'data': data,
                       'answer': ('백업을 검증하고 내 소유 자율강좌를 비운 뒤 과목 토픽만 복구했어요.'
                                  if args.execute else
