@@ -122,6 +122,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+      - name: Validate release metadata
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
+        shell: bash
+        env:
+          EXPECTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          expected="${EXPECTED_TAG#v}"
+          actual="$(python -c 'import json; print(json.load(open("plugin.json", encoding="utf-8"))["version"])')"
+          test "$actual" = "$expected"
       - name: Package verified source update
         shell: bash
         run: |
