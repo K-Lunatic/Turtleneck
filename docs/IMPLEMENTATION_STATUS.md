@@ -94,8 +94,9 @@ Canvas의 과제 제출·파일 업로드·강좌 수정은 의도적으로 읽�
 - Canvas 공통 Provider 계약과 Moodle 모듈 관련 검사 16개 통과.
 - 전체 `skills/university-agent/tests` 회귀는 localhost 포트 권한을 허용한 환경에서 **490개 통과·1개 건너뜀**.
 - macOS ARM64에서 `packaging/turtleneck.spec` 번들 생성 후 `turtleneck 0.6.2` 실행을 확인했고,
-  `packaging/companion.spec` 보조 앱 번들도 생성했다. Windows는 GitHub Actions의 빌드·`--version`
-  스모크 단계만 추가했으며 실제 Windows 기기 실행은 아직 하지 않았다.
+  `packaging/companion.spec` 보조 앱 번들도 생성했다. Windows는 GitHub Actions의 독립 실행 파일
+  생성·`--version` 스모크와 전체 기능 매트릭스를 통과했으며, 실제 Windows 개인 기기 실행은
+  아직 하지 않았다.
 - 2026-11-17 macOS ARM64에서 메인 번들의 `--version`·동결된 API 도움말, 보조 앱의 `--status`를
   실제 실행했다. 보조 앱 상태 JSON은 비밀값 없이 프로필·자료 개수만 반환했고, 최신 번들의
   상태 조회는 약 7.4초였다. 보조 앱에서 사용하지 않는 PDF/FFmpeg 데이터 수집은 `companion.spec`에서
@@ -135,6 +136,10 @@ Canvas의 과제 제출·파일 업로드·강좌 수정은 의도적으로 읽�
   재시도하지 않고 명시적 재연결 안내로 종료한다. 세션 쿠키가 만료된 경우에도 저장된
   자격증명을 자동 반복하지 않고 한 번의 재연결 경로만 제공한다. 최신 전체 회귀는
   **503개 통과·1개 건너뜀**이다.
+- 2026-11-17 Windows CI에서 드러난 업데이트 임시 파일 핸들, DPAPI/Keychain 테스트 분기,
+  보조 앱·프로필의 Windows SQLite 파일 잠금을 수정했다. 커밋 `a7a854c`의 GitHub Actions는
+  macOS·Windows의 Rust, 서버, 독립 실행 파일, 학습·동기화·Moodle·자료·미디어 테스트
+  **24개 job 전체 성공**으로 완료됐고, 로컬 전체 회귀도 **515개 통과·1개 건너뜀**이다.
 - Rust 부분 채택 실험을 macOS ARM64에서도 재빌드·재실행했다. 활동 파서는 100/1,000개 입력에서
   72.76%/73.02%, 개요 파서는 83.84%/83.97% 빨라졌고 출력 동등성·Rust 6개·실험 Python
   27개 검사를 통과했다. 전체 메타데이터 재현은 1.22% 개선에 그쳐 전체 앱 Rust 전환의
