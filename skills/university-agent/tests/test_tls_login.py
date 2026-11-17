@@ -184,6 +184,28 @@ class TlsLoginTests(unittest.TestCase):
         form.assert_not_called()
         session.assert_not_called()
 
+    def test_shared_authenticated_session_reports_session_cache_failure_without_secret(self):
+        class Session:
+            cookies = object()
+
+            def __init__(self, _base_url):
+                pass
+
+            def login(self, _username, _password):
+                pass
+
+        with patch.object(tls_auth, 'resume_saved_session', return_value=None), \
+             patch.object(tls_auth, 'load', return_value=('student', 'secret')), \
+             patch.object(tls_auth, 'MoodleSession', Session), \
+             patch.object(tls_auth, 'save'), \
+             patch.object(tls_auth, 'save_session', side_effect=RuntimeError('keychain unavailable')), \
+             redirect_stdout(io.StringIO()) as output:
+            username, _session = tls_auth.authenticated_session('https://tls.example')
+
+        self.assertEqual(username, 'student')
+        self.assertIn('보호 저장소에 세션을 보관하지 못했어요', output.getvalue())
+        self.assertNotIn('secret', output.getvalue())
+
     def test_shared_credential_resolver_does_not_reopen_form_for_empty_secret(self):
         with patch.object(credentials, 'load', side_effect=ValueError('empty')), \
              patch.object(credentials, 'load_username', return_value='student'), \

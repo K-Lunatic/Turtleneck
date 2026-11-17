@@ -81,6 +81,6 @@ def authenticated_session(base_url: str | None = None, requested_username: str |
     try:
         save_session(username, session.cookies, profile_alias, site)
     except (OSError, RuntimeError, ValueError):
-        # A valid login must remain usable even if the OS refuses session caching.
-        pass
+        # Keep this login usable, but explain why the next run may authenticate again.
+        print('학교 로그인은 성공했지만 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 연결할 수 있어요.', flush=True)
     return username, session
