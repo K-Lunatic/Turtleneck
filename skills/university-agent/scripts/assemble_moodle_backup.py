@@ -202,18 +202,21 @@ def assemble_backup(template: Path, questions_xml: Path, output: Path, *, sectio
     if not sources:
         raise MoodleBackupAssemblyError("문항 XML에 실제 문항이 없어요.")
 
-    with tarfile.open(template, "r:*") as archive:
-        members = archive.getmembers()
-        files = {member.name: archive.extractfile(member).read() for member in members if member.isfile()}
-    try:
-        _reject_banned_existing_names(files)
-    except ET.ParseError as error:
-        raise MoodleBackupAssemblyError("기존 백업의 표시 이름 XML을 읽지 못했어요.") from error
-    template_dir, _ = _find_template(files)
-    section_dir, section_root = _section(files, section_name)
-    backup_root = ET.fromstring(files["moodle_backup.xml"])
-    question_bank = ET.fromstring(files["questions.xml"])
-    course_root = ET.fromstring(files["course/course.xml"])
+    with tarfile.open(template, "r:*") as source_archive:
+        members = source_archive.getmembers()
+        # XML is small control data; binary course files stay in the input tar
+        # and are copied as streams below instead of being materialized.
+        files = {member.name: source_archive.extractfile(member).read()
+                 for member in members if member.isfile() and member.name.endswith(".xml")}
+        try:
+            _reject_banned_existing_names(files)
+        except ET.ParseError as error:
+            raise MoodleBackupAssemblyError("기존 백업의 표시 이름 XML을 읽지 못했어요.") from error
+        template_dir, _ = _find_template(files)
+        section_dir, section_root = _section(files, section_name)
+        backup_root = ET.fromstring(files["moodle_backup.xml"])
+        question_bank = ET.fromstring(files["questions.xml"])
+        course_root = ET.fromstring(files["course/course.xml"])
     course_id = course_root.attrib.get("id", "")
     categories = [node for node in question_bank.findall("question_category")
                   if node.findtext("contextlevel") == "50" and node.findtext("contextinstanceid") == course_id]
@@ -276,31 +279,58 @@ def assemble_backup(template: Path, questions_xml: Path, output: Path, *, sectio
     files[f"{section_dir}/section.xml"] = _xml_bytes(section_root)
     files[f"{new_activity_dir}/module.xml"] = _xml_bytes(module_root)
     files[f"{new_activity_dir}/quiz.xml"] = _xml_bytes(quiz_root)
+    generated_sources: dict[str, str] = {}
     for path, payload in list(files.items()):
         if path.startswith(f"{template_dir}/") and path not in {f"{template_dir}/module.xml", f"{template_dir}/quiz.xml"}:
             files[f"{new_activity_dir}/{path[len(template_dir) + 1:]}"] = payload
+    # Preserve non-XML activity assets without reading them into memory.
+    for member in members:
+        if member.isfile() and member.name.startswith(f"{template_dir}/") and not member.name.endswith(".xml"):
+            generated_sources[f"{new_activity_dir}/{member.name[len(template_dir) + 1:]}"] = member.name
     files["moodle_backup.xml"] = _xml_bytes(backup_root)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(prefix="turtleneck-mbz-", suffix=".mbz", dir=output.parent, delete=False) as temp:
         temporary = Path(temp.name)
     try:
-        with tarfile.open(temporary, "w:gz") as archive:
+        with tarfile.open(template, "r:*") as source_archive, tarfile.open(temporary, "w:gz") as archive:
+            member_names = {member.name for member in members}
             for member in members:
-                if member.name == ".ARCHIVE_INDEX" or member.name in files and member.isfile():
+                if member.name == ".ARCHIVE_INDEX":
+                    continue
+                if member.isfile() and member.name in files:
                     if member.name == ".ARCHIVE_INDEX":
                         continue
                     info = copy.copy(member)
                     info.size = len(files[member.name])
                     archive.addfile(info, io.BytesIO(files[member.name]))
+                elif member.isfile():
+                    source = source_archive.extractfile(member)
+                    if source is None:
+                        raise MoodleBackupAssemblyError(f"백업 파일을 읽지 못했어요: {member.name}")
+                    try:
+                        archive.addfile(copy.copy(member), source)
+                    finally:
+                        source.close()
                 elif member.isdir():
                     archive.addfile(copy.copy(member))
             for path, payload in files.items():
-                if not any(member.name == path for member in members):
+                if path not in member_names:
                     info = tarfile.TarInfo(path)
                     info.size = len(payload)
                     info.mtime = now
                     archive.addfile(info, io.BytesIO(payload))
+            for path, source_name in generated_sources.items():
+                source_member = next((member for member in members if member.name == source_name), None)
+                source = source_archive.extractfile(source_member) if source_member is not None else None
+                if source is None:
+                    raise MoodleBackupAssemblyError(f"백업 활동 자료를 읽지 못했어요: {source_name}")
+                info = copy.copy(source_member)
+                info.name = path
+                try:
+                    archive.addfile(info, source)
+                finally:
+                    source.close()
         temporary.replace(output)
     except Exception:
         temporary.unlink(missing_ok=True)

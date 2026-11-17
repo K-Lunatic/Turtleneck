@@ -32,6 +32,7 @@ class AssembleMoodleBackupTests(unittest.TestCase):
             "sections/section_20/section.xml": xml('<section id="20"><name>자료구조</name><sequence>30</sequence></section>'),
             "activities/quiz_30/module.xml": xml('<module id="30"><sectionid>20</sectionid></module>'),
             "activities/quiz_30/quiz.xml": xml('<activity id="30" moduleid="30" contextid="40"><quiz id="30"><name>기존 시험</name><sumgrades>1</sumgrades><grade>1</grade><question_instances><question_instance id="31"><questionid>32</questionid></question_instance></question_instances></quiz></activity>'),
+            "activities/quiz_30/lecture.bin": b"lecture-bytes" * 1024,
         }
         with tarfile.open(path, "w:gz") as archive:
             for name, payload in files.items():
@@ -65,6 +66,12 @@ class AssembleMoodleBackupTests(unittest.TestCase):
                 section = ET.fromstring(archive.extractfile("sections/section_20/section.xml").read())
                 sequence = section.findtext("sequence")
                 self.assertRegex(sequence, r"^30,[1-9][0-9]*$")
+                self.assertEqual(archive.extractfile("activities/quiz_30/lecture.bin").read(), b"lecture-bytes" * 1024)
+                copied = [name for name in archive.getnames()
+                          if name.startswith("activities/quiz_") and name.endswith("/lecture.bin")
+                          and name != "activities/quiz_30/lecture.bin"]
+                self.assertEqual(len(copied), 1)
+                self.assertEqual(archive.extractfile(copied[0]).read(), b"lecture-bytes" * 1024)
 
     def test_banned_quiz_name_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

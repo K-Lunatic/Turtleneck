@@ -200,6 +200,7 @@ def _restore_page(session: MoodleSession, course_id: str) -> tuple[str, str, dic
 
 
 def _multipart(fields: dict[str, str], field_name: str, path: Path) -> tuple[bytes, str]:
+    """Build a small compatibility payload; uploads use the streaming client below."""
     boundary = "----Turtleneck" + secrets.token_hex(12)
     chunks: list[bytes] = []
     for name, value in fields.items():
