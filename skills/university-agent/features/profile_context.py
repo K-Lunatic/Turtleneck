@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,7 @@ def _course_names(path: Path) -> list[str]:
     if not path.is_file():
         return []
     try:
-        with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as connection:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as connection:
             return [str(row[0]) for row in connection.execute("SELECT name FROM courses WHERE name IS NOT NULL")]
     except (OSError, sqlite3.Error):
         return []

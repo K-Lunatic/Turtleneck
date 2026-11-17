@@ -19,6 +19,7 @@ import time
 import webbrowser
 import secrets
 import uuid
+from contextlib import closing
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -62,7 +63,7 @@ def _db_summary(path: Path) -> dict[str, int | str | None]:
     }
     try:
         result["databaseBytes"] = path.stat().st_size
-        with sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True) as db:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
             user = db.execute("SELECT id FROM users ORDER BY updated_at DESC LIMIT 1").fetchone()
             if not user:
                 return result
