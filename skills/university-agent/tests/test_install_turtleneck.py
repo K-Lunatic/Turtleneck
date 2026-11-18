@@ -48,6 +48,12 @@ class InstallTurtleneckTests(unittest.TestCase):
         self.assertEqual(Path(calls[0][4]).as_posix(), '/tmp/Turtleneck')
         self.assertEqual(calls[1], ['codex', 'plugin', 'add', 'university-agent@turtleneck'])
 
+    def test_zip_source_is_pinned_to_a_full_commit(self):
+        sha = 'a' * 40
+        self.assertTrue(install_turtleneck._pinned_archive_url({'sha': sha}).endswith(f'/archive/{sha}.zip'))
+        with self.assertRaises(ValueError):
+            install_turtleneck._pinned_archive_url({'sha': 'turtleneck'})
+
 
 if __name__ == '__main__':
     unittest.main()

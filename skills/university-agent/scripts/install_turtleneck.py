@@ -14,7 +14,8 @@ from pathlib import Path
 
 REPO = 'K-Lunatic/Turtleneck'
 SKILL_URL = 'https://github.com/K-Lunatic/Turtleneck.git'
-ZIP_URL = 'https://github.com/K-Lunatic/Turtleneck/archive/refs/heads/turtleneck.zip'
+SOURCE_REF_API = 'https://api.github.com/repos/K-Lunatic/Turtleneck/commits/turtleneck'
+ZIP_URL = 'https://github.com/K-Lunatic/Turtleneck/archive/{ref}.zip'
 MAX_SOURCE_BYTES = 50 * 1024 * 1024
 
 INSTALLERS = {
@@ -60,11 +61,22 @@ def _local_source() -> Path | None:
     return root if (root / 'plugin.json').is_file() else None
 
 
+def _pinned_archive_url(metadata: dict) -> str:
+    ref = str(metadata.get('sha', '')).lower()
+    if len(ref) != 40 or any(char not in '0123456789abcdef' for char in ref):
+        raise ValueError('터틀넥 원본 커밋을 확인하지 못했어요.')
+    return ZIP_URL.format(ref=ref)
+
+
 def _download_source() -> tuple[tempfile.TemporaryDirectory, Path]:
     temp = tempfile.TemporaryDirectory(prefix='turtleneck-install-')
     archive = Path(temp.name) / 'turtleneck.zip'
     try:
-        request = urllib.request.Request(ZIP_URL, headers={'User-Agent': 'TurtleneckInstaller/1.0'})
+        request = urllib.request.Request(SOURCE_REF_API, headers={'Accept': 'application/vnd.github+json',
+                                                                    'User-Agent': 'TurtleneckInstaller/1.0'})
+        with urllib.request.urlopen(request, timeout=20) as response:
+            archive_url = _pinned_archive_url(json.load(response))
+        request = urllib.request.Request(archive_url, headers={'User-Agent': 'TurtleneckInstaller/1.0'})
         with urllib.request.urlopen(request, timeout=30) as response, archive.open('wb') as output:
             length = response.headers.get('Content-Length')
             if length and int(length) > MAX_SOURCE_BYTES:

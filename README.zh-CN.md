@@ -43,7 +43,7 @@ python3 skills/university-agent/scripts/install_turtleneck.py --apply
 ```
 
 不需要安装 Git。如果电脑没有 Git，请在仓库页面选择 **Code → Download ZIP**，解压后运行同一个脚本。
-安装器会使用这个本地目录；如果只有脚本，则把公开的 `turtleneck` 分支 ZIP 下载到临时目录，检查大小和路径后安装，完成后立即删除。
+安装器会使用这个本地目录；如果只有脚本，则先解析公开 `turtleneck` 分支的当前提交，再下载固定到该 SHA 的 ZIP 到临时目录，检查大小和路径后安装，完成后立即删除。
 安装过程中不会读取学校账号、密码或 Cookie。
 
 明确安装成功后，Turtleneck 可能只提示一次“如果有帮助，请在 GitHub 点一颗星”。完全自愿，不影响功能或支持。

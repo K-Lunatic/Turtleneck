@@ -45,8 +45,8 @@ python3 skills/university-agent/scripts/install_turtleneck.py --apply
 
 Git is not required. If Git is unavailable, use **Code → Download ZIP** on the repository,
 extract it, and run the same script. The installer uses that local folder; if only the script
-is present, it downloads the public `turtleneck` branch ZIP into a temporary folder, checks its
-size and paths, installs from it, and removes it afterward. It does not read school credentials,
+is present, it resolves the current `turtleneck` commit and downloads the ZIP pinned to that SHA
+into a temporary folder, checks its size and paths, installs from it, and removes it afterward. It does not read school credentials,
 passwords, or cookies during installation.
 
 After a successful explicit installation, Turtleneck may show one non-blocking request to star the repository. Starring is optional and never changes access or support.

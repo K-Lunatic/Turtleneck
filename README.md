@@ -153,8 +153,8 @@ python3 skills/university-agent/scripts/install_turtleneck.py --apply
 
 Git이 없어도 설치할 수 있습니다. GitHub 저장소의 **Code → Download ZIP**으로 압축을 받은 뒤
 압축을 풀고 같은 스크립트를 실행하면, 터틀넥이 현재 폴더를 로컬 설치 원본으로 사용합니다.
-저장소 폴더 없이 스크립트만 실행한 경우에는 공개 `turtleneck` 브랜치 ZIP을 임시 폴더에 받아
-설치한 뒤 즉시 삭제합니다. 설치 과정에서 GitHub ZIP 전체 크기와 압축 경로를 검사하며, 학교 계정·비밀번호·쿠키는 읽지 않습니다.
+저장소 폴더 없이 스크립트만 실행한 경우에는 공개 `turtleneck` 브랜치의 현재 커밋을 먼저 확인하고,
+그 커밋 SHA에 고정된 GitHub ZIP을 임시 폴더에 받아 설치한 뒤 즉시 삭제합니다. 설치 과정에서 GitHub ZIP 전체 크기와 압축 경로를 검사하며, 학교 계정·비밀번호·쿠키는 읽지 않습니다.
 따라서 Git이 없는 새 컴퓨터에서는 다음 흐름이면 됩니다.
 
 1. [Turtleneck 저장소](https://github.com/K-Lunatic/Turtleneck)에서 **Code → Download ZIP**
