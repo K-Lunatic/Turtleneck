@@ -13,6 +13,8 @@
 > CLI가 만든 항목은 한 번 읽은 뒤 현재 앱의 native 접근 항목으로 마이그레이션한다.
 > 임시 macOS ARM64 환경에서 PyInstaller 번들을 다시 만들고 메인 `--version`·도움말,
 > 보조 앱 `--status`, 비밀값 부재, `codesign --verify --deep --strict`를 직접 확인했다.
+> 최신 코드 기준 release dry-run `44247981591`에서도 macOS Intel/ARM64·Windows x64
+> unsigned bundle과 source archive가 모두 생성됐고, `publish=false`라 실제 공개 릴리스는 만들지 않았다.
 > 이전의 `76922d8` 이후 이어지는 릴리스·설치·벤치마크 설명은 아래 기록을 기준으로 판단한다. 기존
 > GitHub Actions
 > run `44211202926` 기록은 해당 시점의 릴리스·설치 검증 근거로 남겨 둔다.
