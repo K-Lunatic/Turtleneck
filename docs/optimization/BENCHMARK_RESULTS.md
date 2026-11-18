@@ -46,9 +46,9 @@ TLS fixture의 요청 수는 양쪽 모두 9회, 요청 본문량은 0B, 응답 
 | 최신 기준 | `b64d82b` | 학습·저장·캐시·미디어·TLS 측정 |
 | 현재 최적화 | `2565d02` | 트래픽 계측 보강, 학습·저장·캐시·미디어·TLS 측정 |
 
-전사(`local_asr`)는 실제 whisper.cpp 모델·GPU·강의 원본이 없는 환경에서 속도를 추정하지 않고
-`not_measured`로 기록했다. 원시 JSON에는 파트별 시작·종료 시각, 실행 환경, 역할, 대상 파일이 함께
-저장되며, Windows 결과는 GitHub Actions artifact로 별도 보관한다.
+전사(`local_asr`)는 초기 측정에서는 모델이 없어 `not_measured`였지만, 아래 최신 실측에서 검증된
+Whisper.cpp 모델과 로컬 강의 음성으로 보정했다. 원시 JSON에는 파트별 시작·종료 시각, 실행 환경,
+역할, 대상 파일이 함께 저장되며, Windows 결과는 GitHub Actions artifact로 별도 보관한다.
 
 ### 로컬 전사 실측 보정 — 2026-11-18
 
