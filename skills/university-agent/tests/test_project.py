@@ -560,6 +560,35 @@ class ProjectTests(ProjectTestBase):
                 credentials._read_keychain_secret('university-agent/tls', 'default')
         run.assert_not_called()
 
+    def test_keychain_normal_read_disables_interactive_prompt(self):
+        interaction = []
+
+        class NativeCall:
+            def __init__(self, result):
+                self.result = result
+
+            def __call__(self, *args):
+                return self.result
+
+        def set_interaction(value):
+            interaction.append(value)
+            return 0
+
+        security = SimpleNamespace(
+            SecKeychainSetUserInteractionAllowed=set_interaction,
+            SecKeychainFindGenericPassword=NativeCall(-25308),
+            SecKeychainItemFreeContent=NativeCall(0),
+        )
+        foundation = SimpleNamespace(CFRelease=NativeCall(0))
+        with patch.object(credentials.sys, 'platform', 'darwin'), \
+             patch.object(credentials.ctypes, 'CDLL', side_effect=[security, foundation]), \
+             patch.dict(os.environ, {'TURTLENECK_ALLOW_KEYCHAIN_MIGRATION': '0'}), \
+             patch.object(credentials.subprocess, 'run') as run:
+            with self.assertRaises(OSError):
+                credentials._read_keychain_secret('university-agent/tls', 'default')
+        self.assertEqual(interaction, [0, 1])
+        run.assert_not_called()
+
     def test_keychain_acl_trusts_only_current_executable(self):
         calls = []
 

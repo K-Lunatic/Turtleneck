@@ -9,6 +9,8 @@ import os
 import re
 import subprocess
 import sys
+import threading
+from contextlib import contextmanager
 from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -22,6 +24,8 @@ CONFIG_PATH = Path.home() / ".university-agent" / "tls-account.json"
 SESSION_PATH = CONFIG_PATH.with_name("tls-session.json")
 DEFAULT_SITE = "tls.kku.ac.kr"
 DEFAULT_ALIAS = "default"
+
+_KEYCHAIN_INTERACTION_LOCK = threading.RLock()
 
 
 CredentialInputRequired = FormUnavailable
@@ -72,6 +76,23 @@ def _session_service(site: str) -> str:
     return SESSION_SERVICE if site == DEFAULT_SITE else f"university-agent/tls-session/{site}"
 
 
+@contextmanager
+def _keychain_interaction(security, allowed: bool):
+    """Keep normal reads silent; only explicit reconnects may show macOS UI."""
+    setter = getattr(security, "SecKeychainSetUserInteractionAllowed", None)
+    if setter is None:
+        yield
+        return
+    with _KEYCHAIN_INTERACTION_LOCK:
+        setter.argtypes = [ctypes.c_uint8]
+        setter.restype = ctypes.c_int32
+        setter(1 if allowed else 0)
+        try:
+            yield
+        finally:
+            setter(1)
+
+
 def _read_keychain_secret(service: str, account: str) -> str:
     if sys.platform == "darwin":
         try:
@@ -89,10 +110,13 @@ def _read_keychain_secret(service: str, account: str) -> str:
             length = ctypes.c_uint32()
             data = ctypes.c_void_p()
             item = ctypes.c_void_p()
-            status = security.SecKeychainFindGenericPassword(
-                None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
-                ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
-            )
+            with _keychain_interaction(
+                security, os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") == "1"
+            ):
+                status = security.SecKeychainFindGenericPassword(
+                    None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
+                    ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
+                )
             if status == 0:
                 try:
                     secret = ctypes.string_at(data, length.value).decode("utf-8")
@@ -248,17 +272,19 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
         secret_bytes = secret.encode("utf-8")
         item = ctypes.c_void_p()
         password_buffer = ctypes.create_string_buffer(secret_bytes)
-        status = security.SecKeychainAddGenericPassword(
-            None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
-            len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
-        )
+        with _keychain_interaction(security, True):
+            status = security.SecKeychainAddGenericPassword(
+                None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
+                len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
+            )
         try:
             if status == -25299:  # errSecDuplicateItem: replace only this exact entry.
                 _delete_keychain_secret(service, account)
-                status = security.SecKeychainAddGenericPassword(
-                    None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
-                    len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
-                )
+                with _keychain_interaction(security, True):
+                    status = security.SecKeychainAddGenericPassword(
+                        None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
+                        len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
+                    )
             if status != 0:
                 raise OSError(f"Keychain write failed ({status})")
             # Trust only the executable that saved the item. Never use an empty
