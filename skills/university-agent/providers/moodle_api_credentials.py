@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import subprocess  # Kept as a patchable compatibility boundary for host tests.
 from pathlib import Path
 
 from providers.credentials import (

@@ -95,7 +95,10 @@ def _read_keychain_secret(service: str, account: str) -> str:
             )
             if status == 0:
                 try:
-                    return ctypes.string_at(data, length.value).decode("utf-8")
+                    secret = ctypes.string_at(data, length.value).decode("utf-8")
+                    if not secret:
+                        raise ValueError("보호 저장소 항목이 비어 있어요.")
+                    return secret
                 finally:
                     security.SecKeychainItemFreeContent(None, data)
                     if item:
@@ -104,7 +107,7 @@ def _read_keychain_secret(service: str, account: str) -> str:
                 raise OSError(f"Keychain read failed ({status})")
         except OSError:
             raise
-        except (AttributeError, ctypes.ArgumentError):
+        except (AttributeError, ctypes.ArgumentError, ValueError):
             pass
     result = subprocess.run(
         ("/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w"),
