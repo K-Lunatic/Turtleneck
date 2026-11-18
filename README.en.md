@@ -34,8 +34,8 @@ Turtleneck organizes assignments, announcements, lectures, course files, schedul
 
 ## Quick start
 
-Search GitHub for `Turtleneck AI Skill` or `터틀넥 스킬`. The same package is exposed through the
-Codex and Claude Code marketplace files and the Gemini skill path. Detect the local environment first;
+Search GitHub for `Turtleneck AI Skill` or `터틀넥 스킬`. The package includes the
+Codex and Claude Code marketplace format and the Gemini skill path. Detect the local environment first;
 add `--apply` only after reviewing the official commands:
 
 ```bash
@@ -48,6 +48,14 @@ extract it, and run the same script. The installer uses that local folder; if on
 is present, it resolves the current `turtleneck` commit and downloads the ZIP pinned to that SHA
 into a temporary folder, checks its size and paths, installs from it, and removes it afterward. It does not read school credentials,
 passwords, or cookies during installation.
+
+### Public marketplace status
+
+The package is prepared in marketplace-compatible formats, but public submission is currently on hold
+because Turtleneck accesses third-party endpoints such as university TLS and Everytime without verified
+publisher rights to redistribute those endpoints. A user's permission to access their own account is not
+the same as the publisher's right to distribute a public integration. Do not describe the plugin as publicly
+listed until that authorization is confirmed.
 
 After a successful explicit installation, Turtleneck may show one non-blocking request to star the repository. Starring is optional and never changes access or support.
 

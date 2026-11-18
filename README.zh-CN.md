@@ -34,8 +34,8 @@ Turtleneck 会在运行它的电脑上整理作业、通知、课程视频、课
 
 ## 快速开始
 
-在 GitHub 搜索 `Turtleneck AI Skill` 或 `터틀넥 스킬` 即可找到项目。仓库同时提供 Codex、
-Claude Code marketplace 文件和 Gemini skill 路径。先检测环境，确认官方命令后再加 `--apply`：
+在 GitHub 搜索 `Turtleneck AI Skill` 或 `터틀넥 스킬` 即可找到项目。仓库提供符合 Codex、
+Claude Code marketplace 格式的文件和 Gemini skill 路径。先检测环境，确认官方命令后再加 `--apply`：
 
 ```bash
 python3 skills/university-agent/scripts/install_turtleneck.py
@@ -45,6 +45,12 @@ python3 skills/university-agent/scripts/install_turtleneck.py --apply
 不需要安装 Git。如果电脑没有 Git，请在仓库页面选择 **Code → Download ZIP**，解压后运行同一个脚本。
 安装器会使用这个本地目录；如果只有脚本，则先解析公开 `turtleneck` 分支的当前提交，再下载固定到该 SHA 的 ZIP 到临时目录，检查大小和路径后安装，完成后立即删除。
 安装过程中不会读取学校账号、密码或 Cookie。
+
+### 公开 marketplace 状态
+
+当前软件包已经准备好兼容 marketplace 的格式，但因为 Turtleneck 会访问大学 TLS、Everytime
+等第三方端点，而我们尚未确认发布者拥有重新分发这些端点的权利，公开提交暂缓。用户有权访问
+自己的账号，不等于发布者有权公开分发该集成。在获得授权前，不会声称插件已经公开上架。
 
 明确安装成功后，Turtleneck 可能只提示一次“如果有帮助，请在 GitHub 点一颗星”。完全自愿，不影响功能或支持。
 
