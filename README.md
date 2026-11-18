@@ -151,6 +151,19 @@ python3 skills/university-agent/scripts/install_turtleneck.py --apply
 
 설치가 끝났을 때만 “도움이 됐다면 GitHub에서 별 하나만 눌러 주세요”라는 안내를 한 번 표시합니다. 별은 선택 사항이며 기능·지원 범위와 무관합니다.
 
+Git이 없어도 설치할 수 있습니다. GitHub 저장소의 **Code → Download ZIP**으로 압축을 받은 뒤
+압축을 풀고 같은 스크립트를 실행하면, 터틀넥이 현재 폴더를 로컬 설치 원본으로 사용합니다.
+저장소 폴더 없이 스크립트만 실행한 경우에는 공개 `turtleneck` 브랜치 ZIP을 임시 폴더에 받아
+설치한 뒤 즉시 삭제합니다. 설치 과정에서 GitHub ZIP 전체 크기와 압축 경로를 검사하며, 학교 계정·비밀번호·쿠키는 읽지 않습니다.
+따라서 Git이 없는 새 컴퓨터에서는 다음 흐름이면 됩니다.
+
+1. [Turtleneck 저장소](https://github.com/K-Lunatic/Turtleneck)에서 **Code → Download ZIP**
+2. 압축 해제 후 `skills/university-agent/scripts/install_turtleneck.py` 실행
+3. 먼저 확인 결과를 보고, 동의할 때만 `--apply` 실행
+
+Codex·Claude Code·Gemini 자체가 설치되어 있지 않은 경우에는 먼저 해당 호스트를 설치해야 합니다.
+Git은 터틀넥 설치의 필수 조건이 아닙니다.
+
 ### 1. 설치
 
 로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-arm64-unsigned`, `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 번들에는 PDF 읽기와 완료된 강의 오디오 변환에 필요한 런타임도 포함합니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.

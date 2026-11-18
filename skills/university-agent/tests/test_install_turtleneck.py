@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -26,6 +27,25 @@ class InstallTurtleneckTests(unittest.TestCase):
             self.assertEqual(install_turtleneck.main(['--agent', 'codex', '--apply']), 0)
         self.assertEqual(run.call_count, 3)
         self.assertIn('별 하나', output.call_args_list[-1].args[0])
+
+    def test_missing_git_uses_local_marketplace_path(self):
+        calls = []
+
+        def run(command):
+            calls.append(command)
+            return True, 'ok'
+
+        def which(name):
+            return '/usr/bin/codex' if name == 'codex' else None
+
+        with patch('scripts.install_turtleneck.shutil.which', side_effect=which), \
+             patch('scripts.install_turtleneck._local_source', return_value=Path('/tmp/Turtleneck')), \
+             patch('scripts.install_turtleneck._run', side_effect=run):
+            result = install_turtleneck.install('codex')
+
+        self.assertEqual(result['status'], 'READY')
+        self.assertEqual(calls[0], ['codex', 'plugin', 'marketplace', 'add', '/tmp/Turtleneck'])
+        self.assertEqual(calls[1], ['codex', 'plugin', 'add', 'university-agent@turtleneck'])
 
 
 if __name__ == '__main__':

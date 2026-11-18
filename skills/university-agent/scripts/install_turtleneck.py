@@ -6,9 +6,16 @@ import argparse
 import json
 import shutil
 import subprocess
+import tempfile
+import urllib.error
+import urllib.request
+import zipfile
+from pathlib import Path
 
 REPO = 'K-Lunatic/Turtleneck'
 SKILL_URL = 'https://github.com/K-Lunatic/Turtleneck.git'
+ZIP_URL = 'https://github.com/K-Lunatic/Turtleneck/archive/refs/heads/turtleneck.zip'
+MAX_SOURCE_BYTES = 50 * 1024 * 1024
 
 INSTALLERS = {
     'codex': {
@@ -48,17 +55,93 @@ def _run(command: list[str]) -> tuple[bool, str]:
     return result.returncode == 0, lines[-1] if lines else ''
 
 
+def _local_source() -> Path | None:
+    root = Path(__file__).resolve().parents[3]
+    return root if (root / 'plugin.json').is_file() else None
+
+
+def _download_source() -> tuple[tempfile.TemporaryDirectory, Path]:
+    temp = tempfile.TemporaryDirectory(prefix='turtleneck-install-')
+    archive = Path(temp.name) / 'turtleneck.zip'
+    try:
+        request = urllib.request.Request(ZIP_URL, headers={'User-Agent': 'TurtleneckInstaller/1.0'})
+        with urllib.request.urlopen(request, timeout=30) as response, archive.open('wb') as output:
+            length = response.headers.get('Content-Length')
+            if length and int(length) > MAX_SOURCE_BYTES:
+                raise ValueError('터틀넥 설치 파일이 예상보다 커서 중단했어요.')
+            remaining = MAX_SOURCE_BYTES
+            while remaining:
+                chunk = response.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    break
+                output.write(chunk)
+                remaining -= len(chunk)
+            if remaining == 0 and response.read(1):
+                raise ValueError('터틀넥 설치 파일이 예상보다 커서 중단했어요.')
+        with zipfile.ZipFile(archive) as bundle:
+            members = bundle.namelist()
+            if any(Path(member).is_absolute() or '..' in Path(member).parts for member in members):
+                raise ValueError('설치 파일의 경로가 안전하지 않아 중단했어요.')
+            bundle.extractall(temp.name)
+        roots = [Path(temp.name) / member.rstrip('/') for member in members
+                 if member.count('/') == 1 and member.endswith('/')]
+        root = next((candidate for candidate in roots if (candidate / 'plugin.json').is_file()), None)
+        if root is None:
+            raise ValueError('터틀넥 설치 파일의 구조를 확인하지 못했어요.')
+        return temp, root
+    except Exception:
+        temp.cleanup()
+        raise
+
+
+def _source_without_git() -> tuple[tempfile.TemporaryDirectory | None, Path | None, str | None]:
+    local = _local_source()
+    if local:
+        return None, local, 'local ZIP/폴더 경로'
+    try:
+        temp, source = _download_source()
+        return temp, source, 'GitHub ZIP'
+    except (OSError, ValueError, zipfile.BadZipFile, urllib.error.URLError) as error:
+        return None, None, str(error)
+
+
+def _commands(agent: str, source: Path | None) -> list[list[str]]:
+    if source is None:
+        return INSTALLERS[agent]['install']
+    source = str(source)
+    if agent == 'codex':
+        return [['codex', 'plugin', 'marketplace', 'add', source],
+                ['codex', 'plugin', 'add', 'university-agent@turtleneck']]
+    if agent == 'claude':
+        return [['claude', 'plugin', 'marketplace', 'add', source],
+                ['claude', 'plugin', 'install', 'university-agent@turtleneck']]
+    return [['gemini', 'skills', 'install', str(Path(source) / 'skills' / 'university-agent'), '--scope', 'user']]
+
+
 def install(agent: str) -> dict:
     info = INSTALLERS[agent]
     if not shutil.which(info['command']):
         return {'agent': agent, 'status': 'UNAVAILABLE', 'message': f'{info["command"]}를 찾지 못했어요.'}
-    for command in info['install']:
-        ok, message = _run(command)
-        if not ok:
-            return {'agent': agent, 'status': 'FAILED', 'message': message or '공식 설치 명령이 실패했어요.'}
-    ok, message = _run(info['verify'])
-    return {'agent': agent, 'status': 'READY' if ok else 'VERIFY_FAILED',
-            'message': message or ('설치와 확인을 마쳤어요.' if ok else '설치 후 목록 확인에 실패했어요.')}
+    temporary = None
+    source = None
+    mode = None
+    if not shutil.which('git'):
+        temporary, source, mode = _source_without_git()
+        if source is None:
+            return {'agent': agent, 'status': 'FAILED',
+                    'message': f'Git이 없고 ZIP 설치도 준비하지 못했어요: {mode}'}
+    try:
+        for command in _commands(agent, source):
+            ok, message = _run(command)
+            if not ok:
+                return {'agent': agent, 'status': 'FAILED', 'message': message or '공식 설치 명령이 실패했어요.'}
+        ok, message = _run(info['verify'])
+        return {'agent': agent, 'status': 'READY' if ok else 'VERIFY_FAILED',
+                'message': message or ('설치와 확인을 마쳤어요.' if ok else '설치 후 목록 확인에 실패했어요.'),
+                **({'source': mode} if mode else {})}
+    finally:
+        if temporary:
+            temporary.cleanup()
 
 
 def main(argv=None) -> int:

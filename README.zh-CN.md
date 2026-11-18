@@ -42,6 +42,10 @@ python3 skills/university-agent/scripts/install_turtleneck.py
 python3 skills/university-agent/scripts/install_turtleneck.py --apply
 ```
 
+不需要安装 Git。如果电脑没有 Git，请在仓库页面选择 **Code → Download ZIP**，解压后运行同一个脚本。
+安装器会使用这个本地目录；如果只有脚本，则把公开的 `turtleneck` 分支 ZIP 下载到临时目录，检查大小和路径后安装，完成后立即删除。
+安装过程中不会读取学校账号、密码或 Cookie。
+
 明确安装成功后，Turtleneck 可能只提示一次“如果有帮助，请在 GitHub 点一颗星”。完全自愿，不影响功能或支持。
 
 要求：macOS 或 Windows 上的本地 Codex、Claude Code 或 Gemini 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载未签名的 `turtleneck-macos-x64-unsigned` 或 `turtleneck-windows-x64-unsigned` 免安装包。运行前请先核对校验和，操作系统可能显示安全警告。

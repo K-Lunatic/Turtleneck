@@ -43,6 +43,12 @@ python3 skills/university-agent/scripts/install_turtleneck.py
 python3 skills/university-agent/scripts/install_turtleneck.py --apply
 ```
 
+Git is not required. If Git is unavailable, use **Code → Download ZIP** on the repository,
+extract it, and run the same script. The installer uses that local folder; if only the script
+is present, it downloads the public `turtleneck` branch ZIP into a temporary folder, checks its
+size and paths, installs from it, and removes it afterward. It does not read school credentials,
+passwords, or cookies during installation.
+
 After a successful explicit installation, Turtleneck may show one non-blocking request to star the repository. Starring is optional and never changes access or support.
 
 Requirements: a local Codex, Claude Code, or Gemini environment on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the unsigned `turtleneck-macos-x64-unsigned` or `turtleneck-windows-x64-unsigned` no-install bundle from GitHub Releases. Verify its checksum before running; the operating system may show a security warning.
