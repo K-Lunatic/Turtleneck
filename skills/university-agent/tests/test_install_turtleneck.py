@@ -44,7 +44,8 @@ class InstallTurtleneckTests(unittest.TestCase):
             result = install_turtleneck.install('codex')
 
         self.assertEqual(result['status'], 'READY')
-        self.assertEqual(calls[0], ['codex', 'plugin', 'marketplace', 'add', '/tmp/Turtleneck'])
+        self.assertEqual(calls[0][:4], ['codex', 'plugin', 'marketplace', 'add'])
+        self.assertEqual(Path(calls[0][4]).as_posix(), '/tmp/Turtleneck')
         self.assertEqual(calls[1], ['codex', 'plugin', 'add', 'university-agent@turtleneck'])
 
 
