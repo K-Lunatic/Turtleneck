@@ -1,6 +1,5 @@
 {
   "measurement": "live TLS, controlled one-course fingerprint mismatch",
-  "status": "MEASURED",
   "metadata_only": true,
   "courses": 8,
   "intended_changed_courses": 1,
@@ -13,16 +12,16 @@
       "page": 9
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 96116,
+    "response_body_bytes": 113482,
     "response_body_bytes_by_kind": {
-      "page": 96116
+      "page": 113482
     },
     "statuses": {
       "200": 9
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 2.3643
+    "elapsed_seconds": 2.6938
   },
   "notes": [
     "Both runs start from the same private DB backup and use the same authenticated account.",
@@ -34,26 +33,26 @@
     "Records from courses no longer present in the current enrollment are excluded from preservation comparison."
   ],
   "before": {
-    "requests": 303,
+    "requests": 342,
     "requests_by_kind": {
-      "page": 283,
+      "page": 322,
       "post": 20
     },
     "request_body_bytes": 1000,
-    "response_body_bytes": 1048262,
+    "response_body_bytes": 1357840,
     "response_body_bytes_by_kind": {
-      "page": 1042416,
-      "post": 5846
+      "page": 1351971,
+      "post": 5869
     },
     "statuses": {
-      "200": 203,
-      "303": 60,
+      "200": 241,
+      "303": 61,
       "302": 20,
       "301": 20
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 79.9574
+    "elapsed_seconds": 113.7726
   },
   "after": {
     "requests": 12,
@@ -61,16 +60,16 @@
       "page": 12
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 120714,
+    "response_body_bytes": 138085,
     "response_body_bytes_by_kind": {
-      "page": 120714
+      "page": 138085
     },
     "statuses": {
       "200": 12
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 3.5158
+    "elapsed_seconds": 4.8758
   },
   "selected_course_results_equal": {
     "assignments": true,
@@ -94,7 +93,8 @@
     "activities": 14
   },
   "source_db_bytes_unchanged": true,
-  "requests_reduction_percent": 96.04,
-  "response_body_bytes_reduction_percent": 88.48,
-  "elapsed_seconds_reduction_percent": 95.6
+  "status": "MEASURED",
+  "requests_reduction_percent": 96.49,
+  "response_body_bytes_reduction_percent": 89.83,
+  "elapsed_seconds_reduction_percent": 95.71
 }
