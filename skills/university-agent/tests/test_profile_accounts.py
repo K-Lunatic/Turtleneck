@@ -107,6 +107,12 @@ class ProfileAccountTests(unittest.TestCase):
             config = Path(folder) / "tls-account.json"
             keychain = {}
 
+            def read_secret(service, alias):
+                value = keychain.get((service, alias))
+                if value is None:
+                    raise ValueError("missing fixture secret")
+                return value
+
             def security(args, **_kwargs):
                 service = args[args.index("-s") + 1]
                 alias = args[args.index("-a") + 1]
@@ -116,6 +122,7 @@ class ProfileAccountTests(unittest.TestCase):
 
             with patch.object(credentials, "CONFIG_PATH", config), \
                  patch.object(credentials, "_save_keychain_secret", side_effect=lambda service, alias, secret: keychain.__setitem__((service, alias), secret)), \
+                 patch.object(credentials, "_read_keychain_secret", side_effect=read_secret), \
                  patch.object(credentials.subprocess, "run", side_effect=security):
                 credentials.save("kku-user", "shared-password", "본계정", "tls.kku.ac.kr")
                 credentials.link_account("im.kku.ac.kr", "본계정", "tls.kku.ac.kr", "본계정")

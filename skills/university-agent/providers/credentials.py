@@ -73,6 +73,39 @@ def _session_service(site: str) -> str:
 
 
 def _read_keychain_secret(service: str, account: str) -> str:
+    if sys.platform == "darwin":
+        try:
+            security = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
+            security.SecKeychainFindGenericPassword.argtypes = [
+                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32,
+                ctypes.c_char_p, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_void_p),
+            ]
+            security.SecKeychainFindGenericPassword.restype = ctypes.c_int32
+            security.SecKeychainItemFreeContent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+            security.SecKeychainItemFreeContent.restype = ctypes.c_int32
+            core_foundation = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+            core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
+            length = ctypes.c_uint32()
+            data = ctypes.c_void_p()
+            item = ctypes.c_void_p()
+            status = security.SecKeychainFindGenericPassword(
+                None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
+                ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
+            )
+            if status == 0:
+                try:
+                    return ctypes.string_at(data, length.value).decode("utf-8")
+                finally:
+                    security.SecKeychainItemFreeContent(None, data)
+                    if item:
+                        core_foundation.CFRelease(item)
+            if status != -25300:  # errSecItemNotFound; retain CLI fallback for migration/tests.
+                raise OSError(f"Keychain read failed ({status})")
+        except OSError:
+            raise
+        except (AttributeError, ctypes.ArgumentError):
+            pass
     result = subprocess.run(
         ("/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w"),
         check=True, capture_output=True, text=True, timeout=5,
@@ -81,6 +114,11 @@ def _read_keychain_secret(service: str, account: str) -> str:
     if not secret:
         raise ValueError("보호 저장소 항목이 비어 있어요.")
     return secret
+
+
+# Other local providers use the same native read path so their first use does
+# not fall back to a new `security` process on every request.
+read_keychain_secret = _read_keychain_secret
 
 
 def _save_keychain_secret(service: str, account: str, secret: str) -> None:

@@ -4,10 +4,10 @@ from __future__ import annotations
 import base64
 import json
 import os
-import subprocess
 from pathlib import Path
 
 from providers.credentials import (
+    read_keychain_secret,
     _save_keychain_secret,
     _windows_protect,
     _windows_unprotect,
@@ -91,9 +91,7 @@ def load_token(alias: str | None, site: str, *, service: str | None = None) -> s
             raise ValueError("저장된 Moodle API 토큰을 읽지 못했어요.")
         token = _windows_unprotect(base64.b64decode(protected)).decode("utf-8")
     else:
-        result = subprocess.run(("/usr/bin/security", "find-generic-password", "-s", _service(site, service),
-                                 "-a", alias, "-w"), check=True, capture_output=True, text=True, timeout=5)
-        token = result.stdout.rstrip("\n")
+        token = read_keychain_secret(_service(site, service), alias)
     if not token:
         raise ValueError("저장된 Moodle API 토큰을 읽지 못했어요.")
     return token
