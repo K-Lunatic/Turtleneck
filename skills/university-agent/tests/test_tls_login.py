@@ -213,6 +213,25 @@ class TlsLoginTests(unittest.TestCase):
         self.assertIn('보호 저장소에 세션을 보관하지 못했어요', output.getvalue())
         self.assertNotIn('secret', output.getvalue())
 
+    def test_stored_only_relogin_does_not_rewrite_password(self):
+        class Session:
+            cookies = object()
+
+            def __init__(self, _base_url):
+                pass
+
+            def login(self, _username, _password):
+                pass
+
+        with patch.object(tls_auth, 'resume_saved_session', return_value=None), \
+             patch.object(tls_auth, 'load', return_value=('student', 'secret')), \
+             patch.object(tls_auth, 'MoodleSession', Session), \
+             patch.object(tls_auth, 'save') as save, \
+             patch.object(tls_auth, 'save_session'):
+            username, _session = tls_auth.authenticated_session('https://tls.example', stored_only=True)
+        self.assertEqual(username, 'student')
+        save.assert_not_called()
+
     def test_authenticated_session_reuses_one_process_session_without_reopening_login(self):
         class Session:
             logged_in = True

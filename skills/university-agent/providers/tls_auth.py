@@ -116,7 +116,8 @@ def _authenticated_session_unlocked(base_url: str, requested_username: str | Non
     session = MoodleSession(base_url)
     try:
         session.login(username, password)
-        save(username, password, profile_alias, site)
+        if not stored_only:
+            save(username, password, profile_alias, site)
     finally:
         password = None
     try:
