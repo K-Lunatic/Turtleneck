@@ -12,16 +12,16 @@
       "page": 9
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 96117,
+    "response_body_bytes": 113486,
     "response_body_bytes_by_kind": {
-      "page": 96117
+      "page": 113486
     },
     "statuses": {
       "200": 9
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 2.3821
+    "elapsed_seconds": 2.5787
   },
   "notes": [
     "Both runs start from the same private DB backup and use the same authenticated account.",
@@ -29,46 +29,48 @@
     "Authentication is intentionally excluded from compared sync measurements.",
     "Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.",
     "No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.",
-    "Two live runs are sequential; changing server content and network conditions affect byte/time comparisons."
+    "Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.",
+    "Records from courses no longer present in the current enrollment are excluded from preservation comparison."
   ],
   "before": {
-    "requests": 303,
+    "requests": 344,
     "requests_by_kind": {
-      "page": 283,
+      "page": 324,
       "post": 20
     },
     "request_body_bytes": 1000,
-    "response_body_bytes": 1048324,
+    "response_body_bytes": 1357934,
     "response_body_bytes_by_kind": {
-      "page": 1042478,
-      "post": 5846
+      "page": 1352065,
+      "post": 5869
     },
     "statuses": {
-      "200": 203,
-      "303": 60,
+      "200": 241,
+      "transport_error": 2,
+      "303": 61,
       "302": 20,
       "301": 20
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 78.8734
+    "elapsed_seconds": 177.4407
   },
   "after": {
-    "requests": 12,
+    "requests": 93,
     "requests_by_kind": {
-      "page": 12
+      "page": 93
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 120707,
+    "response_body_bytes": 796475,
     "response_body_bytes_by_kind": {
-      "page": 120707
+      "page": 796475
     },
     "statuses": {
-      "200": 12
+      "200": 93
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 3.5116
+    "elapsed_seconds": 27.1987
   },
   "selected_course_results_equal": {
     "assignments": true,
@@ -78,10 +80,10 @@
     "activities": true
   },
   "unselected_records_preserved": {
-    "assignments": true,
-    "lectures": true,
+    "assignments": false,
+    "lectures": false,
     "notices": true,
-    "resources": false,
+    "resources": true,
     "activities": true
   },
   "selected_course_record_counts": {
@@ -95,7 +97,8 @@
   "reason": "실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.",
   "inconsistent_selected_kinds": [],
   "unpreserved_unselected_kinds": [
-    "resources"
+    "assignments",
+    "lectures"
   ],
   "requests": 0,
   "response_body_bytes": 0,
