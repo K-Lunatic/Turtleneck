@@ -133,6 +133,49 @@ def _read_keychain_secret(service: str, account: str) -> str:
 read_keychain_secret = _read_keychain_secret
 
 
+def _delete_keychain_secret(service: str, account: str) -> None:
+    """Delete one secret without spawning a second macOS security client."""
+    if sys.platform == "darwin":
+        security = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
+        security.SecKeychainFindGenericPassword.argtypes = [
+            ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32,
+            ctypes.c_char_p, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        security.SecKeychainFindGenericPassword.restype = ctypes.c_int32
+        security.SecKeychainItemFreeContent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        security.SecKeychainItemFreeContent.restype = ctypes.c_int32
+        security.SecKeychainItemDelete.argtypes = [ctypes.c_void_p]
+        security.SecKeychainItemDelete.restype = ctypes.c_int32
+        core_foundation = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+        core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
+        length = ctypes.c_uint32()
+        data = ctypes.c_void_p()
+        item = ctypes.c_void_p()
+        status = security.SecKeychainFindGenericPassword(
+            None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
+            ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
+        )
+        if data:
+            security.SecKeychainItemFreeContent(None, data)
+        if status == -25300:  # errSecItemNotFound
+            return
+        if status != 0:
+            raise OSError(f"Keychain lookup failed ({status})")
+        try:
+            status = security.SecKeychainItemDelete(item)
+            if status not in (0, -25300):
+                raise OSError(f"Keychain delete failed ({status})")
+        finally:
+            if item:
+                core_foundation.CFRelease(item)
+        return
+    subprocess.run(
+        ("/usr/bin/security", "delete-generic-password", "-s", service, "-a", account),
+        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+
 def _save_keychain_secret(service: str, account: str, secret: str) -> None:
     """Write a Keychain value without putting the secret in the process argv."""
     if sys.platform == "darwin":
@@ -156,10 +199,7 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
         )
         try:
             if status == -25299:  # errSecDuplicateItem: replace only this exact entry.
-                subprocess.run(
-                    ("/usr/bin/security", "delete-generic-password", "-s", service, "-a", account),
-                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
+                _delete_keychain_secret(service, account)
                 status = security.SecKeychainAddGenericPassword(
                     None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
                     len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
@@ -556,8 +596,7 @@ def clear_session(username: str, alias: str | None = None, site: str = DEFAULT_S
     selected = normalize_alias(alias or state.get("activeAlias") or DEFAULT_ALIAS)
     if os.name != "nt":
         for key in ({selected, username} if not profiles else {selected}):
-            subprocess.run(("/usr/bin/security", "delete-generic-password", "-s", _session_service(site),
-                            "-a", key), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _delete_keychain_secret(_session_service(site), key)
     if profiles and selected in profiles:
         profiles.pop(selected, None)
         if profiles:

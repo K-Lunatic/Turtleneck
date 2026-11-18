@@ -313,6 +313,17 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(tls_auth, 'load_session', side_effect=credentials.subprocess.CalledProcessError(44, 'security')):
             self.assertIsNone(tls_auth.resume_saved_session('https://tls.example'))
 
+    def test_expired_session_cleanup_uses_shared_keychain_delete_path(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'tls-session.json'
+            marker.write_text('{"activeAlias":"default","profiles":{"default":{"username":"student"}}}', encoding='utf-8')
+            with patch.object(credentials, 'SESSION_PATH', marker), \
+                 patch.object(credentials, '_delete_keychain_secret') as delete_secret, \
+                 patch.object(credentials.subprocess, 'run') as run:
+                credentials.clear_session('student')
+            delete_secret.assert_called_once_with(credentials.SESSION_SERVICE, 'default')
+            run.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()
