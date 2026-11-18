@@ -73,7 +73,6 @@ def _session_service(site: str) -> str:
 
 
 def _read_keychain_secret(service: str, account: str) -> str:
-    native_access_error = None
     if sys.platform == "darwin":
         try:
             security = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
@@ -104,14 +103,21 @@ def _read_keychain_secret(service: str, account: str) -> str:
                     security.SecKeychainItemFreeContent(None, data)
                     if item:
                         core_foundation.CFRelease(item)
-            if status != -25300:  # errSecItemNotFound; retain CLI fallback for migration/tests.
+            if status != -25300:  # errSecItemNotFound
                 raise OSError(f"Keychain read failed ({status})")
         except OSError as error:
-            # Older items may trust only `/usr/bin/security`; migrate them after
-            # one legacy read so later processes use the current app identity.
-            native_access_error = error
+            # Do not fall back to a new `security` process during normal use:
+            # macOS can treat it as a different app and ask for approval again.
+            # Reconnect explicitly if an old item needs migration.
+            if os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") != "1":
+                raise error
         except (AttributeError, ctypes.ArgumentError, ValueError):
-            pass
+            if os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") != "1":
+                raise
+    elif os.name == "nt":
+        raise OSError("Windows protected storage must use the DPAPI path")
+    if sys.platform == "darwin" and os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") != "1":
+        raise OSError("macOS Keychain access needs one explicit reconnect")
     result = subprocess.run(
         ("/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w"),
         check=True, capture_output=True, text=True, timeout=5,
@@ -119,12 +125,6 @@ def _read_keychain_secret(service: str, account: str) -> str:
     secret = result.stdout.rstrip("\n")
     if not secret:
         raise ValueError("보호 저장소 항목이 비어 있어요.")
-    if native_access_error is not None:
-        try:
-            _save_keychain_secret(service, account, secret)
-        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
-            # Reading remains valid even if the one-time migration is denied.
-            pass
     return secret
 
 

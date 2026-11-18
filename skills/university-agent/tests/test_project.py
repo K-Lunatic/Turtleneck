@@ -530,7 +530,7 @@ class ProjectTests(ProjectTestBase):
 
     def test_credentials_storage_using_mock_keychain_only(self):
         config = Path(self.temp.name) / 'account.json'
-        with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials, '_save_keychain_secret'), patch.object(credentials.subprocess, 'run') as keychain:
+        with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials, '_save_keychain_secret'), patch.object(credentials.subprocess, 'run') as keychain, patch.dict(os.environ, {'TURTLENECK_ALLOW_KEYCHAIN_MIGRATION': '1'}):
             credentials.save('fixture-user', 'fixture-password')
             if os.name != 'nt':
                 self.assertEqual(config.stat().st_mode & 0o777, 0o600)
@@ -539,6 +539,26 @@ class ProjectTests(ProjectTestBase):
             self.assertEqual(credentials.load(), ('fixture-user', 'fixture-password'))
         with patch.object(credentials, 'CONFIG_PATH', Path(self.temp.name) / 'missing.json'), patch('sys.stdin.isatty', return_value=False), patch.object(credentials, 'collect_secure', side_effect=FormUnavailable('browser form unavailable')):
             with self.assertRaises(FormUnavailable): credentials.resolve()
+
+    def test_keychain_access_error_does_not_spawn_repeated_cli_prompt(self):
+        class NativeCall:
+            def __init__(self, result):
+                self.result = result
+
+            def __call__(self, *args):
+                return self.result
+
+        security = SimpleNamespace(
+            SecKeychainFindGenericPassword=NativeCall(-25293),
+            SecKeychainItemFreeContent=NativeCall(0),
+        )
+        foundation = SimpleNamespace(CFRelease=NativeCall(0))
+        with patch.object(credentials.sys, 'platform', 'darwin'), \
+             patch.object(credentials.ctypes, 'CDLL', side_effect=[security, foundation]), \
+             patch.object(credentials.subprocess, 'run') as run:
+            with self.assertRaises(OSError):
+                credentials._read_keychain_secret('university-agent/tls', 'default')
+        run.assert_not_called()
 
     def test_windows_credentials_use_user_bound_protection(self):
         config = Path(self.temp.name) / 'windows-account.json'
