@@ -61,6 +61,7 @@ def resume_saved_session(base_url: str, requested_username: str | None = None,
     """Return a verified session or None; cookie values never leave this module."""
     site = site_key(base_url)
     profile_alias = profile_alias or os.environ.get("TLS_ACCOUNT_ALIAS") or load_active_alias(site)
+    username = None
     try:
         username = load_username(profile_alias, site)
         if requested_username and requested_username != username:
@@ -73,7 +74,8 @@ def resume_saved_session(base_url: str, requested_username: str | None = None,
     except RequestBackoff:
         raise
     except LoginError:
-        clear_session(username, profile_alias, site)
+        if username:
+            clear_session(username, profile_alias, site)
     except (OSError, KeyError, TypeError, ValueError, subprocess.SubprocessError):
         return None
     return None

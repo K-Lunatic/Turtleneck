@@ -138,7 +138,9 @@ class TlsLoginTests(unittest.TestCase):
 
         self.assertEqual(username, 'student')
         self.assertEqual(session.calls, 1)
-        self.assertEqual(resolve.call_args_list[0].kwargs, {'force_input': False, 'site': 'tls.example'})
+        self.assertEqual(resolve.call_args_list[0].kwargs['force_input'], False)
+        self.assertEqual(resolve.call_args_list[0].kwargs['site'], 'tls.example')
+        self.assertTrue(callable(resolve.call_args_list[0].kwargs['submit_check']))
         self.assertEqual(resolve.call_args_list[1].kwargs['force_input'], True)
         self.assertEqual(resolve.call_args_list[1].kwargs['site'], 'tls.example')
         self.assertTrue(callable(resolve.call_args_list[1].kwargs['submit_check']))

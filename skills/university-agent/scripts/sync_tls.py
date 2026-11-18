@@ -323,9 +323,9 @@ def _login_with_retries_unlocked(base_url: str, requested_username: str | None =
                 raise RuntimeError('저장된 학교 계정의 비밀번호가 비어 있어요. 연결 명령으로 한 번만 다시 입력해 주세요.')
         else:
             input_mode = force_input or attempt > 1
-            resolve_options = {'force_input': input_mode, 'site': site}
-            if input_mode:
-                resolve_options['submit_check'] = verify_form
+            # The first form must also verify the login before showing success.
+            # Otherwise a wrong password can look like a completed registration.
+            resolve_options = {'force_input': input_mode, 'site': site, 'submit_check': verify_form}
             username, password = resolve(requested_username, **resolve_options)
             if verified.get('result'):
                 username, session, profile_alias = verified['result']
