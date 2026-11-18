@@ -52,15 +52,15 @@ jobs:
         shell: bash
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            env -i PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --version
-            env -i PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --help > cli-help.txt
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --version
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --help > cli-help.txt
             test -f "dist/companion/turtleneck-companion.exe"
-            env -i PATH=/usr/bin:/bin:/c/Windows/System32 dist/companion/turtleneck-companion.exe --status > companion-status.json
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/companion/turtleneck-companion.exe --status > companion-status.json
           else
-            env -i PATH=/usr/bin:/bin dist/turtleneck/turtleneck --version
-            env -i PATH=/usr/bin:/bin dist/turtleneck/turtleneck --help > cli-help.txt
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --version
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --help > cli-help.txt
             test -d "dist/companion/Turtleneck Companion.app"
-            env -i PATH=/usr/bin:/bin "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
           fi
           python - <<'PY'
           import json
