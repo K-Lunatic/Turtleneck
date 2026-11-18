@@ -28,6 +28,14 @@ class InstallTurtleneckTests(unittest.TestCase):
         self.assertEqual(run.call_count, 3)
         self.assertIn('별 하나', output.call_args_list[-1].args[0])
 
+    def test_apply_does_not_claim_success_without_an_agent(self):
+        state = {'python': False, 'agents': {
+            'codex': {'installed': False}, 'claude': {'installed': False}, 'gemini': {'installed': False},
+        }}
+        with patch('scripts.install_turtleneck.detect', return_value=state), patch('builtins.print') as output:
+            self.assertEqual(install_turtleneck.main(['--apply']), 1)
+        self.assertEqual(json.loads(output.call_args.args[0])['status'], 'UNAVAILABLE')
+
     def test_missing_git_uses_local_marketplace_path(self):
         calls = []
 

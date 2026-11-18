@@ -167,6 +167,14 @@ def main(argv=None) -> int:
         print(json.dumps({'status': 'CHECKED', 'environment': state, 'selected': selected,
                           'message': '설치를 진행하려면 사용자가 --apply를 선택해야 해요.'}, ensure_ascii=False))
         return 0
+    if not selected:
+        print(json.dumps({
+            'status': 'UNAVAILABLE',
+            'environment': state,
+            'results': [],
+            'message': '지원되는 에이전트를 찾지 못했어요. Codex·Claude Code·Gemini를 먼저 설치해 주세요.',
+        }, ensure_ascii=False))
+        return 1
     results = [install(name) for name in selected]
     failed = any(item['status'] != 'READY' for item in results)
     print(json.dumps({'status': 'FAILED' if failed else 'READY', 'environment': state, 'results': results}, ensure_ascii=False))
