@@ -560,6 +560,36 @@ class ProjectTests(ProjectTestBase):
                 credentials._read_keychain_secret('university-agent/tls', 'default')
         run.assert_not_called()
 
+    def test_keychain_acl_trusts_only_current_executable(self):
+        calls = []
+
+        class NativeCall:
+            def __init__(self, result):
+                self.result = result
+
+            def __call__(self, *args):
+                calls.append(args)
+                if len(args) > 1 and hasattr(args[1], '_obj'):
+                    args[1]._obj.value = 11
+                return self.result
+
+        security = SimpleNamespace(
+            SecTrustedApplicationCreateFromPath=NativeCall(0),
+            SecAccessCreate=NativeCall(0),
+            SecKeychainItemSetAccess=NativeCall(0),
+        )
+        foundation = SimpleNamespace(
+            CFStringCreateWithCString=NativeCall(12),
+            CFArrayCreate=NativeCall(13),
+            CFRelease=NativeCall(0),
+        )
+        with patch.object(credentials.sys, 'executable', '/tmp/turtleneck'), \
+             patch.object(credentials.os.path, 'realpath', return_value='/tmp/turtleneck'):
+            self.assertTrue(credentials._trust_current_executable(security, foundation, 14))
+        trusted_path = calls[0][0].decode('utf-8')
+        self.assertEqual(trusted_path, '/tmp/turtleneck')
+        self.assertTrue(any(call and call[0] == 14 for call in calls))
+
     def test_windows_credentials_use_user_bound_protection(self):
         config = Path(self.temp.name) / 'windows-account.json'
         with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials.os, 'name', 'nt'), patch.object(credentials, '_windows_protect', return_value=b'protected-password') as protect:

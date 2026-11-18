@@ -133,6 +133,61 @@ def _read_keychain_secret(service: str, account: str) -> str:
 read_keychain_secret = _read_keychain_secret
 
 
+def _trust_current_executable(security, foundation, item) -> bool:
+    """Allow this exact executable without granting Keychain access to all apps."""
+    executable = os.path.realpath(sys.executable or "")
+    if not executable:
+        return False
+    trusted = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
+    trusted_list = ctypes.c_void_p()
+    access = ctypes.c_void_p()
+    try:
+        security.SecTrustedApplicationCreateFromPath.argtypes = [
+            ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p),
+        ]
+        security.SecTrustedApplicationCreateFromPath.restype = ctypes.c_int32
+        if security.SecTrustedApplicationCreateFromPath(
+            executable.encode("utf-8"), ctypes.byref(trusted)
+        ) != 0:
+            return False
+
+        foundation.CFStringCreateWithCString.argtypes = [
+            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32,
+        ]
+        foundation.CFStringCreateWithCString.restype = ctypes.c_void_p
+        descriptor = ctypes.c_void_p(foundation.CFStringCreateWithCString(
+            None, b"Turtleneck protected credential", 0x08000100,
+        ))
+        values = (ctypes.c_void_p * 1)(trusted.value)
+        foundation.CFArrayCreate.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.c_long, ctypes.c_void_p,
+        ]
+        foundation.CFArrayCreate.restype = ctypes.c_void_p
+        trusted_list = ctypes.c_void_p(foundation.CFArrayCreate(None, values, 1, None))
+        if not trusted_list:
+            return False
+        security.SecAccessCreate.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+        ]
+        security.SecAccessCreate.restype = ctypes.c_int32
+        if security.SecAccessCreate(descriptor, trusted_list, ctypes.byref(access)) != 0:
+            return False
+        security.SecKeychainItemSetAccess.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        security.SecKeychainItemSetAccess.restype = ctypes.c_int32
+        return security.SecKeychainItemSetAccess(item, access) == 0
+    except (AttributeError, OSError, ctypes.ArgumentError, TypeError):
+        # Older macOS/packaged environments may not expose deprecated ACL APIs.
+        return False
+    finally:
+        for value in (access, trusted_list, descriptor, trusted):
+            if value:
+                try:
+                    foundation.CFRelease(value)
+                except (AttributeError, TypeError):
+                    pass
+
+
 def _delete_keychain_secret(service: str, account: str) -> None:
     """Delete one secret without spawning a second macOS security client."""
     if sys.platform == "darwin":
@@ -206,6 +261,9 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
                 )
             if status != 0:
                 raise OSError(f"Keychain write failed ({status})")
+            # Trust only the executable that saved the item. Never use an empty
+            # trusted list, which would make every local app trusted.
+            _trust_current_executable(security, core_foundation, item)
         finally:
             if item:
                 core_foundation.CFRelease(item)
