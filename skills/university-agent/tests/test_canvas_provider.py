@@ -136,7 +136,8 @@ class CanvasProviderTests(unittest.TestCase):
             with patch.object(canvas_credentials, "_config_path", return_value=path), \
                  patch.object(canvas_credentials, "_save_keychain_secret") as save_secret, \
                  patch.object(canvas_credentials.subprocess, "run",
-                              return_value=SimpleNamespace(stdout="secret-token\n")) as run:
+                              return_value=SimpleNamespace(stdout="secret-token\n")) as run, \
+                 patch.dict(os.environ, {"TURTLENECK_ALLOW_KEYCHAIN_MIGRATION": "1"}):
                 canvas_credentials.save_token("secret-token", "본계정", "canvas.example.edu")
                 self.assertNotIn("secret-token", path.read_text(encoding="utf-8"))
                 with patch.object(canvas_credentials.subprocess, "run", return_value=SimpleNamespace(stdout="secret-token\n")):
@@ -158,7 +159,8 @@ class CanvasProviderTests(unittest.TestCase):
 
             with patch.object(canvas_credentials, "CONFIG_PATH", base), \
                  patch.object(canvas_credentials, "_save_keychain_secret", side_effect=lambda service, alias, token: security_result(("security", "add-generic-password", "-s", service, "-a", alias), input=token + "\n")), \
-                 patch.object(canvas_credentials.subprocess, "run", side_effect=security_result):
+                 patch.object(canvas_credentials.subprocess, "run", side_effect=security_result), \
+                 patch.dict(os.environ, {"TURTLENECK_ALLOW_KEYCHAIN_MIGRATION": "1"}):
                 canvas_credentials.save_token("token-a", "main", "canvas-a.example.edu")
                 canvas_credentials.save_token("token-b", "main", "canvas-b.example.edu")
                 self.assertEqual(canvas_credentials.load_token("main", "canvas-a.example.edu"), "token-a")
