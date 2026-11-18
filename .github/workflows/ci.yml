@@ -120,19 +120,19 @@ jobs:
           python -m pip install -r packaging/desktop-requirements.txt
           pyinstaller packaging/turtleneck.spec --noconfirm --clean
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            dist/turtleneck/turtleneck.exe --version
-            dist/turtleneck/turtleneck.exe --help > cli-help.txt
+            env -i PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --version
+            env -i PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --help > cli-help.txt
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -f "dist/companion/turtleneck-companion.exe"
-            dist/companion/turtleneck-companion.exe --status > companion-status.json
+            env -i PATH=/usr/bin:/bin:/c/Windows/System32 dist/companion/turtleneck-companion.exe --status > companion-status.json
           else
-            dist/turtleneck/turtleneck --version
-            dist/turtleneck/turtleneck --help > cli-help.txt
+            env -i PATH=/usr/bin:/bin dist/turtleneck/turtleneck --version
+            env -i PATH=/usr/bin:/bin dist/turtleneck/turtleneck --help > cli-help.txt
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -d "dist/companion/Turtleneck Companion.app"
-            "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
+            env -i PATH=/usr/bin:/bin "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
           fi
           python - <<'PY'
           import json
