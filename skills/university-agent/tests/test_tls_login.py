@@ -1,4 +1,5 @@
 import io
+import os
 import sys
 import tempfile
 import threading
@@ -313,6 +314,7 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(tls_auth, 'load_session', side_effect=credentials.subprocess.CalledProcessError(44, 'security')):
             self.assertIsNone(tls_auth.resume_saved_session('https://tls.example'))
 
+    @unittest.skipIf(os.name == 'nt', 'Windows sessions use DPAPI and need no Keychain deletion')
     def test_expired_session_cleanup_uses_shared_keychain_delete_path(self):
         with tempfile.TemporaryDirectory() as folder:
             marker = Path(folder) / 'tls-session.json'
