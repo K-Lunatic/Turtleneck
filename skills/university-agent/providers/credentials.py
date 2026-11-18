@@ -73,6 +73,7 @@ def _session_service(site: str) -> str:
 
 
 def _read_keychain_secret(service: str, account: str) -> str:
+    native_access_error = None
     if sys.platform == "darwin":
         try:
             security = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
@@ -105,8 +106,10 @@ def _read_keychain_secret(service: str, account: str) -> str:
                         core_foundation.CFRelease(item)
             if status != -25300:  # errSecItemNotFound; retain CLI fallback for migration/tests.
                 raise OSError(f"Keychain read failed ({status})")
-        except OSError:
-            raise
+        except OSError as error:
+            # Older items may trust only `/usr/bin/security`; migrate them after
+            # one legacy read so later processes use the current app identity.
+            native_access_error = error
         except (AttributeError, ctypes.ArgumentError, ValueError):
             pass
     result = subprocess.run(
@@ -116,6 +119,12 @@ def _read_keychain_secret(service: str, account: str) -> str:
     secret = result.stdout.rstrip("\n")
     if not secret:
         raise ValueError("보호 저장소 항목이 비어 있어요.")
+    if native_access_error is not None:
+        try:
+            _save_keychain_secret(service, account, secret)
+        except (OSError, RuntimeError, subprocess.SubprocessError, ValueError):
+            # Reading remains valid even if the one-time migration is denied.
+            pass
     return secret
 
 
