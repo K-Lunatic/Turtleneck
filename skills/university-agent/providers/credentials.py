@@ -534,11 +534,9 @@ def load_session(username: str, alias: str | None = None, site: str = DEFAULT_SI
         last_error = None
         for key in accounts:
             try:
-                result = subprocess.run(("/usr/bin/security", "find-generic-password", "-s", _session_service(site),
-                                         "-a", key, "-w"), check=True, capture_output=True, text=True)
-                payload = result.stdout.rstrip("\n")
+                payload = _read_keychain_secret(_session_service(site), key)
                 break
-            except subprocess.SubprocessError as error:
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
                 last_error = error
         else:
             raise last_error or ValueError("저장된 학교 세션을 읽지 못했어요.")

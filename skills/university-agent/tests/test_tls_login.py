@@ -48,6 +48,7 @@ class TlsLoginTests(unittest.TestCase):
 
             with patch.object(credentials, 'SESSION_PATH', marker), \
                  patch.object(credentials, '_save_keychain_secret', side_effect=lambda service, alias, secret: keychain.append(secret)), \
+                 patch.object(credentials, '_read_keychain_secret', side_effect=lambda service, alias: keychain[-1]), \
                  patch.object(credentials.subprocess, 'run', side_effect=security):
                 credentials.save_session('student', jar)
                 self.assertNotIn('fixture-cookie', marker.read_text(encoding='utf-8'))
