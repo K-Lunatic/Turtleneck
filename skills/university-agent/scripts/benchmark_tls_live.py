@@ -161,6 +161,7 @@ def main():
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return
     report['source_db_bytes_unchanged'] = hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
+    report['status'] = 'MEASURED'
     for key in ('requests', 'response_body_bytes', 'elapsed_seconds'):
         report[key + '_reduction_percent'] = round((1 - report['after'][key] / report['before'][key]) * 100, 2)
     output = REPO / 'tls-optimization-results/live.json'

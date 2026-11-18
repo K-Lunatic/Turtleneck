@@ -1,5 +1,6 @@
 {
   "measurement": "live TLS, controlled one-course fingerprint mismatch",
+  "status": "MEASURED",
   "metadata_only": true,
   "courses": 8,
   "intended_changed_courses": 1,

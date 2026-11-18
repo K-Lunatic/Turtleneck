@@ -164,6 +164,10 @@ class TLSOptimizationTests(unittest.TestCase):
         self.assertIn('usage: benchmark_tls_live.py', result.stdout)
         self.assertNotIn('NOT_MEASURED', result.stdout)
 
+    def test_successful_live_report_is_explicitly_marked_measured(self):
+        report = json.loads((ROOT.parents[1] / 'tls-optimization-results/live.json').read_text(encoding='utf-8'))
+        self.assertEqual(report.get('status'), 'MEASURED')
+
     def test_one_changed_course_reuses_pages_and_preserves_other_courses(self):
         pages = dict(self.pages)
         pages['/course/view.php?id=1'] = pages['/course/view.php?id=1'].replace('과제 A', '변경된 과제 A')
