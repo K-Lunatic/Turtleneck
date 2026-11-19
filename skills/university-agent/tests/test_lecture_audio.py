@@ -227,6 +227,8 @@ class LectureAudioTests(unittest.TestCase):
         self.assertEqual(plan['chunks'], [init, first, second])
         window = media_window(plan, 9, 2)
         self.assertEqual(window['chunks'], [init, first, second])
+        self.assertNotEqual(window['sourceKey'], plan['sourceKey'])
+        self.assertNotEqual(window['sourceKey'], media_window(plan, 0, 2)['sourceKey'])
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / 'media.mp4'
             download_media(session, plan, target)

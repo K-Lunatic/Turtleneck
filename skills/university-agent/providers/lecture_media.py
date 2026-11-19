@@ -133,7 +133,10 @@ def media_window(plan, start, duration):
     if not all(type(value) in (int, float) and math.isfinite(value) for value in (start, duration)) or start < 0 or not 0 < duration <= 300:
         raise ValueError('강의 구간은 시작 0초 이상, 길이 1–300초로 골라 주세요.')
     if plan['format'] == 'mov':
-        return {**plan, 'mediaStartSeconds': 0, 'startSeconds': start, 'endSeconds': start + duration}
+        window = {**plan, 'mediaStartSeconds': 0, 'startSeconds': start, 'endSeconds': start + duration}
+        window['sourceKey'] = hashlib.sha256(json.dumps(
+            [plan.get('sourceKey'), start, duration], separators=(',', ':')).encode()).hexdigest()
+        return window
     matches = [index for index, (left, right) in enumerate(plan['segmentTimes']) if right > start and left < start + duration]
     if not matches:
         raise ValueError('선택한 시각이 강의 범위를 벗어났어요.')
@@ -142,9 +145,13 @@ def media_window(plan, start, duration):
     selected_chunks = plan['chunks'][offset + first:offset + last]
     if offset:
         selected_chunks = plan['chunks'][:offset] + selected_chunks
-    return {**plan, 'chunks': selected_chunks,
+    window = {**plan, 'chunks': selected_chunks,
             'mediaStartSeconds': plan['segmentTimes'][first][0], 'startSeconds': start,
             'endSeconds': min(start + duration, plan['durationSeconds'])}
+    window['sourceKey'] = hashlib.sha256(json.dumps(
+        [plan.get('sourceKey'), selected_chunks, window['mediaStartSeconds'], window['endSeconds']],
+        separators=(',', ':')).encode()).hexdigest()
+    return window
 
 
 def download_media(session, plan, target, progress=None):
