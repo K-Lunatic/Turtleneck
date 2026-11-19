@@ -172,20 +172,29 @@ def dashboard_snapshot() -> dict:
     return data
 
 
+def _main_bundle() -> Path | None:
+    if not getattr(sys, "frozen", False):
+        return None
+    executable = Path(sys.executable).resolve()
+    names = ("turtleneck.exe", "turtleneck") if sys.platform == "win32" else ("turtleneck",)
+    candidates: list[Path] = []
+    for directory in (executable.parent, *executable.parents):
+        for name in names:
+            candidates.extend((directory / name, directory / "turtleneck" / name))
+        if directory.parent != directory:
+            for name in names:
+                candidates.append(directory.parent / "turtleneck" / name)
+    installed = shutil.which("turtleneck")
+    if installed:
+        candidates.append(Path(installed))
+    return next((candidate for candidate in dict.fromkeys(candidates) if candidate.is_file()), None)
+
+
 def _exam_command() -> list[str]:
     if getattr(sys, "frozen", False):
-        executable = Path(sys.executable).resolve()
-        candidates = [executable.with_name('turtleneck')]
-        if sys.platform == 'win32':
-            candidates.insert(0, executable.with_name('turtleneck.exe'))
-        if len(executable.parents) > 3:
-            candidates.append(executable.parents[3] / 'turtleneck' / 'turtleneck')
-        installed = shutil.which('turtleneck')
-        if installed:
-            candidates.append(Path(installed))
-        for candidate in candidates:
-            if candidate.is_file():
-                return [str(candidate), "skills/university-agent/scripts/exam_web.py"]
+        main_bundle = _main_bundle()
+        if main_bundle:
+            return [str(main_bundle), "skills/university-agent/scripts/exam_web.py"]
         return [sys.executable, "skills/university-agent/scripts/exam_web.py"]
     return [sys.executable, str(ROOT / "scripts" / "exam_web.py")]
 
@@ -193,18 +202,9 @@ def _exam_command() -> list[str]:
 def _setup_command() -> list[str]:
     """Use the main bundle for setup when this process is the frozen companion."""
     if getattr(sys, "frozen", False):
-        executable = Path(sys.executable).resolve()
-        candidates = [executable.with_name("turtleneck")]
-        if sys.platform == "win32":
-            candidates.insert(0, executable.with_name("turtleneck.exe"))
-        if len(executable.parents) > 3:
-            candidates.append(executable.parents[3] / "turtleneck" / "turtleneck")
-        installed = shutil.which("turtleneck")
-        if installed:
-            candidates.append(Path(installed))
-        for candidate in candidates:
-            if candidate.is_file():
-                return [str(candidate), "skills/university-agent/scripts/setup_turtleneck.py"]
+        main_bundle = _main_bundle()
+        if main_bundle:
+            return [str(main_bundle), "skills/university-agent/scripts/setup_turtleneck.py"]
         return [sys.executable, "skills/university-agent/scripts/setup_turtleneck.py"]
     return [sys.executable, str(ROOT / "scripts" / "setup_turtleneck.py")]
 
