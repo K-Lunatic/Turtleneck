@@ -190,6 +190,25 @@ def _exam_command() -> list[str]:
     return [sys.executable, str(ROOT / "scripts" / "exam_web.py")]
 
 
+def _setup_command() -> list[str]:
+    """Use the main bundle for setup when this process is the frozen companion."""
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable).resolve()
+        candidates = [executable.with_name("turtleneck")]
+        if sys.platform == "win32":
+            candidates.insert(0, executable.with_name("turtleneck.exe"))
+        if len(executable.parents) > 3:
+            candidates.append(executable.parents[3] / "turtleneck" / "turtleneck")
+        installed = shutil.which("turtleneck")
+        if installed:
+            candidates.append(Path(installed))
+        for candidate in candidates:
+            if candidate.is_file():
+                return [str(candidate), "skills/university-agent/scripts/setup_turtleneck.py"]
+        return [sys.executable, "skills/university-agent/scripts/setup_turtleneck.py"]
+    return [sys.executable, str(ROOT / "scripts" / "setup_turtleneck.py")]
+
+
 def _open_exam(site: str, alias: str, exam_id: str) -> None:
     if not EXAM_ID_PATTERN.fullmatch(exam_id):
         raise ValueError("시험지 ID를 확인하지 못했어요.")
@@ -360,7 +379,7 @@ def _build_tray_icon(image_module, draw_module):
 def _open_setup() -> None:
     # Let setup_turtleneck decide whether a login form is needed; --status alone
     # can never reach the form from the companion menu.
-    command = [sys.executable, str(ROOT / "scripts" / "setup_turtleneck.py"), "--only", "tls"]
+    command = _setup_command() + ["--only", "tls"]
     options = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if os.name == "nt":
         options["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)

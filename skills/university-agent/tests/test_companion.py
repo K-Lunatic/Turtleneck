@@ -93,6 +93,19 @@ class CompanionTests(unittest.TestCase):
             self.assertEqual(command[0], str((root / 'turtleneck' / 'turtleneck').resolve()))
             self.assertTrue(command[1].endswith('scripts/exam_web.py'))
 
+    def test_frozen_setup_uses_adjacent_main_bundle_when_available(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            app_dir = root / 'Turtleneck Companion.app' / 'Contents' / 'MacOS'
+            app_dir.mkdir(parents=True)
+            (root / 'turtleneck' / 'turtleneck').parent.mkdir()
+            (root / 'turtleneck' / 'turtleneck').write_bytes(b'')
+            with patch.object(sys, 'frozen', True, create=True), \
+                 patch.object(sys, 'executable', str(app_dir / 'turtleneck-companion')):
+                command = companion._setup_command()
+            self.assertEqual(command[0], str((root / 'turtleneck' / 'turtleneck').resolve()))
+            self.assertTrue(command[1].endswith('scripts/setup_turtleneck.py'))
+
     def test_skill_status_is_local_and_does_not_require_secrets(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
