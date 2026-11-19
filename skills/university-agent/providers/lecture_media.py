@@ -250,7 +250,8 @@ def download_media(session, plan, target, progress=None):
                         header = stream.read(8)
                     valid_header = (plan['format'] == 'mpegts' and header[:1] == b'G')
                     if plan['format'] == 'mp4':
-                        valid_header = index == 0 and header[4:8] == b'ftyp' or index > 0
+                        valid_header = (index == 0 and header[4:8] == b'ftyp') or (
+                            index > 0 and header[4:8] in {b'moof', b'mdat', b'styp'})
                     if not size or (plan['format'] in ('mpegts', 'mp4') and not valid_header) or (plan['format'] == 'mov' and header[4:8] != b'ftyp'):
                         raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
                     keep = True

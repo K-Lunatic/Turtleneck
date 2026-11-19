@@ -220,8 +220,8 @@ class LectureAudioTests(unittest.TestCase):
             '#EXTINF:10,\none.m4s\n#EXTINF:10,\ntwo.m4s\n#EXT-X-ENDLIST\n'
         ).encode()
         session.files[init] = b'\x00\x00\x00\x18ftypisom'
-        session.files[first] = b'mdat-first'
-        session.files[second] = b'mdat-second'
+        session.files[first] = b'\x00\x00\x00\x10mdat-first'
+        session.files[second] = b'\x00\x00\x00\x10mdat-second'
         plan = media_plan(session, SOURCE)
         self.assertEqual(plan['format'], 'mp4')
         self.assertEqual(plan['chunks'], [init, first, second])
@@ -233,6 +233,9 @@ class LectureAudioTests(unittest.TestCase):
             target = Path(folder) / 'media.mp4'
             download_media(session, plan, target)
             self.assertEqual(target.read_bytes(), session.files[init] + session.files[first] + session.files[second])
+            session.files[second] = b'<html>sign in</html>'
+            with self.assertRaises(ValueError):
+                download_media(session, plan, Path(folder) / 'rejected.mp4')
 
     def test_encryption_keys_unknown_formats_live_and_foreign_segments_fail_before_bytes(self):
         cases = [PLAYLIST.replace('#EXTINF:10,', '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:10,', 1),
