@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts')]
 from features import lecture_audio
 from features import lecture_review
-from providers.lecture_media import media_plan, download_media
+from providers.lecture_media import media_plan, media_window, download_media
 from providers.moodle_provider import MoodleTLSProvider, _download_restriction
 from providers.moodle_session import MoodleSession, DownloadRestricted, _DownloadRedirectHandler, check_download_origin
 from storage.local_db import LocalDatabase
@@ -209,6 +209,28 @@ class LectureAudioTests(unittest.TestCase):
         with self.assertRaises(DownloadRestricted):
             media_plan(session, SOURCE)
         self.assertEqual(session.calls, [SOURCE])
+
+    def test_hls_fragmented_mp4_keeps_init_segment_and_window_alignment(self):
+        session = Session()
+        init = SOURCE.rsplit('/', 1)[0] + '/init.mp4'
+        first = SOURCE.rsplit('/', 1)[0] + '/one.m4s'
+        second = SOURCE.rsplit('/', 1)[0] + '/two.m4s'
+        session.files[SOURCE] = (
+            '#EXTM3U\n#EXT-X-MAP:URI="init.mp4"\n'
+            '#EXTINF:10,\none.m4s\n#EXTINF:10,\ntwo.m4s\n#EXT-X-ENDLIST\n'
+        ).encode()
+        session.files[init] = b'\x00\x00\x00\x18ftypisom'
+        session.files[first] = b'mdat-first'
+        session.files[second] = b'mdat-second'
+        plan = media_plan(session, SOURCE)
+        self.assertEqual(plan['format'], 'mp4')
+        self.assertEqual(plan['chunks'], [init, first, second])
+        window = media_window(plan, 9, 2)
+        self.assertEqual(window['chunks'], [init, first, second])
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / 'media.mp4'
+            download_media(session, plan, target)
+            self.assertEqual(target.read_bytes(), session.files[init] + session.files[first] + session.files[second])
 
     def test_encryption_keys_unknown_formats_live_and_foreign_segments_fail_before_bytes(self):
         cases = [PLAYLIST.replace('#EXTINF:10,', '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:10,', 1),

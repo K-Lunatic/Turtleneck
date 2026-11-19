@@ -73,7 +73,7 @@ def _source_fingerprint(plan):
 def extract_audio(provider, user, lecture, plan, root, cached=None, progress=None):
     if lecture.get('completed') is not True:
         raise ValueError('끝까지 본 강의만 음성을 가져올 수 있어요.')
-    if plan.get('format') not in ('mpegts', 'mov'):
+    if plan.get('format') not in ('mpegts', 'mp4', 'mov'):
         raise ValueError('학교 영상 형식을 확인하지 못해 음성을 가져오지 않았어요.')
     root = root.resolve()
     source_key = 'v3-' + hashlib.sha256((_source_fingerprint(plan) + lecture['courseId'] + lecture['title']).encode()).hexdigest()
