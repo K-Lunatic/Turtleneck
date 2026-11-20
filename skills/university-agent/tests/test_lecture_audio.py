@@ -246,6 +246,14 @@ class LectureAudioTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 download_media(session, plan, Path(folder) / 'rejected.mp4')
 
+    def test_hls_playlist_over_chunk_limit_is_rejected_before_media_requests(self):
+        session = Session()
+        segments = ''.join(f'#EXTINF:1,\nchunk-{index}.ts\n' for index in range(4001))
+        session.files[SOURCE] = ('#EXTM3U\n' + segments + '#EXT-X-ENDLIST\n').encode()
+        with self.assertRaisesRegex(ValueError, '영상 길이'):
+            media_plan(session, SOURCE)
+        self.assertEqual(session.calls, [SOURCE])
+
     def test_encryption_keys_unknown_formats_live_and_foreign_segments_fail_before_bytes(self):
         cases = [PLAYLIST.replace('#EXTINF:10,', '#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:10,', 1),
                  PLAYLIST.replace('#EXTINF:10,', '#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="key.bin"\n#EXTINF:10,', 1),
