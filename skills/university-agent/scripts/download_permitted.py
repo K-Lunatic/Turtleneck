@@ -119,8 +119,12 @@ def _main():
                 if not original:
                     raise ValueError('선택한 수업 자료를 현재 과목에서 찾지 못했어요.')
                 print(f"자료 {index}/{len(args.resource_id)} · {original['title']}을 확인하고 있어요…", flush=True)
-                item = provider.download_permitted_resource(user, original, permissions[identifier], args.viewer_url)
+                item = provider.download_permitted_resource(
+                    user, original, permissions[identifier], args.viewer_url, partial_root=path.parent / 'files')
+                partial_manifest_value = item.pop('_partial_manifest', None)
                 saved = store_resource(path.parent / 'files', item)
+                if partial_manifest_value:
+                    Path(partial_manifest_value).unlink(missing_ok=True)
                 with closing(LocalDatabase(path)) as database:
                     database.save_permitted_resource(user, original, saved, permissions[identifier])
                 print(f'자료 {index}/{len(args.resource_id)} 보관 완료', flush=True)

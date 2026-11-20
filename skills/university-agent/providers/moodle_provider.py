@@ -1188,7 +1188,7 @@ class MoodleTLSProvider:
         return item
 
 
-    def download_permitted_resource(self, user_id, resource, permission, viewer_url=None):
+    def download_permitted_resource(self, user_id, resource, permission, viewer_url=None, partial_root=None):
         if not self.site.custom_viewers:
             raise ValueError('이 학교는 아직 별도 다운로드 허용 흐름을 확인하지 않았어요.')
         validate_permission(permission, user_id, resource['id'])
@@ -1214,13 +1214,43 @@ class MoodleTLSProvider:
         if not download_path:
             raise ValueError(issue or '이 자료의 주소를 하나로 확인하지 못해 가져오지 않았어요.')
         streamed_path = None
+        partial_manifest = None
         try:
             if hasattr(self.session, 'stream_bytes_to_file'):
-                temporary = tempfile.NamedTemporaryFile(prefix='.resource-permitted-', delete=False)
-                streamed_path = temporary.name
-                temporary.close()
+                if partial_root is not None:
+                    if not all(re.fullmatch(r'[A-Za-z0-9_-]+', str(resource.get(key, '')))
+                               for key in ('courseId', 'id')):
+                        raise ValueError('자료 저장 식별자가 올바르지 않습니다.')
+                    partial_dir = Path(partial_root) / '.partials' / 'permitted' / str(resource['courseId'])
+                    partial_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    streamed_path = str(partial_dir / f"{resource['id']}.part")
+                    partial_manifest = partial_dir / f"{resource['id']}.json"
+                    expected = {'courseId': resource['courseId'], 'resourceId': resource['id'],
+                                'downloadPath': download_path}
+                    try:
+                        saved = json.loads(partial_manifest.read_text(encoding='utf-8')) if partial_manifest.is_file() else None
+                    except (OSError, ValueError):
+                        saved = None
+                    if saved != expected:
+                        Path(streamed_path).unlink(missing_ok=True)
+                        partial_manifest.unlink(missing_ok=True)
+                    if not partial_manifest.is_file():
+                        temporary = tempfile.NamedTemporaryFile(dir=partial_dir, prefix='.permission-',
+                                                                mode='w', encoding='utf-8', delete=False)
+                        try:
+                            json.dump(expected, temporary, ensure_ascii=False)
+                            temporary.flush()
+                            os.fsync(temporary.fileno())
+                        finally:
+                            temporary.close()
+                        os.replace(temporary.name, partial_manifest)
+                else:
+                    temporary = tempfile.NamedTemporaryFile(prefix='.resource-permitted-', delete=False)
+                    streamed_path = temporary.name
+                    temporary.close()
                 result = self.session.stream_bytes_to_file(
-                    download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000)
+                    download_path, streamed_path, allowed_origin=self._origin_host(), max_bytes=1_000_000_000,
+                    resume_existing=partial_root is not None)
                 content = _read_file_sample(streamed_path)
                 response = type('StreamResponse', (), {
                     'headers': result['headers'],
@@ -1228,7 +1258,15 @@ class MoodleTLSProvider:
                 })()
             else:
                 content, response = self.session.get_bytes(download_path, allowed_origin=self._origin_host())
-        except HTTPError:
+        except HTTPError as error:
+            if streamed_path and (partial_manifest is None or error.code not in {408, 425, 429, 500, 502, 503, 504}):
+                Path(streamed_path).unlink(missing_ok=True)
+                if partial_manifest:
+                    partial_manifest.unlink(missing_ok=True)
+            raise
+        except (URLError, TimeoutError, ConnectionError):
+            if streamed_path and partial_manifest is None:
+                Path(streamed_path).unlink(missing_ok=True)
             raise
         except (ValueError, OSError) as error:
             if streamed_path and os.path.exists(streamed_path):
@@ -1260,7 +1298,8 @@ class MoodleTLSProvider:
             raise DownloadRestricted('원본 파일의 형식을 확인하지 못해 저장하지 않았어요.')
         return {**resource, 'fileName': name, 'extension': extension, 'mimeType': mime_type,
                 ('_content_path' if streamed_path else '_content'): streamed_path or content,
-                '_viewerUrl': viewer_url}
+                '_viewerUrl': viewer_url,
+                '_partial_manifest': str(partial_manifest) if partial_manifest else None}
 
 
 def _download_restriction(activity_text: str, title: str, notices: list[dict[str, Any]], *, videos=False) -> str | None:

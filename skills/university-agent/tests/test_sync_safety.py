@@ -311,6 +311,35 @@ class SyncSafetyTests(unittest.TestCase):
             with closing(LocalDatabase(path, read_only=True)) as database:
                 self.assertTrue(all(row['downloadStatus'] == 'DOWNLOADED' for row in database.get_resources('u')))
 
+    def test_permitted_stream_keeps_checkpoint_for_retry(self):
+        session, provider, original, permission, _ = self.permitted_fixture()
+        content = b'%PDF-permitted-fixture'
+        calls = []
+
+        def stream(url, target, **kwargs):
+            target = Path(target)
+            calls.append((target.stat().st_size if target.exists() else 0, kwargs.get('resume_existing')))
+            if len(calls) == 1:
+                target.write_bytes(content[:5])
+                raise URLError('temporary reset')
+            with target.open('ab') as output:
+                output.write(content[5:])
+            headers = Message()
+            headers['Content-Type'] = 'application/pdf'
+            return {'size': len(content),
+                    'url': 'https://tls.kku.ac.kr/local/ubdoc/download.php?id=12345&tp=m&pg=ubfile',
+                    'headers': headers}
+
+        session.stream_bytes_to_file = stream
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'files'
+            with self.assertRaises(URLError):
+                provider.download_permitted_resource('u', original, permission, partial_root=root)
+            saved = provider.download_permitted_resource('u', original, permission, partial_root=root)
+            self.assertEqual(Path(saved['_content_path']).read_bytes(), content)
+            self.assertEqual(calls, [(0, True), (5, True)])
+            self.assertTrue(list((root / '.partials').rglob('*.json')))
+
     def test_permission_network_timeout_is_not_reported_as_folder_failure(self):
         session, provider, original, permission, _ = self.permitted_fixture()
         with tempfile.TemporaryDirectory() as directory:
