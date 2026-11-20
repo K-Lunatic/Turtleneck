@@ -12,16 +12,16 @@
       "page": 9
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 96109,
+    "response_body_bytes": 96097,
     "response_body_bytes_by_kind": {
-      "page": 96109
+      "page": 96097
     },
     "statuses": {
       "200": 9
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 6.5508
+    "elapsed_seconds": 2.3098
   },
   "notes": [
     "Both runs start from the same private DB backup and use the same authenticated account.",
@@ -39,9 +39,9 @@
       "post": 20
     },
     "request_body_bytes": 1000,
-    "response_body_bytes": 1047803,
+    "response_body_bytes": 1047937,
     "response_body_bytes_by_kind": {
-      "page": 1041934,
+      "page": 1042068,
       "post": 5869
     },
     "statuses": {
@@ -52,7 +52,7 @@
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 86.8435
+    "elapsed_seconds": 88.1111
   },
   "after": {
     "requests": 12,
@@ -60,16 +60,16 @@
       "page": 12
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 120690,
+    "response_body_bytes": 120683,
     "response_body_bytes_by_kind": {
-      "page": 120690
+      "page": 120683
     },
     "statuses": {
       "200": 12
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 3.6202
+    "elapsed_seconds": 3.9144
   },
   "selected_course_results_equal": {
     "assignments": true,
@@ -96,5 +96,5 @@
   "status": "MEASURED",
   "requests_reduction_percent": 96.04,
   "response_body_bytes_reduction_percent": 88.48,
-  "elapsed_seconds_reduction_percent": 95.83
+  "elapsed_seconds_reduction_percent": 95.56
 }
