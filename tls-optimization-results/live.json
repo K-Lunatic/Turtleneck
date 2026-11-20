@@ -12,16 +12,16 @@
       "page": 9
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 96097,
+    "response_body_bytes": 113544,
     "response_body_bytes_by_kind": {
-      "page": 96097
+      "page": 113544
     },
     "statuses": {
       "200": 9
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 2.3098
+    "elapsed_seconds": 2.5469
   },
   "notes": [
     "Both runs start from the same private DB backup and use the same authenticated account.",
@@ -33,26 +33,26 @@
     "Records from courses no longer present in the current enrollment are excluded from preservation comparison."
   ],
   "before": {
-    "requests": 303,
+    "requests": 342,
     "requests_by_kind": {
-      "page": 283,
+      "page": 322,
       "post": 20
     },
     "request_body_bytes": 1000,
-    "response_body_bytes": 1047937,
+    "response_body_bytes": 1358206,
     "response_body_bytes_by_kind": {
-      "page": 1042068,
+      "page": 1352337,
       "post": 5869
     },
     "statuses": {
-      "200": 203,
-      "303": 60,
+      "200": 241,
+      "303": 61,
       "302": 20,
       "301": 20
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 88.1111
+    "elapsed_seconds": 91.1166
   },
   "after": {
     "requests": 12,
@@ -60,16 +60,16 @@
       "page": 12
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 120683,
+    "response_body_bytes": 138142,
     "response_body_bytes_by_kind": {
-      "page": 120683
+      "page": 138142
     },
     "statuses": {
       "200": 12
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 3.9144
+    "elapsed_seconds": 3.799
   },
   "selected_course_results_equal": {
     "assignments": true,
@@ -94,7 +94,7 @@
   },
   "source_db_bytes_unchanged": true,
   "status": "MEASURED",
-  "requests_reduction_percent": 96.04,
-  "response_body_bytes_reduction_percent": 88.48,
-  "elapsed_seconds_reduction_percent": 95.56
+  "requests_reduction_percent": 96.49,
+  "response_body_bytes_reduction_percent": 89.83,
+  "elapsed_seconds_reduction_percent": 95.83
 }
