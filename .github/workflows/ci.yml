@@ -63,7 +63,7 @@ jobs:
               modules="test_study"
               ;;
             sync)
-              modules="test_academic_alerts test_academic_status test_analysis_records test_connection test_everytime_connect test_setup test_sync_policy test_sync_safety test_tls_backup_download test_tls_data test_tls_login test_tls_optimization test_update"
+              modules="test_academic_alerts test_academic_status test_analysis_records test_connection test_everytime_connect test_native_backend test_setup test_sync_policy test_sync_safety test_tls_backup_download test_tls_data test_tls_login test_tls_optimization test_update"
               ;;
             assignments)
               modules="test_assignment_draft test_assignment_selection test_assignment_submission test_learner_profile test_notice_storage_optimization test_project test_resource_responses test_resource_targeting test_secret_boundary test_source_library test_gradkuya test_presentation test_companion test_private_files test_profile_accounts"
@@ -113,6 +113,10 @@ jobs:
       - name: Compile sources
         shell: bash
         run: python -m compileall -q server skills/university-agent packaging
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build optional native parsers
+        shell: bash
+        run: cargo build --release --locked --manifest-path experiments/rust-core/Cargo.toml
       - name: Validate standalone build
         shell: bash
         run: |

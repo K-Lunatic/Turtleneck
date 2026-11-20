@@ -32,6 +32,7 @@ from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
 from features.autonomous_course_watch import refresh as refresh_autonomous_course
 from providers.tls_auth import resume_saved_session
+from providers.native_backend import activate as activate_native_backend
 from providers.request_metrics import RequestMetrics, measure_requests
 from features import sync_policy
 
@@ -608,6 +609,12 @@ def _prepare_requested_resources(args, db_path, user_id, username, provider, sco
 
 
 def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_failed=False):
+    with activate_native_backend():
+        return _perform_sync_python(args, db_path, user_id, username, session, scope,
+                                    retry_failed=retry_failed)
+
+
+def _perform_sync_python(args, db_path, user_id, username, session, scope, *, retry_failed=False):
     started = monotonic()
     force = args.full or args.force or retry_failed
     provider = MoodleTLSProvider(session)
