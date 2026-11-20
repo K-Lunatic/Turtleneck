@@ -1,5 +1,11 @@
 # 변경 기록
 
+## 0.6.6 · Git 없는 설치와 릴리스 아이콘 보정
+
+- Git이 없는 Windows에서 ZIP·로컬 플러그인 경로를 사용할 수 있도록 설치 안내와 Antigravity CLI 감지를 보강했습니다.
+- 무설치 번들의 루트 플러그인 manifest가 참조하는 터틀넥 아이콘을 번들에 포함하고, Windows 경로 테스트를 플랫폼 독립적으로 수정했습니다.
+- Claude Code는 선택 호스트로 명시하고, Codex·Gemini CLI·Antigravity CLI 중 하나로도 설치할 수 있음을 안내합니다.
+
 ## 작업 중 · 학습 자료 연결과 보조 앱
 
 - Git이 없는 컴퓨터에서도 설치할 수 있도록 로컬 폴더·공개 ZIP fallback을 추가했습니다. GitHub ZIP은 크기와 압축 경로를 확인한 뒤 임시 폴더에서만 사용합니다.
