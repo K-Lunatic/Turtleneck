@@ -51,7 +51,7 @@ class CompanionTests(unittest.TestCase):
     def test_watch_command_reuses_academic_watcher(self):
         command = companion._watch_command()
         self.assertTrue(command[-3:].count('--once') == 1)
-        self.assertTrue(command[-2].endswith('scripts/academic_watch.py'))
+        self.assertEqual(Path(command[-2]).name, 'academic_watch.py')
 
     def test_present_routes_login_and_exam_to_the_embedded_window(self):
         with tempfile.TemporaryDirectory() as folder:

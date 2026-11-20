@@ -272,7 +272,7 @@ class ExamWebTests(ProjectTestBase):
         self.assertEqual(submitted['status'], 'grading')
         self.assertIsInstance(submitted['elapsedSeconds'], int)
         self.assertEqual(submitted['timeLimitSeconds'], 3000)
-        self.assertEqual(submitted['remainingSeconds'] + submitted['overtimeSeconds'],
+        self.assertEqual(submitted['remainingSeconds'] + submitted['elapsedSeconds'],
                          max(submitted['elapsedSeconds'], 3000))
         self.assertEqual(s.call({'action': 'web_status'})['elapsedSeconds'], submitted['elapsedSeconds'])
 
