@@ -36,6 +36,11 @@ INSTALLERS = {
         'install': [['gemini', 'skills', 'install', SKILL_URL, '--path', 'skills/university-agent', '--scope', 'user']],
         'verify': ['gemini', 'skills', 'list', '--all'],
     },
+    'antigravity': {
+        'command': 'agy',
+        'install': [['agy', 'plugin', 'install', SKILL_URL]],
+        'verify': ['agy', 'plugin', 'list'],
+    },
 }
 
 
@@ -127,7 +132,9 @@ def _commands(agent: str, source: Path | None) -> list[list[str]]:
     if agent == 'claude':
         return [['claude', 'plugin', 'marketplace', 'add', source],
                 ['claude', 'plugin', 'install', 'university-agent@turtleneck']]
-    return [['gemini', 'skills', 'install', str(Path(source) / 'skills' / 'university-agent'), '--scope', 'user']]
+    if agent == 'gemini':
+        return [['gemini', 'skills', 'install', str(Path(source) / 'skills' / 'university-agent'), '--scope', 'user']]
+    return [['agy', 'plugin', 'install', source]]
 
 
 def install(agent: str) -> dict:
@@ -172,7 +179,7 @@ def main(argv=None) -> int:
             'status': 'UNAVAILABLE',
             'environment': state,
             'results': [],
-            'message': '지원되는 에이전트를 찾지 못했어요. Codex·Claude Code·Gemini를 먼저 설치해 주세요.',
+            'message': '지원되는 에이전트를 찾지 못했어요. Codex, Claude Code, Gemini CLI 또는 Antigravity CLI 중 하나를 먼저 설치해 주세요.',
         }, ensure_ascii=False))
         return 1
     results = [install(name) for name in selected]

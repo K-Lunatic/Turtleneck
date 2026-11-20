@@ -140,8 +140,9 @@ python experiments/benchmarks/traffic_curve.py \
 
 ## 빠른 시작
 
-터틀넥은 GitHub에서 `Turtleneck AI Skill` 또는 `터틀넥 스킬`로 찾을 수 있고, Codex·Claude Code
-마켓플레이스 형식과 Gemini 스킬 경로에 맞춘 패키지를 제공합니다. 설치 환경만 먼저 확인하려면 아래를
+터틀넥은 GitHub에서 `Turtleneck AI Skill` 또는 `터틀넥 스킬`로 찾을 수 있고, Codex·Claude Code·Antigravity
+플러그인과 Gemini 스킬 경로에 맞춘 패키지를 제공합니다. Claude Code는 선택 사항이며 유료 플랜 또는 API 과금이
+필요할 수 있습니다. 설치 환경만 먼저 확인하려면 아래를
 실행하고, 실제 등록은 확인 후 `--apply`를 붙이세요.
 
 ```bash
@@ -161,7 +162,7 @@ Git이 없어도 설치할 수 있습니다. GitHub 저장소의 **Code → Down
 2. 압축 해제 후 `skills/university-agent/scripts/install_turtleneck.py` 실행
 3. 먼저 확인 결과를 보고, 동의할 때만 `--apply` 실행
 
-Codex·Claude Code·Gemini 자체가 설치되어 있지 않은 경우에는 먼저 해당 호스트를 설치해야 합니다.
+Codex·Claude Code·Gemini CLI·Antigravity CLI 자체가 설치되어 있지 않은 경우에는 먼저 사용 가능한 호스트 하나를 설치해야 합니다.
 Git은 터틀넥 설치의 필수 조건이 아닙니다.
 
 ### 공개 마켓플레이스 상태
@@ -173,7 +174,7 @@ Git은 터틀넥 설치의 필수 조건이 아닙니다.
 
 ### 1. 설치
 
-로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-arm64-unsigned`, `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 번들에는 PDF 읽기와 완료된 강의 오디오 변환에 필요한 런타임도 포함합니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.
+로컬 Codex, Claude Code, Gemini CLI 또는 Antigravity CLI 중 하나가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-arm64-unsigned`, `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 번들에는 PDF 읽기와 완료된 강의 오디오 변환에 필요한 런타임도 포함합니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.
 
 무설치 번들은 압축을 푼 뒤 macOS의 `turtleneck` 또는 Windows의 `turtleneck.exe`를 실행합니다. 플러그인 자체는 사용하는 Codex·Claude Code의 설치 명령으로 등록하고, 번들은 로컬 실행기와 Python 런타임을 제공하는 방식입니다. 배포 절차는 [릴리스 정책](RELEASE.md), 변경 내역은 [변경 기록](CHANGELOG.md)에서 확인할 수 있습니다.
 
@@ -209,8 +210,8 @@ claude plugin install university-agent@turtleneck
 
 새 Claude Code 대화에서 `/university-agent:turtleneck`을 호출하세요. 설치 없이 개발본을 확인하려면
 `claude --plugin-dir .`로 시작해 같은 명령을 사용합니다. 경로의 `.`은 이 저장소 루트입니다.
-저장소가 없다면 먼저 `git clone --branch turtleneck https://github.com/K-Lunatic/Turtleneck.git`로
-받은 뒤 `Turtleneck` 폴더에서 설치합니다.
+Git이 없는 Windows 사용자는 `git clone`을 실행하지 않습니다. 위 ZIP 흐름을 사용하거나 GitHub Releases의
+Windows 무설치 번들을 받으세요. 압축을 푼 폴더를 로컬 플러그인 경로로 전달할 수 있는 호스트는 Git 없이 설치됩니다.
 스킬 폴더만 쓸 때는 `skills/university-agent`를 `~/.claude/skills/turtleneck`에 복사하고 `/turtleneck`을
 호출합니다. 이 경우 플러그인 자동 업데이트 대신 폴더를 다시 복사해 갱신합니다.
 [Claude 설치 규칙](https://code.claude.com/docs/en/plugin-marketplaces)과 [실행 지침](skills/university-agent/references/claude-code.md)을 참고하세요.
@@ -224,6 +225,16 @@ gemini skills list --all
 ```
 
 개발 중인 저장소는 루트에서 `gemini skills link "$PWD/skills/university-agent" --scope workspace`를 사용합니다. 로컬 파일·명령 실행이 없는 일반 Gemini 웹 대화에서는 학교 로그인·동기화·로컬 시험지를 사용할 수 없습니다. [Gemini 실행 지침](skills/university-agent/references/gemini.md)을 참고하세요.
+
+**Antigravity CLI:** 개인/무료 Gemini CLI 사용자는 현재 Antigravity CLI(`agy`) 경로를 우선 사용합니다.
+
+```bash
+agy plugin install https://github.com/K-Lunatic/Turtleneck.git
+agy plugin list
+```
+
+Antigravity 공식 문서는 GitHub URL과 로컬 플러그인 폴더 설치를 모두 지원합니다. Git이 없으면 ZIP을
+내려받아 압축을 푼 뒤 `agy plugin install <압축을 푼 Turtleneck 폴더>`를 사용하세요.
 
 로컬 시험 서버나 Actions 연결을 실행할 때는 `University Agent.command`(macOS) 또는 `University Agent.bat`(Windows)를 더블클릭하세요. Python이 없으면 공식 설치 안내가 표시됩니다. 실행 전 터틀넥은 신뢰한 `turtleneck` 버전을 확인하지만 자동으로 덮어쓰지 않으며, 사용자가 확인한 뒤 `--apply`를 선택해야 업데이트합니다. 개발 중인 Git 저장소는 자동으로 덮어쓰지 않습니다.
 

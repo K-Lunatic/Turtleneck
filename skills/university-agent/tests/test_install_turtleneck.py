@@ -14,7 +14,7 @@ class InstallTurtleneckTests(unittest.TestCase):
         self.assertTrue(all(item['installed'] for item in state['agents'].values()))
 
     def test_check_is_dry_run(self):
-        state = {'python': True, 'agents': {'codex': {'installed': True}, 'claude': {'installed': False}, 'gemini': {'installed': False}}}
+        state = {'python': True, 'agents': {'codex': {'installed': True}, 'claude': {'installed': False}, 'gemini': {'installed': False}, 'antigravity': {'installed': False}}}
         with patch('scripts.install_turtleneck.detect', return_value=state), patch('scripts.install_turtleneck.install') as install, patch('builtins.print') as output:
             self.assertEqual(install_turtleneck.main([]), 0)
         install.assert_not_called()
@@ -30,7 +30,7 @@ class InstallTurtleneckTests(unittest.TestCase):
 
     def test_apply_does_not_claim_success_without_an_agent(self):
         state = {'python': False, 'agents': {
-            'codex': {'installed': False}, 'claude': {'installed': False}, 'gemini': {'installed': False},
+            'codex': {'installed': False}, 'claude': {'installed': False}, 'gemini': {'installed': False}, 'antigravity': {'installed': False},
         }}
         with patch('scripts.install_turtleneck.detect', return_value=state), patch('builtins.print') as output:
             self.assertEqual(install_turtleneck.main(['--apply']), 1)
@@ -61,6 +61,21 @@ class InstallTurtleneckTests(unittest.TestCase):
         self.assertTrue(install_turtleneck._pinned_archive_url({'sha': sha}).endswith(f'/archive/{sha}.zip'))
         with self.assertRaises(ValueError):
             install_turtleneck._pinned_archive_url({'sha': 'turtleneck'})
+
+    def test_antigravity_uses_local_plugin_path_without_git(self):
+        calls = []
+
+        def run(command):
+            calls.append(command)
+            return True, 'ok'
+
+        with patch('scripts.install_turtleneck.shutil.which', side_effect=lambda name: None if name == 'git' else '/usr/bin/agy'), \
+             patch('scripts.install_turtleneck._local_source', return_value=Path('/tmp/Turtleneck')), \
+             patch('scripts.install_turtleneck._run', side_effect=run):
+            result = install_turtleneck.install('antigravity')
+
+        self.assertEqual(result['status'], 'READY')
+        self.assertEqual(calls[0], ['agy', 'plugin', 'install', '/tmp/Turtleneck'])
 
 
 if __name__ == '__main__':
