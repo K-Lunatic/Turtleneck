@@ -345,6 +345,22 @@ class LectureAudioTests(unittest.TestCase):
         first.close.assert_called_once()
         second.close.assert_called_once()
 
+    def test_stream_bytes_to_file_rejects_invalid_content_range_without_appending(self):
+        session = MoodleSession()
+        session.logged_in = True
+        headers = Message()
+        headers['Content-Length'] = '4'
+        headers['Content-Range'] = 'bytes 5-3/10'
+        response = Mock(headers=headers, geturl=lambda: SOURCE, getcode=lambda: 206)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / 'chunk.ts'
+            target.write_bytes(b'Gdone')
+            with patch.object(session.opener, 'open', return_value=response), self.assertRaisesRegex(ValueError, '범위'):
+                session.stream_bytes_to_file(SOURCE, target, allowed_origin='tlsvod.kku.ac.kr:8443', resume_existing=True)
+            self.assertEqual(target.read_bytes(), b'Gdone')
+        response.read.assert_not_called()
+        response.close.assert_called_once()
+
     def test_download_order_is_preserved_and_html_or_http_denial_never_succeeds(self):
         session = Session()
         plan = media_plan(session, SOURCE)

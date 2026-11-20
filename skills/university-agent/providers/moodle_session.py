@@ -549,8 +549,17 @@ class MoodleSession:
                     match = re.fullmatch(r'bytes\s+(\d+)-(\d+)/(\d+|\*)', content_range.strip(), re.I)
                     if status != 206 or not match or int(match.group(1)) != written:
                         raise ValueError('학교가 자료 이어받기를 지원하지 않아 처음부터 다시 확인해야 해요.')
+                    range_start, range_end = int(match.group(1)), int(match.group(2))
+                    if range_end < range_start or (match.group(3) != '*' and int(match.group(3)) <= range_end):
+                        raise ValueError('학교가 자료 이어받기 범위를 올바르게 알려주지 않았어요.')
                     if match.group(3) != '*':
                         total_size = int(match.group(3))
+                    if declared := response.headers.get('Content-Length'):
+                        try:
+                            if int(declared) != range_end - range_start + 1:
+                                raise ValueError('학교가 자료 이어받기 크기를 올바르게 알려주지 않았어요.')
+                        except ValueError:
+                            raise ValueError('학교가 자료 이어받기 크기를 올바르게 알려주지 않았어요.')
                 declared = response.headers.get('Content-Length')
                 try:
                     declared_size = int(declared) if declared is not None else None
