@@ -36,7 +36,10 @@ class TLSBackupDownloadTests(unittest.TestCase):
 
     def test_backup_stream_publishes_only_after_signature_check(self):
         class Session:
+            base_url = 'https://moodle.example.edu'
+
             def stream_bytes_to_file(self, url, target, **kwargs):
+                self.allowed_origin = kwargs['allowed_origin']
                 Path(target).write_bytes(b"PK\x03\x04backup")
                 headers = Message(); headers['Content-Type'] = 'application/octet-stream'
                 return {'size': 10, 'headers': headers}
@@ -47,6 +50,21 @@ class TLSBackupDownloadTests(unittest.TestCase):
             self.assertEqual((size, content_type), (10, 'application/octet-stream'))
             self.assertEqual(target.read_bytes(), b"PK\x03\x04backup")
             self.assertFalse(target.with_name('.course.mbz.partial').exists())
+
+    def test_backup_stream_uses_session_origin(self):
+        class Session:
+            base_url = 'https://moodle.example.edu'
+
+            def stream_bytes_to_file(self, url, target, **kwargs):
+                self.allowed_origin = kwargs['allowed_origin']
+                Path(target).write_bytes(b"PK\x03\x04backup")
+                headers = Message(); headers['Content-Type'] = 'application/octet-stream'
+                return {'size': 10, 'headers': headers}
+
+        with TemporaryDirectory() as directory:
+            session = Session()
+            _save_backup(session, 'https://moodle.example.edu/backup.mbz', Path(directory) / 'course.mbz')
+            self.assertEqual(session.allowed_origin, 'moodle.example.edu')
 
 
 if __name__ == "__main__":
