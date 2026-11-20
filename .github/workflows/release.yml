@@ -124,7 +124,7 @@ jobs:
             ${{ matrix.artifact }}.sha256
             ${{ matrix.artifact }}-companion.zip
             ${{ matrix.artifact }}-companion.sha256
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   source:
     runs-on: ubuntu-latest
@@ -167,6 +167,7 @@ jobs:
           path: |
             turtleneck-source.zip
             turtleneck-source.sha256
+          if-no-files-found: error
 
   publish:
     needs: [build, source]
