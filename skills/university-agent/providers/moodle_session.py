@@ -569,6 +569,8 @@ class MoodleSession:
                         chunk = response.read(chunk_size)
                         if not chunk:
                             break
+                        if total_size is not None and written + len(chunk) > total_size:
+                            raise ValueError('학교가 알려준 자료 크기보다 많은 데이터를 보내 가져오기를 멈췄어요.')
                         written += len(chunk)
                         if max_bytes is not None and written > max_bytes:
                             raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')

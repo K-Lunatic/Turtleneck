@@ -307,6 +307,20 @@ class LectureAudioTests(unittest.TestCase):
         response.read.assert_not_called()
         response.close.assert_called_once()
 
+    def test_stream_bytes_to_file_rejects_bytes_beyond_declared_size(self):
+        session = MoodleSession()
+        session.logged_in = True
+        headers = Message()
+        headers['Content-Length'] = '3'
+        response = Mock(headers=headers, geturl=lambda: SOURCE, getcode=lambda: 200)
+        response.read.side_effect = [b'four', b'']
+        with tempfile.TemporaryDirectory() as folder, patch.object(session.opener, 'open', return_value=response):
+            target = Path(folder) / 'chunk.ts'
+            with self.assertRaisesRegex(ValueError, '많은 데이터를'):
+                session.stream_bytes_to_file(SOURCE, target, allowed_origin='tlsvod.kku.ac.kr:8443')
+            self.assertEqual(target.read_bytes(), b'')
+        response.close.assert_called_once()
+
     def test_stream_bytes_to_file_resumes_after_a_short_response_with_http_range(self):
         session = MoodleSession()
         session.logged_in = True
