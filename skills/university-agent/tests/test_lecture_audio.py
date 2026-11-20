@@ -194,7 +194,7 @@ class LectureAudioTests(unittest.TestCase):
         plan = MoodleTLSProvider(session).get_lecture_media('u', LECTURE, [])
         self.assertEqual(plan['format'], 'mov')
 
-    def test_hls_prefers_explicit_audio_and_rejects_video_fallback(self):
+    def test_hls_prefers_audio_and_uses_lowest_video_fallback_for_local_audio(self):
         session = Session()
         master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=900\nhigh.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=100\nlow.m3u8\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio.m3u8"\n'
         selected = SOURCE.rsplit('/', 1)[0] + '/audio.m3u8'
@@ -206,9 +206,11 @@ class LectureAudioTests(unittest.TestCase):
 
         session = Session()
         session.files[SOURCE] = master.replace('#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio.m3u8"\n', '').encode()
-        with self.assertRaises(DownloadRestricted):
-            media_plan(session, SOURCE)
-        self.assertEqual(session.calls, [SOURCE])
+        low = SOURCE.rsplit('/', 1)[0] + '/low.m3u8'
+        session.files[low] = PLAYLIST.encode()
+        plan = media_plan(session, SOURCE)
+        self.assertEqual(session.calls, [SOURCE, low])
+        self.assertEqual(len(plan['chunks']), 2)
 
     def test_hls_fragmented_mp4_keeps_init_segment_and_window_alignment(self):
         session = Session()

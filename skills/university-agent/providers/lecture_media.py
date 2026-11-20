@@ -92,7 +92,9 @@ def media_plan(session, source, *, video=False):
                 # Prefer the playlist explicitly marked as the default audio track.
                 selected = sorted(audio, key=lambda item: (not item[0], not item[1], item[2]))[0][2]
             else:
-                raise DownloadRestricted('음성 전용 스트림이 없어 학교 트래픽 보호를 위해 가져오지 않았어요.')
+                # Some Moodle players expose only video variants. Pick the
+                # lowest bitrate so local audio extraction does not pull HD.
+                selected = min(variants)[1]
             current = urljoin(base, selected)
             continue
         if '#EXT-X-ENDLIST' not in lines:
