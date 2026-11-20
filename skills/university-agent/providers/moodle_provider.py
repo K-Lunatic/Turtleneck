@@ -437,12 +437,15 @@ class _AutonomousCourseParser(HTMLParser):
             self.anchor["text"].append(data)
 
 
-def _autonomous_course_id(href: str) -> str | None:
+def _autonomous_course_id(href: str, base_url: str = "https://tls.kku.ac.kr/") -> str | None:
     try:
-        parts = urlsplit(urljoin("https://tls.kku.ac.kr/", href))
+        base = urlsplit(base_url)
+        if base.scheme not in {"http", "https"} or not base.hostname:
+            return None
+        parts = urlsplit(urljoin(base_url.rstrip("/") + "/", href))
     except ValueError:
         return None
-    if parts.hostname not in (None, "tls.kku.ac.kr") or parts.path != "/course/view.php":
+    if parts.hostname not in (None, base.hostname) or parts.path != "/course/view.php":
         return None
     values = parse_qs(parts.query, keep_blank_values=True).get("id", [])
     return values[0] if len(values) == 1 and re.fullmatch(r"[1-9][0-9]*", values[0]) else None
@@ -453,7 +456,7 @@ def autonomous_management_role(value: str) -> bool:
     return bool(re.search(r"운영자|관리자|교수(?:자)?|교사|teacher|manager|editingteacher", value or "", re.I))
 
 
-def parse_autonomous_courses(html: str) -> list[dict[str, Any]]:
+def parse_autonomous_courses(html: str, base_url: str = "https://tls.kku.ac.kr") -> list[dict[str, Any]]:
     """Normalize visible `/local/ubeclass/my.php` rows without exposing form values."""
     parser = _AutonomousCourseParser()
     parser.feed(html)
@@ -467,8 +470,8 @@ def parse_autonomous_courses(html: str) -> list[dict[str, Any]]:
         if cells[0].lower() in {"번호", "no", ""}:
             continue
         links = [link for link, _title in row[3].get("links", [])]
-        external_id = next((course_id for course_id in (_autonomous_course_id(link) for link in links) if course_id), None)
-        title = next((title for link, title in row[3].get("links", []) if _autonomous_course_id(link) and title), None)
+        external_id = next((course_id for course_id in (_autonomous_course_id(link, base_url) for link in links) if course_id), None)
+        title = next((title for link, title in row[3].get("links", []) if _autonomous_course_id(link, base_url) and title), None)
         if not title:
             title = next((line.strip() for line in raw_cells[3].splitlines() if line.strip()), cells[3])
         number = cells[0] if re.fullmatch(r"\d+", cells[0]) else str(len(result) + 1)
@@ -562,7 +565,8 @@ class MoodleTLSProvider:
             return []
         if self._autonomous_courses is None:
             self._autonomous_courses = parse_autonomous_courses(
-                self.session.get(self.site.autonomous_course_path))
+                self.session.get(self.site.autonomous_course_path),
+                getattr(self.session, "base_url", "https://tls.kku.ac.kr"))
         return [dict(course) for course in self._autonomous_courses]
 
     def get_course_structure(self, external_id: str) -> dict[str, Any]:
