@@ -4,7 +4,6 @@ import json
 import re
 import math
 import os
-import shutil
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -17,6 +16,22 @@ from providers.moodle_session import DownloadRestricted, check_download_origin, 
 
 _RETRYABLE_HTTP = {408, 425, 500, 502, 503, 504}
 _CHUNK_ATTEMPTS = 3
+
+
+def _sha256_file(path, size=None):
+    digest = hashlib.sha256()
+    remaining = size
+    with Path(path).open('rb') as stream:
+        while remaining is None or remaining:
+            chunk = stream.read(1024 * 1024 if remaining is None else min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            digest.update(chunk)
+            if remaining is not None:
+                remaining -= len(chunk)
+    if remaining not in (None, 0):
+        raise ValueError('영상 임시 파일이 예상보다 짧아 이어받지 않았어요.')
+    return digest.hexdigest()
 
 
 def _attributes(line):
@@ -181,6 +196,11 @@ def download_media(session, plan, target, progress=None):
                 not partial.is_file() or partial.stat().st_size < saved['bytes']):
             clear_partial()
             saved = None
+        elif partial.stat().st_size == saved['bytes'] and (
+                not isinstance(saved.get('prefixSha256'), str) or
+                saved['prefixSha256'] != _sha256_file(partial, saved['bytes'])):
+            clear_partial()
+            saved = None
         if saved:
             completed, written = saved['completed'], saved['bytes']
             if plan['format'] == 'mov' and completed == 0:
@@ -272,6 +292,16 @@ def download_media(session, plan, target, progress=None):
                         temporary.unlink(missing_ok=True)
                 time.sleep(0.5 * attempt)
 
+        prefix_digest = hashlib.sha256()
+        if written:
+            with partial.open('rb') as existing:
+                remaining = written
+                while remaining:
+                    chunk = existing.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise ValueError('영상 임시 파일이 예상보다 짧아 이어받지 않았어요.')
+                    prefix_digest.update(chunk)
+                    remaining -= len(chunk)
         try:
             with partial.open('r+b') as stream, ThreadPoolExecutor(max_workers=2) as pool:
                 stream.seek(written)
@@ -281,7 +311,9 @@ def download_media(session, plan, target, progress=None):
                         if written + total > 1_000_000_000:
                             raise ValueError('영상이 1GB를 넘어 가져오기를 멈췄어요.')
                         with temporary.open('rb') as source:
-                            shutil.copyfileobj(source, stream, length=1024 * 1024)
+                            while data := source.read(1024 * 1024):
+                                prefix_digest.update(data)
+                                stream.write(data)
                         temporary.unlink(missing_ok=True)
                     written += total
                     completed = min(start + 4, len(chunks))
@@ -289,7 +321,8 @@ def download_media(session, plan, target, progress=None):
                     os.fsync(stream.fileno())
                     manifest_tmp = manifest.with_name(f'.{manifest.name}.{os.getpid()}')
                     manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': completed,
-                                                        'bytes': written}, ensure_ascii=False), encoding='utf-8')
+                                                        'bytes': written,
+                                                        'prefixSha256': prefix_digest.hexdigest()}, ensure_ascii=False), encoding='utf-8')
                     os.replace(manifest_tmp, manifest)
                     total = 0
                     if progress and (start == 0 or (start + 4) % 40 == 0 or start + 4 >= len(chunks)):

@@ -456,6 +456,34 @@ class LectureAudioTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), b'GfirstGsecondGfirstGsecondGthird')
             self.assertNotIn(plan['chunks'][0], session.calls)
 
+    def test_corrupt_checkpoint_is_discarded_before_resuming(self):
+        session = Session()
+        plan = media_plan(session, SOURCE)
+        session.files[SOURCE.rsplit('/', 1)[0] + '/three.ts'] = b'Gthird'
+        plan = {**plan, 'sourceKey': 'corrupt-checkpoint',
+                'chunks': [plan['chunks'][0], plan['chunks'][1],
+                           SOURCE.rsplit('/', 1)[0] + '/three.ts']}
+        attempts = {'three.ts': 0}
+        original = session.get_bytes
+
+        def flaky(url, **kwargs):
+            if url.endswith('/three.ts') and attempts['three.ts'] < 3:
+                attempts['three.ts'] += 1
+                raise URLError('temporary reset')
+            return original(url, **kwargs)
+
+        session.get_bytes = flaky
+        with tempfile.TemporaryDirectory() as folder, patch('providers.lecture_media.time.sleep'):
+            path = Path(folder) / 'media.bin'
+            with self.assertRaises(URLError):
+                download_media(session, plan, path)
+            partial = Path(folder) / '.media.bin.partial'
+            partial.write_bytes(b'X' + partial.read_bytes()[1:])
+            session.calls.clear()
+            download_media(session, plan, path)
+            self.assertIn(plan['chunks'][0], session.calls)
+            self.assertEqual(path.read_bytes(), b'GfirstGsecondGthird')
+
     def test_transient_chunk_failure_retries_but_server_denial_does_not(self):
         session = Session()
         plan = media_plan(session, SOURCE)
