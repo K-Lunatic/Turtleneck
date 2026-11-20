@@ -457,6 +457,35 @@ class LectureAudioTests(unittest.TestCase):
             with self.assertRaises(ValueError), patch.object(lecture_audio, 'ffmpeg_path', return_value='ffmpeg'):
                 lecture_audio.extract_audio(provider, 'u', {**LECTURE, 'courseId': '../escape'}, plan, root)
 
+    def test_audio_retry_keeps_media_staging_after_process_failure(self):
+        provider = Mock()
+        attempts = {'count': 0}
+
+        def save(plan, target, progress):
+            attempts['count'] += 1
+            if attempts['count'] == 1:
+                partial = Path(target).with_name('.media.bin.partial')
+                partial.write_bytes(b'Gpartial')
+                raise OSError('temporary reset')
+            Path(target).write_bytes(b'Gcomplete')
+
+        provider.save_lecture_media.side_effect = save
+        def convert(command, **kwargs):
+            Path(command[-1]).write_bytes(b'\x00\x00\x00\x20ftypM4A ' + b'a' * 200)
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / 'audio'
+            plan = {'format': 'mpegts', 'sourceKey': 'source'}
+            with patch.object(lecture_audio, 'ffmpeg_path', return_value='ffmpeg'), \
+                 patch.object(lecture_audio.subprocess, 'run', side_effect=convert):
+                with self.assertRaises(OSError):
+                    lecture_audio.extract_audio(provider, 'u', LECTURE, plan, root)
+                self.assertTrue(list((root / '.media-staging').rglob('*.partial')))
+                result = lecture_audio.extract_audio(provider, 'u', LECTURE, plan, root)
+            self.assertFalse(result['reused'])
+            self.assertEqual(provider.save_lecture_media.call_count, 2)
+            self.assertFalse(list((root / '.media-staging').rglob('*')))
+
     def test_old_url_bound_cache_record_is_reused_and_migrated_to_stable_key(self):
         provider = Mock()
         provider.save_lecture_media.side_effect = AssertionError('old cache must be reused')
