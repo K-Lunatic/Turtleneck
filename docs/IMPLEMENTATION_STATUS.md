@@ -20,6 +20,10 @@
 > 보조 앱 `--status`를 실행했다. 상태 JSON의 비밀값 부재와 `codesign --verify --deep --strict`
 >도 확인했다. 이는 깨끗한 macOS 설치 이미지나 Windows 실기기 검증을 대신하지 않는다.
 
+> 릴리스 dry-run: workflow `44690299116`에서 `v0.6.7`, `publish=false`로 macOS Intel·ARM64와
+> Windows x64 본체·보조 앱, source ZIP·checksum 생성 및 smoke test를 완료했다. 공개 Release의
+> 자산은 변경하지 않았다.
+
 > 최신 보정: 2026-11-20 기준 공개 릴리스는 `v0.6.7`이다. Git 없는 설치 흐름, Antigravity CLI 선택 지원,
 > 루트 플러그인 아이콘 번들 누락을 보정했다. 커밋 `e511e16` 기준 GitHub Actions
 > `44646981941`은 macOS·Windows 전체 suite를 성공했고, Release workflow `44646985218`도 성공했다.
