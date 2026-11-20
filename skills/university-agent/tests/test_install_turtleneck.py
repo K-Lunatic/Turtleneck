@@ -75,7 +75,8 @@ class InstallTurtleneckTests(unittest.TestCase):
             result = install_turtleneck.install('antigravity')
 
         self.assertEqual(result['status'], 'READY')
-        self.assertEqual(calls[0], ['agy', 'plugin', 'install', '/tmp/Turtleneck'])
+        self.assertEqual(calls[0][:3], ['agy', 'plugin', 'install'])
+        self.assertEqual(Path(calls[0][3]), Path('/tmp/Turtleneck'))
 
 
 if __name__ == '__main__':
