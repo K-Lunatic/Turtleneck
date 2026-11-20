@@ -15,6 +15,11 @@
 > checksum 누락을 조용히 무시하지 않고 실패하도록 바꿨다. 최신 코드 CI `44668004023`은
 > 24개 job 전체 성공했다. 실제 GitHub Release 재생성은 수행하지 않았다.
 
+> 현재 Mac 직접 검증: 2026-11-20에 macOS arm64 호스트에서 PyInstaller 본체·보조 앱을
+> 새로 만들고, Python·Git을 PATH에서 제외한 `env -i` 환경에서 본체 `--version`, 도움말,
+> 보조 앱 `--status`를 실행했다. 상태 JSON의 비밀값 부재와 `codesign --verify --deep --strict`
+>도 확인했다. 이는 깨끗한 macOS 설치 이미지나 Windows 실기기 검증을 대신하지 않는다.
+
 > 최신 보정: 2026-11-20 기준 공개 릴리스는 `v0.6.7`이다. Git 없는 설치 흐름, Antigravity CLI 선택 지원,
 > 루트 플러그인 아이콘 번들 누락을 보정했다. 커밋 `e511e16` 기준 GitHub Actions
 > `44646981941`은 macOS·Windows 전체 suite를 성공했고, Release workflow `44646985218`도 성공했다.
