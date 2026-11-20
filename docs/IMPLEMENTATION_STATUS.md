@@ -4,9 +4,10 @@
 자동 검사 통과율이나 보안 인증 점수가 아니다. 배포 대상은 개발 환경이 준비되지 않은 macOS·Windows 사용자다.
 새 코드를 작성한 사실만으로 실제 배포가 검증된 것으로 계산하지 않는다.
 
-> 최신 보정: 2026-11-20 기준 릴리스 후보는 `0.6.7`이다. Git 없는 설치 흐름, Antigravity CLI 선택 지원,
-> 루트 플러그인 아이콘 번들 누락을 보정했다. 커밋 `3f901e7` 기준 GitHub Actions
-> `44645349306`은 macOS·Windows Moodle suite를 포함해 전체 성공했다. `0.6.7` 공개 번들은 아직 생성하지 않았다.
+> 최신 보정: 2026-11-20 기준 공개 릴리스는 `v0.6.7`이다. Git 없는 설치 흐름, Antigravity CLI 선택 지원,
+> 루트 플러그인 아이콘 번들 누락을 보정했다. 커밋 `e511e16` 기준 GitHub Actions
+> `44646981941`은 macOS·Windows 전체 suite를 성공했고, Release workflow `44646985218`도 성공했다.
+> 공개 Windows x64·macOS arm64 번들의 SHA-256과 `_internal/assets/turtleneck.png` 포함을 직접 확인했다.
 
 > 현재 작업 트리 보정: 2026-11-19 로컬 `turtleneck` 브랜치의 릴리스 후보는 `0.6.5`이며,
 > 다음 릴리스 메타데이터를 `0.6.5`로 통일했다. 임시 격리 환경에서 현재 코드로 macOS arm64
