@@ -98,7 +98,7 @@ jobs:
                       bundle.write(path, path.as_posix())
           with zipfile.ZipFile(output) as bundle:
               names = set(bundle.namelist())
-              assert 'dist/turtleneck/assets/turtleneck.png' in names
+              assert 'dist/turtleneck/_internal/assets/turtleneck.png' in names
               assert any(name.endswith('skills/university-agent/assets/turtleneck.png') for name in names)
               assert not any(name.endswith(('.env', '.db')) for name in names)
           digest = hashlib.sha256(output.read_bytes()).hexdigest()
