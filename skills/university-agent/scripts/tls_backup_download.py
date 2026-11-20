@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
 from socket import timeout as SocketTimeout
@@ -108,6 +109,34 @@ def _looks_like_moodle_backup(payload: bytes) -> bool:
     return payload.startswith((b"PK\x03\x04", b"\x1f\x8b", b".ARCHIVE"))
 
 
+def _save_backup(session, url: str, target: Path) -> tuple[int, str]:
+    """Stream a backup to a private partial file and publish it only after validation."""
+    partial = target.with_name(f'.{target.name}.partial')
+    if hasattr(session, 'stream_bytes_to_file'):
+        result = session.stream_bytes_to_file(
+            url, partial, allowed_origin="tls.kku.ac.kr", max_bytes=1_000_000_000,
+            resume_existing=True,
+        )
+        size = result['size'] if isinstance(result, dict) else result
+        content_type = result.get('headers', {}).get('Content-Type', '') if isinstance(result, dict) else ''
+        with partial.open('rb') as stream:
+            if not _looks_like_moodle_backup(stream.read(16)):
+                partial.unlink(missing_ok=True)
+                raise ValueError("TLS 응답이 Moodle 백업 파일 형식이 아니어서 저장하지 않았어요.")
+        os.replace(partial, target)
+        return size, content_type
+    payload, response = session.get_bytes(url, allowed_origin="tls.kku.ac.kr")
+    if not payload or not _looks_like_moodle_backup(payload):
+        raise ValueError("TLS 응답이 Moodle 백업 파일 형식이 아니어서 저장하지 않았어요.")
+    with tempfile.NamedTemporaryFile(dir=target.parent, prefix='.backup-', delete=False) as temporary:
+        temporary.write(payload)
+        temporary.flush()
+        os.fsync(temporary.fileno())
+        temporary_path = Path(temporary.name)
+    os.replace(temporary_path, target)
+    return len(payload), response.headers.get("Content-Type", "")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download a visible KKU TLS course backup")
     parser.add_argument("--course-id", required=True, help="Course ID whose visible backup should be downloaded")
@@ -121,19 +150,21 @@ def main() -> None:
         raise SystemExit(str(error)) from error
     try:
         url, filename = _visible_backup(session, args.course_id)
-        payload, response = session.get_bytes(url, allowed_origin="tls.kku.ac.kr")
     except SocketTimeout as error:
         raise SystemExit("TLS 백업 파일을 30초 안에 받지 못했어요. 잠시 후 다시 확인해 주세요.") from error
     except (LoginError, URLError, ValueError, RuntimeError) as error:
         raise SystemExit(str(error)) from error
-    if not payload or not _looks_like_moodle_backup(payload):
-        raise SystemExit("TLS 응답이 Moodle 백업 파일 형식이 아니어서 저장하지 않았어요.")
     target_dir = (args.output or Path.home() / "Downloads").expanduser().resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / filename
-    target.write_bytes(payload)
-    print(json.dumps({"path": str(target), "filename": filename, "bytes": len(payload),
-                      "contentType": response.headers.get("Content-Type", "")}, ensure_ascii=False))
+    try:
+        size, content_type = _save_backup(session, url, target)
+    except SocketTimeout as error:
+        raise SystemExit("TLS 백업 파일을 30초 안에 받지 못했어요. 잠시 후 다시 확인해 주세요.") from error
+    except (LoginError, URLError, ValueError, RuntimeError) as error:
+        raise SystemExit(str(error)) from error
+    print(json.dumps({"path": str(target), "filename": filename, "bytes": size,
+                      "contentType": content_type}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

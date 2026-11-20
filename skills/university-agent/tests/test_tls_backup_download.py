@@ -1,12 +1,14 @@
 import sys
 import unittest
+from email.message import Message
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.tls_backup_download import _BackupLinkParser, _CourseContextParser, _looks_like_moodle_backup
+from scripts.tls_backup_download import _BackupLinkParser, _CourseContextParser, _looks_like_moodle_backup, _save_backup
 
 
 class TLSBackupDownloadTests(unittest.TestCase):
@@ -31,6 +33,20 @@ class TLSBackupDownloadTests(unittest.TestCase):
         self.assertTrue(_looks_like_moodle_backup(b"\x1f\x8b\x08..."))
         self.assertTrue(_looks_like_moodle_backup(b".ARCHIVE..."))
         self.assertFalse(_looks_like_moodle_backup(b"<html>"))
+
+    def test_backup_stream_publishes_only_after_signature_check(self):
+        class Session:
+            def stream_bytes_to_file(self, url, target, **kwargs):
+                Path(target).write_bytes(b"PK\x03\x04backup")
+                headers = Message(); headers['Content-Type'] = 'application/octet-stream'
+                return {'size': 10, 'headers': headers}
+
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / 'course.mbz'
+            size, content_type = _save_backup(Session(), 'https://tls.kku.ac.kr/backup.mbz', target)
+            self.assertEqual((size, content_type), (10, 'application/octet-stream'))
+            self.assertEqual(target.read_bytes(), b"PK\x03\x04backup")
+            self.assertFalse(target.with_name('.course.mbz.partial').exists())
 
 
 if __name__ == "__main__":
