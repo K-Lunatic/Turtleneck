@@ -11,6 +11,10 @@
 > 이 수치는 자동 회귀 근거이며, 개인 Windows GUI·알림 영역과 장시간 실 TLS 미디어 수신을
 > 검증했다는 뜻은 아니다.
 
+> 배포 방어 보정: `938c5e8`에서 릴리스 artifact 업로드가 본체·보조 앱·source ZIP 또는
+> checksum 누락을 조용히 무시하지 않고 실패하도록 바꿨다. 최신 코드 CI `44668004023`은
+> 24개 job 전체 성공했다. 실제 GitHub Release 재생성은 수행하지 않았다.
+
 > 최신 보정: 2026-11-20 기준 공개 릴리스는 `v0.6.7`이다. Git 없는 설치 흐름, Antigravity CLI 선택 지원,
 > 루트 플러그인 아이콘 번들 누락을 보정했다. 커밋 `e511e16` 기준 GitHub Actions
 > `44646981941`은 macOS·Windows 전체 suite를 성공했고, Release workflow `44646985218`도 성공했다.
