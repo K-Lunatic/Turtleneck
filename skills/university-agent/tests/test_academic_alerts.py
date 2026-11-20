@@ -47,6 +47,25 @@ class AcademicAlertTests(unittest.TestCase):
             self.assertIn('강의1', text)
             self.assertIn('시청: 미완료 · 시청률 100%', text)
 
+    def test_daily_report_surfaces_external_coursework_from_overview(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with closing(LocalDatabase(Path(folder) / 'school.db')) as db:
+                db.upsert_tls_snapshot(
+                    'student', [{'id': 'c', 'name': '클라우드컴퓨팅', 'source': 'tls'}], [], [],
+                    'student', None,
+                    notices=[{
+                        'id': 'overview-1', 'courseId': 'c', 'title': '9주차 개요',
+                        'content': '주제가 변경되었습니다. 새 과제는 https://www.datacamp.com/ 에서 진행하세요.',
+                        'publishedAt': '1970-01-01T00:00:00+09:00', 'source': 'tls-overview',
+                    }],
+                )
+                text = format_daily_report(db, 'student', '2026-10-12T01:00:00Z',
+                    now=datetime.fromisoformat('2026-10-12T12:00:00+09:00'))
+            self.assertIn('외부 학습 안내 · TLS 과제 목록에 없을 수 있어요', text)
+            self.assertIn('클라우드컴퓨팅 / 9주차 개요 · 외부 안내 확인 필요', text)
+            self.assertIn('datacamp.com', text)
+            self.assertNotIn('미제출·마감 관련 과제와 미완료 강의가 없어요.', text)
+
     def test_daily_report_requires_this_runs_successful_fresh_stamp(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'school.db'
