@@ -928,6 +928,10 @@ class MoodleTLSProvider:
         for _, source in candidates[:4]:
             try:
                 return media_plan(self.session, unescape(source).replace('\\/', '/'), video=video)
+            except RequestBackoff:
+                # The server explicitly asked us to pause; trying another
+                # player candidate would only multiply the burst.
+                raise
             except DownloadRestricted:
                 raise
             except (HTTPError, URLError, ValueError):

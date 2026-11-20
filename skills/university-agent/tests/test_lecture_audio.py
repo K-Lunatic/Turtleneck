@@ -20,7 +20,7 @@ from features import lecture_audio
 from features import lecture_review
 from providers.lecture_media import media_plan, media_window, download_media
 from providers.moodle_provider import MoodleTLSProvider, _download_restriction
-from providers.moodle_session import MoodleSession, DownloadRestricted, _DownloadRedirectHandler, check_download_origin
+from providers.moodle_session import MoodleSession, DownloadRestricted, RequestBackoff, _DownloadRedirectHandler, check_download_origin
 from storage.local_db import LocalDatabase
 from scripts import lecture_audio as audio_script
 
@@ -154,6 +154,13 @@ class LectureAudioTests(unittest.TestCase):
         plan = MoodleTLSProvider(session).get_lecture_media('u', LECTURE, [])
         self.assertEqual(plan['format'], 'mpegts')
         self.assertIn(SOURCE, session.calls)
+
+    def test_media_backoff_stops_candidate_fallback(self):
+        session = Session()
+        with patch('providers.lecture_media.media_plan', side_effect=RequestBackoff(60)) as plan:
+            with self.assertRaises(RequestBackoff):
+                MoodleTLSProvider(session).get_lecture_media('u', LECTURE, [])
+        plan.assert_called_once()
 
     def test_visible_notice_or_player_prohibition_blocks_before_original(self):
         self.assertIsNone(_download_restriction('', 'slides.pdf', [{'title': '전체 영상 다운로드 금지', 'content': ''}]))
