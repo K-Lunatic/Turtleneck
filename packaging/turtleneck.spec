@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "skills" / "university-agent"))
 datas = [
     (str(ROOT / "skills"), "skills"),
     (str(ROOT / "server"), "server"),
+    (str(ROOT / "assets" / "turtleneck.png"), "assets"),
     (str(ROOT / "plugin.json"), "."),
     (str(ROOT / ".claude-plugin"), ".claude-plugin"),
     (str(ROOT / "README.md"), "."),
