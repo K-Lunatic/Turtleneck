@@ -21,6 +21,17 @@
 - 오래된 원격 브랜치를 정리할 때는 브랜치 이름, 마지막 커밋, 연결된 PR/Issue, 보관 위치를
   확인하고 한 번에 하나씩 처리합니다.
 
+2026-11-20 브랜치 점검 결과:
+
+| 원격 브랜치 | 상태 | 처리 |
+| --- | --- | --- |
+| `experiment/rust-core-refactor` | `turtleneck`에 병합됨 | Rust 결과 문서와 CI 기록을 보존하고 삭제 후보 |
+| `perf/tls-sync-optimization` | `turtleneck`에 병합됨 | TLS 최적화 결과 문서와 CI 기록을 보존하고 삭제 후보 |
+| `feat/chatgpt-mobile-mcp` | 고유 커밋 있음 | 사용자 승인·연결된 PR 확인 전 보존 |
+| `portfolio-readme-refresh` | 고유 커밋 있음 | 문서 반영 여부 확인 전 보존 |
+
+통합 브랜치에서 확인되지 않은 고유 커밋은 원격에서 바로 삭제하지 않습니다.
+
 ## 필수 확인
 
 - Python 단위 테스트와 변경 영역 테스트
