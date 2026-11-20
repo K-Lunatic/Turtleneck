@@ -209,6 +209,16 @@ def _setup_command() -> list[str]:
     return [sys.executable, str(ROOT / "scripts" / "setup_turtleneck.py")]
 
 
+def _watch_command() -> list[str]:
+    """Use the main bundle for the same bounded TLS watcher as scheduled runs."""
+    if getattr(sys, "frozen", False):
+        main_bundle = _main_bundle()
+        if main_bundle:
+            return [str(main_bundle), "skills/university-agent/scripts/academic_watch.py", "--once"]
+        return [sys.executable, "skills/university-agent/scripts/academic_watch.py", "--once"]
+    return [sys.executable, str(ROOT / "scripts" / "academic_watch.py"), "--once"]
+
+
 def _open_exam(site: str, alias: str, exam_id: str) -> None:
     if not EXAM_ID_PATTERN.fullmatch(exam_id):
         raise ValueError("시험지 ID를 확인하지 못했어요.")
@@ -425,6 +435,18 @@ def run_tray() -> int:
         if icon is not None:
             icon.update_menu()
 
+    def run_watch(_icon, _item):
+        options = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if os.name == "nt":
+            options["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        else:
+            options["start_new_session"] = True
+        try:
+            subprocess.Popen(_watch_command(), cwd=str(ROOT.parent), **options)
+        except OSError:
+            return
+        refresh(_icon)
+
     def poll(icon):
         while not stop.wait(POLL_SECONDS):
             refresh(icon)
@@ -459,7 +481,7 @@ def run_tray() -> int:
         pystray.MenuItem(label, None, enabled=False),
         pystray.MenuItem("프로필 보기", profile_items),
         pystray.MenuItem("시험·점수 대시보드", open_dashboard),
-        pystray.MenuItem("새로 확인", refresh),
+        pystray.MenuItem("새로 확인", run_watch),
         pystray.MenuItem("학교 로그인·연결", lambda _icon, _item: _open_setup()),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("터틀넥 안내", open_repository),
