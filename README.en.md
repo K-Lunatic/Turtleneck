@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Collect course materials, study in focused pieces, and practice like an exam.</strong><br>
-  A local-first university study skill for Codex, Claude Code, and Gemini.
+  A local-first university study tool for Codex, Gemini CLI, and Antigravity CLI.
 </p>
 
 <p align="center"><small>Search: Turtleneck AI Skill · 터틀넥 스킬 · Codex Skill · Claude Code Skill · Gemini Skill · Moodle study assistant</small></p>
@@ -34,8 +34,8 @@ Turtleneck organizes assignments, announcements, lectures, course files, schedul
 
 ## Quick start
 
-Search GitHub for `Turtleneck AI Skill` or `터틀넥 스킬`. The package includes the
-Codex and Claude Code marketplace format and the Gemini skill path. Detect the local environment first;
+Search GitHub for `Turtleneck AI Skill` or `터틀넥 스킬`. The package includes installation paths for
+Codex, Claude Code, Gemini CLI, and Antigravity CLI. Detect the local environment first;
 add `--apply` only after reviewing the official commands:
 
 ```bash
@@ -59,7 +59,7 @@ listed until that authorization is confirmed.
 
 After a successful explicit installation, Turtleneck may show one non-blocking request to star the repository. Starring is optional and never changes access or support.
 
-Requirements: a local Codex, Claude Code, or Gemini environment on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the unsigned `turtleneck-macos-x64-unsigned` or `turtleneck-windows-x64-unsigned` no-install bundle from GitHub Releases. Verify its checksum before running; the operating system may show a security warning.
+Requirements: one local host such as Codex, Gemini CLI, or Antigravity CLI on macOS or Windows, plus Python 3.10 or newer for source installs. On a Python-free desktop, use the unsigned `turtleneck-macos-x64-unsigned` or `turtleneck-windows-x64-unsigned` no-install bundle from GitHub Releases. Verify its checksum before running; the operating system may show a security warning.
 
 To use a no-install bundle, extract it and run `turtleneck` on macOS or `turtleneck.exe` on Windows. Register the plugin with the host's normal install command; the bundle supplies the local runner and Python runtime. See the [release policy](RELEASE.md) and [change log](CHANGELOG.md).
 
@@ -110,6 +110,8 @@ On first use, a local connection form opens. Enter TLS and Everytime credentials
 ## Local-first and privacy
 
 This project runs primarily on a local macOS or Windows desktop. Mobile is also a supported optional path through the ChatGPT Actions gateway running on the user's computer; it is not a standalone mobile app and does not provide device-to-device database synchronization. The gateway is a one-computer helper, not a school-wide service. Account passwords, session cookies, OAuth secrets, personal course IDs, original files, databases, and learning packs are excluded from the repository. Use it only with accounts and materials you are authorized to access, and respect school and Everytime policies.
+
+Turtleneck does not register `SessionStart` or `UserPromptSubmit` lifecycle hooks. It does not open a login window or run a full sync for every prompt. See [host automation](docs/HOST_AUTOMATION.md) for the exact triggers and host differences.
 
 ### Mobile Actions
 
