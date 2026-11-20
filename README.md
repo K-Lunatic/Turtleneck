@@ -714,7 +714,7 @@ node skills/university-agent/tests/test_exam_client.js
 python3 skills/university-agent/integrations/everytime/scripts/self_check.py
 ```
 
-2026-11-20 기준 로컬 회귀 테스트는 **548개 실행 통과·2개 건너뜀**입니다. 이번 실행은
+2026-11-20 기준 로컬 회귀 테스트는 **550개 실행 통과·2개 건너뜀**입니다. 이번 실행은
 Canvas 읽기 전용 연결, Moodle 이식성·교수 기능, 비밀값 없는 마이그레이션 리포트와 기존 학습 흐름을
 포함했으며, 건너뛴 검사는 선택적 환경 의존 검사입니다. 게이트웨이와 시험 화면 검사는 별도 명령으로
 분리해 실행합니다.
