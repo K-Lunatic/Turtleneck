@@ -353,6 +353,7 @@ class MoodleSession:
         finally:
             response.close()
         if "/login" in urlsplit(response.geturl()).path or re.search(r'name=["\']username["\']', html, re.I):
+            self.logged_in = False
             raise LoginError("TLS session expired; sign in again")
         return html, response
 
@@ -442,6 +443,7 @@ class MoodleSession:
             finally:
                 response.close()
             if "/login" in urlsplit(response_url).path or re.search(r'name=["\']username["\']', html, re.I):
+                self.logged_in = False
                 raise LoginError("TLS session expired; sign in again")
             return html, response, total
         finally:
@@ -495,6 +497,7 @@ class MoodleSession:
             check_download_url(response.geturl())
             check_download_origin(response.geturl(), allowed_origin)
             if "/login" in urlsplit(response.geturl()).path:
+                self.logged_in = False
                 raise LoginError("TLS session expired; sign in again")
             payload = response.read() if max_bytes is None else response.read(max_bytes + 1)
             if max_bytes is not None and len(payload) > max_bytes:
@@ -539,6 +542,7 @@ class MoodleSession:
                 check_download_url(response.geturl())
                 check_download_origin(response.geturl(), allowed_origin)
                 if "/login" in urlsplit(response.geturl()).path:
+                    self.logged_in = False
                     raise LoginError("TLS session expired; sign in again")
                 if response.headers.get('Content-Encoding', '').lower() not in ('', 'identity'):
                     raise ValueError('영상 응답 형식이 달라 가져오기를 멈췄어요.')

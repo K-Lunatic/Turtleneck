@@ -506,8 +506,10 @@ class ProjectTests(ProjectTestBase):
         response = Mock(headers={'Content-Type': 'text/html'}, geturl=lambda: 'https://fixture.invalid/login/index.php')
         with patch.object(session.opener, 'open', return_value=response), patch.object(session, '_decode', return_value='<input name="username">'):
             for fetch in (session.get, session.get_bytes):
+                session.logged_in = True
                 with self.assertRaises(LoginError):
                     fetch('/course/view.php?id=1')
+                self.assertFalse(session.logged_in)
 
     def test_moodle_login_failures_do_not_fetch_data(self):
         session = MoodleSession()
