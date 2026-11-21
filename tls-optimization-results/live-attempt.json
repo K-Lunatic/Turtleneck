@@ -12,16 +12,16 @@
       "page": 9
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 113486,
+    "response_body_bytes": 114111,
     "response_body_bytes_by_kind": {
-      "page": 113486
+      "page": 114111
     },
     "statuses": {
       "200": 9
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 2.5787
+    "elapsed_seconds": 2.5129
   },
   "notes": [
     "Both runs start from the same private DB backup and use the same authenticated account.",
@@ -33,44 +33,45 @@
     "Records from courses no longer present in the current enrollment are excluded from preservation comparison."
   ],
   "before": {
-    "requests": 344,
+    "requests": 338,
     "requests_by_kind": {
-      "page": 324,
+      "page": 318,
       "post": 20
     },
     "request_body_bytes": 1000,
-    "response_body_bytes": 1357934,
+    "response_body_bytes": 1209263,
     "response_body_bytes_by_kind": {
-      "page": 1352065,
+      "page": 1203394,
       "post": 5869
     },
     "statuses": {
-      "200": 241,
-      "transport_error": 2,
+      "200": 234,
+      "transport_error": 3,
       "303": 61,
       "302": 20,
       "301": 20
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 177.4407
+    "elapsed_seconds": 163.8759
   },
   "after": {
-    "requests": 93,
+    "requests": 95,
     "requests_by_kind": {
-      "page": 93
+      "page": 95
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 796475,
+    "response_body_bytes": 751645,
     "response_body_bytes_by_kind": {
-      "page": 796475
+      "page": 751645
     },
     "statuses": {
-      "200": 93
+      "200": 94,
+      "transport_error": 1
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 27.1987
+    "elapsed_seconds": 55.1016
   },
   "selected_course_results_equal": {
     "assignments": true,
@@ -90,8 +91,8 @@
     "assignments": 0,
     "lectures": 2,
     "notices": 6,
-    "resources": 9,
-    "activities": 14
+    "resources": 10,
+    "activities": 15
   },
   "status": "NOT_MEASURED",
   "reason": "실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.",

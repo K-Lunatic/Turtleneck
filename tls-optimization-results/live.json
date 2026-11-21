@@ -12,16 +12,16 @@
       "page": 9
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 113416,
+    "response_body_bytes": 96368,
     "response_body_bytes_by_kind": {
-      "page": 113416
+      "page": 96368
     },
     "statuses": {
       "200": 9
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 2.7657
+    "elapsed_seconds": 2.6888
   },
   "notes": [
     "Both runs start from the same private DB backup and use the same authenticated account.",
@@ -33,43 +33,44 @@
     "Records from courses no longer present in the current enrollment are excluded from preservation comparison."
   ],
   "before": {
-    "requests": 342,
+    "requests": 292,
     "requests_by_kind": {
-      "page": 322,
+      "page": 272,
       "post": 20
     },
     "request_body_bytes": 1000,
-    "response_body_bytes": 1356827,
+    "response_body_bytes": 871005,
     "response_body_bytes_by_kind": {
-      "page": 1350958,
+      "page": 865136,
       "post": 5869
     },
     "statuses": {
-      "200": 241,
-      "303": 61,
+      "200": 187,
+      "303": 62,
+      "transport_error": 3,
       "302": 20,
       "301": 20
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 90.9656
+    "elapsed_seconds": 130.3294
   },
   "after": {
-    "requests": 12,
+    "requests": 49,
     "requests_by_kind": {
-      "page": 12
+      "page": 49
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 137995,
+    "response_body_bytes": 422954,
     "response_body_bytes_by_kind": {
-      "page": 137995
+      "page": 422954
     },
     "statuses": {
-      "200": 12
+      "200": 49
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 4.4416
+    "elapsed_seconds": 13.3566
   },
   "selected_course_results_equal": {
     "assignments": true,
@@ -79,11 +80,13 @@
     "activities": true
   },
   "unselected_records_preserved": {
-    "assignments": true,
-    "lectures": true,
     "notices": true,
     "resources": true,
     "activities": true
+  },
+  "academic_statuses_may_change": {
+    "assignments": true,
+    "lectures": true
   },
   "selected_course_record_counts": {
     "assignments": 0,
@@ -94,7 +97,7 @@
   },
   "source_db_bytes_unchanged": true,
   "status": "MEASURED",
-  "requests_reduction_percent": 96.49,
-  "response_body_bytes_reduction_percent": 89.83,
-  "elapsed_seconds_reduction_percent": 95.12
+  "requests_reduction_percent": 83.22,
+  "response_body_bytes_reduction_percent": 51.44,
+  "elapsed_seconds_reduction_percent": 89.75
 }

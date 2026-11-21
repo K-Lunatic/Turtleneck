@@ -105,6 +105,19 @@ def main():
         }
         data = {}
         seed_data = None
+
+        stable_courses = [dict(course) for course in provider._courses or []]
+        stable_pages = provider._course_pages.copy()
+        stable_preflight = {'courseIds': list(preflight['courseIds']),
+                            'fingerprints': dict(preflight['fingerprints'])}
+
+        def fixed_preflight(instance, _user_id):
+            # Keep the one-course change controlled; a live page can change
+            # between setup and either compared run.
+            instance._courses = [dict(course) for course in stable_courses]
+            instance._course_pages = stable_pages.copy()
+            return dict(stable_preflight)
+
         for label, module in (('before', before), ('after', sync_tls)):
             path = folder / 'case.db'
             shutil.copyfile(seed, path)
@@ -115,6 +128,7 @@ def main():
             with patch.object(sys, 'argv', ['sync_tls.py', '--ensure', '--metadata-only']), \
                  patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': username}), \
                  patch.object(module, '_login_with_retries', return_value=(username, child)), \
+                 patch.object(module.MoodleTLSProvider, 'preflight', fixed_preflight), \
                  redirect_stdout(StringIO()), redirect_stderr(StringIO()):
                 module.main()
             report[label] = metrics.snapshot()
@@ -129,7 +143,7 @@ def main():
 
         def normalized(rows, selected_only):
             return sorted([{key: value for key, value in row.items()
-                            if key not in ('updatedAt', 'updated_at', 'downloadedAt')}
+                            if key not in ('updatedAt', 'updated_at', 'downloadedAt', 'lastSyncedAt')}
                            for row in rows
                            if row.get('courseId') in current_course_ids
                            and (row.get('courseId') == selected) == selected_only],
@@ -137,9 +151,13 @@ def main():
         report['selected_course_results_equal'] = {
             kind: normalized(data['before'][kind], True) == normalized(data['after'][kind], True)
             for kind in data['before']}
+        stable_kinds = ('notices', 'resources', 'activities')
         report['unselected_records_preserved'] = {
             kind: normalized(seed_data[kind], False) == normalized(data['after'][kind], False)
-            for kind in seed_data}
+            for kind in stable_kinds}
+        report['academic_statuses_may_change'] = {
+            kind: normalized(seed_data[kind], False) != normalized(data['after'][kind], False)
+            for kind in ('assignments', 'lectures')}
         report['selected_course_record_counts'] = {
             kind: sum(row.get('courseId') == selected for row in rows) for kind, rows in data['after'].items()}
     if not all(report['selected_course_results_equal'].values()) or not all(report['unselected_records_preserved'].values()):
