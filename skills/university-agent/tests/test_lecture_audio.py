@@ -372,6 +372,26 @@ class LectureAudioTests(unittest.TestCase):
         first.close.assert_called_once()
         second.close.assert_called_once()
 
+    def test_stream_bytes_to_file_restarts_when_server_ignores_http_range(self):
+        session = MoodleSession()
+        session.logged_in = True
+        resumed_headers = Message()
+        resumed_headers['Content-Length'] = '4'
+        ignored_range = Mock(headers=resumed_headers, geturl=lambda: SOURCE, getcode=lambda: 200)
+        full = Mock(headers=resumed_headers, geturl=lambda: SOURCE, getcode=lambda: 200)
+        full.read.side_effect = [b'Gall', b'']
+        with tempfile.TemporaryDirectory() as folder, patch.object(
+                session.opener, 'open', side_effect=[ignored_range, full]) as opened:
+            target = Path(folder) / 'chunk.ts'
+            target.write_bytes(b'Gold')
+            result = session.stream_bytes_to_file(
+                SOURCE, target, allowed_origin='tlsvod.kku.ac.kr:8443', resume_existing=True)
+            self.assertEqual(result['size'], 4)
+            self.assertEqual(target.read_bytes(), b'Gall')
+            self.assertNotIn('Range', opened.call_args.args[0].headers)
+        ignored_range.close.assert_called_once()
+        full.close.assert_called_once()
+
     def test_stream_bytes_to_file_rejects_invalid_content_range_without_appending(self):
         session = MoodleSession()
         session.logged_in = True

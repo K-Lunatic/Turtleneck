@@ -551,6 +551,15 @@ class MoodleSession:
                 if written:
                     content_range = response.headers.get('Content-Range', '')
                     match = re.fullmatch(r'bytes\s+(\d+)-(\d+)/(\d+|\*)', content_range.strip(), re.I)
+                    # Some Moodle/CDN frontends ignore Range and return the
+                    # complete object with 200.  Restart from an empty file
+                    # once instead of treating a valid response as a corrupt
+                    # resume.  A 206 with a malformed range remains an error.
+                    if status == 200:
+                        with open(target, 'wb'):
+                            pass
+                        written = 0
+                        continue
                     if status != 206 or not match or int(match.group(1)) != written:
                         raise ValueError('학교가 자료 이어받기를 지원하지 않아 처음부터 다시 확인해야 해요.')
                     range_start, range_end = int(match.group(1)), int(match.group(2))
