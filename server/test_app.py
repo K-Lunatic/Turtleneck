@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 from unittest.mock import patch
 
@@ -240,6 +241,23 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.request('/study/' + ticket)['status'], 404)
         second = self.request('/study/' + ticket, extra={'HTTP_COOKIE': cookie})
         self.assertEqual(second['status'], 200)
+
+    def test_mobile_exam_gateway_serves_question_images(self):
+        ticket = self.app.issue(self.app.study_links, {'user': 'alice'}, 600)
+        image_path = Path(self.temp.name) / 'question.png'
+        image_path.write_bytes(b'fake-png')
+        class Study:
+            def call(self, event):
+                self.event = event
+                return {'path': str(image_path), 'contentType': 'image/png'}
+        env = {'REQUEST_METHOD': 'GET', 'QUERY_STRING': urlencode({'examId': 'exam-1', 'questionId': 'q1', 'index': '0'}),
+               'HTTP_X_EXAM_TOKEN': ticket}
+        with patch('server.app.study_bridge.session', return_value=Study()), \
+             patch('server.app.study_bridge.close_session'):
+            status, body, kind, _ = self.app.mobile_exam_route(env, ticket, 'api/image')
+        self.assertEqual(status, 200)
+        self.assertEqual(body, b'fake-png')
+        self.assertEqual(kind, 'image/png')
 
     def test_new_screenshot_assignment_checkpoint_list_load_and_completion(self):
         token = self.connect('alice')['access_token']

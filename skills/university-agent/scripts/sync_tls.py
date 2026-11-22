@@ -32,6 +32,7 @@ from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
 from features.autonomous_course_watch import refresh as refresh_autonomous_course
 from providers.tls_auth import resume_saved_session
+from providers.native_backend import activate as activate_native_backend
 from providers.request_metrics import RequestMetrics, measure_requests
 from features import sync_policy
 
@@ -260,19 +261,21 @@ def open_connection_terminal(command: list[str] | None = None) -> None:
     print('학교 연결 절차를 시작했어요. 브라우저에 입력 화면이 실제로 보이는지 확인해 주세요.', flush=True)
 
 
-def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False,
-                        profile_alias: str | None = None, force_input=False) -> tuple[str, MoodleSession]:
+def _login_with_retries_unlocked(base_url: str, requested_username: str | None = None, *, stored_only=False,
+                                 profile_alias: str | None = None, force_input=False,
+                                 _session_checked=False) -> tuple[str, MoodleSession]:
     """Login without ever returning the password to the caller."""
     site = site_key(base_url)
     profile_alias = profile_alias or os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site)
-    resumed = resume_saved_session(base_url, requested_username, profile_alias)
-    if resumed:
-        print("저장된 학교 연결을 재사용했어요.", flush=True)
-        try:
-            resumed[1].profile_alias = profile_alias
-        except AttributeError:
-            pass
-        return resumed
+    if not _session_checked:
+        resumed = resume_saved_session(base_url, requested_username, profile_alias)
+        if resumed:
+            print("저장된 학교 연결을 재사용했어요.", flush=True)
+            try:
+                resumed[1].profile_alias = profile_alias
+            except AttributeError:
+                pass
+            return resumed
     if not force_input and not os.environ.get('UNIVERSITY_AGENT_DB'):
         try:
             stored_username, stored_password = load(profile_alias, site)
@@ -321,9 +324,9 @@ def _login_with_retries(base_url: str, requested_username: str | None = None, *,
                 raise RuntimeError('저장된 학교 계정의 비밀번호가 비어 있어요. 연결 명령으로 한 번만 다시 입력해 주세요.')
         else:
             input_mode = force_input or attempt > 1
-            resolve_options = {'force_input': input_mode, 'site': site}
-            if input_mode:
-                resolve_options['submit_check'] = verify_form
+            # The first form must also verify the login before showing success.
+            # Otherwise a wrong password can look like a completed registration.
+            resolve_options = {'force_input': input_mode, 'site': site, 'submit_check': verify_form}
             username, password = resolve(requested_username, **resolve_options)
             if verified.get('result'):
                 username, session, profile_alias = verified['result']
@@ -361,6 +364,27 @@ def _login_with_retries(base_url: str, requested_username: str | None = None, *,
         session.profile_alias = profile_alias
         return username, session
     raise AssertionError("unreachable")
+
+
+def _login_with_retries(base_url: str, requested_username: str | None = None, *, stored_only=False,
+                        profile_alias: str | None = None, force_input=False) -> tuple[str, MoodleSession]:
+    """Serialize cross-process login and re-check the session after waiting."""
+    site = site_key(base_url)
+    alias = profile_alias or os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site)
+    db_path = profile_db_path(base_url, alias)
+    with sync_policy.SyncLock(db_path.with_name(db_path.name + '.auth'), timeout=120):
+        resumed = resume_saved_session(base_url, requested_username, alias)
+        if resumed:
+            print("저장된 학교 연결을 재사용했어요.", flush=True)
+            try:
+                resumed[1].profile_alias = alias
+            except AttributeError:
+                pass
+            return resumed
+        return _login_with_retries_unlocked(
+            base_url, requested_username, stored_only=stored_only,
+            profile_alias=alias, force_input=force_input, _session_checked=True,
+        )
 
 
 def main() -> None:
@@ -556,7 +580,8 @@ def _prepare_requested_resources(args, db_path, user_id, username, provider, sco
     resources = reader.get_resources(user_id, notices=notices,
         existing_resources=_cached_resources(db_path, user_id, file_root), resource_ids=targets or None,
         detail_course_ids=requested if not targets else set(),
-        download_new_files=not args.metadata_only, save_file=lambda item: store_resource(file_root, item))
+        download_new_files=not args.metadata_only, save_file=lambda item: store_resource(file_root, item),
+        partial_root=file_root)
     if any(item.get('_checkFailed') for item in resources):
         raise URLError('요청한 자료의 현재 상태를 확인하지 못했어요.')
     seen = {item['id'] for item in resources}
@@ -584,6 +609,12 @@ def _prepare_requested_resources(args, db_path, user_id, username, provider, sco
 
 
 def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_failed=False):
+    with activate_native_backend():
+        return _perform_sync_python(args, db_path, user_id, username, session, scope,
+                                    retry_failed=retry_failed)
+
+
+def _perform_sync_python(args, db_path, user_id, username, session, scope, *, retry_failed=False):
     started = monotonic()
     force = args.full or args.force or retry_failed
     provider = MoodleTLSProvider(session)
@@ -703,7 +734,7 @@ def _perform_sync(args, db_path, user_id, username, session, scope, *, retry_fai
             user_id, notices=notices, existing_resources=_cached_resources(db_path, user_id, file_root),
             download_new_files=not args.metadata_only, resource_ids=set(args.resource_id) if args.resource_id else None,
             detail_course_ids=detail_courses if args.resource_id else None,
-            save_file=lambda item: store_resource(file_root, item))
+            save_file=lambda item: store_resource(file_root, item), partial_root=file_root)
         if any(item.get('_checkFailed') for item in resources):
             raise URLError('일부 자료의 현재 상태를 확인하지 못했어요.')
         checked_resource_ids = {item['id'] for item in resources}

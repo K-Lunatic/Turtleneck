@@ -80,6 +80,13 @@ class AutonomousCourseTests(unittest.TestCase):
         self.assertTrue(courses[0]['ownerControlsVisible'])
         self.assertEqual(courses[0]['role'], '교수')
 
+    def test_parser_uses_the_authenticated_moodle_origin(self):
+        page = PAGE.replace('/course/view.php?id=65513',
+                            'https://moodle.example.edu/course/view.php?id=65513')
+        self.assertEqual(parse_autonomous_courses(page, 'https://moodle.example.edu')[0]['externalId'], '65513')
+        self.assertIsNone(parse_autonomous_courses(page, 'https://other.example.edu')[0]['externalId'])
+        self.assertIsNone(parse_autonomous_courses(PAGE, 'not-a-url')[0]['externalId'])
+
     def test_provider_uses_read_only_autonomous_listing_once(self):
         session = FakeSession(PAGE)
         provider = MoodleTLSProvider(session)

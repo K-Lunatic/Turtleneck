@@ -8,7 +8,12 @@ on:
       release_tag:
         description: Existing or new release tag to update
         required: true
-        default: v0.6.2
+        default: v0.6.5
+      publish:
+        description: Publish the generated artifacts as a GitHub Release
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -21,7 +26,7 @@ jobs:
         include:
           - os: macos-15-intel
             artifact: turtleneck-macos-x64-unsigned
-          - os: macos-14
+          - os: macos-15
             artifact: turtleneck-macos-arm64-unsigned
           - os: windows-latest
             artifact: turtleneck-windows-x64-unsigned
@@ -33,6 +38,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Validate release version
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
+        shell: bash
+        env:
+          EXPECTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          expected="${EXPECTED_TAG#v}"
+          actual="$(python -c 'import json; print(json.load(open("plugin.json", encoding="utf-8"))["version"])')"
+          test "$actual" = "$expected"
       - name: Build unsigned bundle
         shell: bash
         run: |
@@ -47,10 +61,27 @@ jobs:
         shell: bash
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            dist/turtleneck/turtleneck.exe --version
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --version
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --help > cli-help.txt
+            test -f "dist/companion/turtleneck-companion.exe"
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/companion/turtleneck-companion.exe --status > companion-status.json
           else
-            dist/turtleneck/turtleneck --version
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --version
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --help > cli-help.txt
+            test -d "dist/companion/Turtleneck Companion.app"
+            env -i HOME="${HOME:-}" USERPROFILE="${USERPROFILE:-}" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
           fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          assert Path('cli-help.txt').read_text(encoding='utf-8').strip()
+          status = json.loads(Path('companion-status.json').read_text(encoding='utf-8'))
+          rendered = json.dumps(status, ensure_ascii=False).lower()
+          for secret_marker in ('password', 'cookie', 'session', 'token'):
+              assert secret_marker not in rendered, secret_marker
+          assert 'skill' in status and 'profiles' in status
+          PY
       - name: Package and checksum
         shell: bash
         env:
@@ -65,6 +96,11 @@ jobs:
               for path in Path('dist/turtleneck').rglob('*'):
                   if path.is_file():
                       bundle.write(path, path.as_posix())
+          with zipfile.ZipFile(output) as bundle:
+              names = set(bundle.namelist())
+              assert 'dist/turtleneck/_internal/assets/turtleneck.png' in names
+              assert any(name.endswith('skills/university-agent/assets/turtleneck.png') for name in names)
+              assert not any(name.endswith(('.env', '.db')) for name in names)
           digest = hashlib.sha256(output.read_bytes()).hexdigest()
           Path(f'{artifact}.sha256').write_text(f'{digest}  {output.name}\n', encoding='utf-8')
           if os.environ.get('RUNNER_OS') in {'macOS', 'Windows'}:
@@ -88,7 +124,7 @@ jobs:
             ${{ matrix.artifact }}.sha256
             ${{ matrix.artifact }}-companion.zip
             ${{ matrix.artifact }}-companion.sha256
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   source:
     runs-on: ubuntu-latest
@@ -96,6 +132,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+      - name: Validate release metadata
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
+        shell: bash
+        env:
+          EXPECTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          expected="${EXPECTED_TAG#v}"
+          actual="$(python -c 'import json; print(json.load(open("plugin.json", encoding="utf-8"))["version"])')"
+          test "$actual" = "$expected"
       - name: Package verified source update
         shell: bash
         run: |
@@ -122,9 +167,11 @@ jobs:
           path: |
             turtleneck-source.zip
             turtleneck-source.sha256
+          if-no-files-found: error
 
   publish:
     needs: [build, source]
+    if: github.event_name != 'workflow_dispatch' || inputs.publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

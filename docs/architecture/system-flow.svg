@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc">
+<title id="title">Turtleneck local-first system flow</title>
+<desc id="desc">User request flows through routing, local secret storage, provider adapters, cache, study processing, and local outputs.</desc>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0 0L9 3L0 6Z" fill="#64748b"/></marker><style>
+.box{fill:#fff;stroke:#334155;stroke-width:2;rx:14}.safe{fill:#ecfdf5;stroke:#059669}.src{fill:#eff6ff;stroke:#2563eb}.out{fill:#fff7ed;stroke:#ea580c}.group{fill:#f8fafc;stroke:#94a3b8;stroke-width:2;stroke-dasharray:8 6;rx:18}.t{font:700 20px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}.l{font:600 16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}.s{font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#475569}.ar{stroke:#64748b;stroke-width:3;fill:none;marker-end:url(#a)}
+</style></defs>
+<rect width="1400" height="820" fill="#f1f5f9"/><text x="55" y="52" class="t">Turtleneck · local-first system flow</text><text x="55" y="78" class="s">Credentials stay behind the local secret boundary; providers return normalized data to the local cache.</text>
+<rect x="40" y="110" width="1320" height="145" class="group"/><text x="65" y="140" class="l">1. Request and routing</text>
+<rect x="70" y="165" width="220" height="60" class="box src"/><text x="180" y="192" text-anchor="middle" class="l">User request</text><text x="180" y="212" text-anchor="middle" class="s">language · intent · scope</text>
+<rect x="360" y="165" width="220" height="60" class="box"/><text x="470" y="192" text-anchor="middle" class="l">Skill router</text><text x="470" y="212" text-anchor="middle" class="s">confirmations · commands</text>
+<rect x="650" y="165" width="220" height="60" class="box"/><text x="760" y="192" text-anchor="middle" class="l">Profile resolver</text><text x="760" y="212" text-anchor="middle" class="s">school · account · course</text>
+<rect x="940" y="165" width="350" height="60" class="box safe"/><text x="1115" y="192" text-anchor="middle" class="l">Local secret boundary</text><text x="1115" y="212" text-anchor="middle" class="s">Keychain / Windows protected storage</text>
+<path d="M290 195H360M580 195H650M870 195H940" class="ar"/>
+<rect x="40" y="305" width="1320" height="190" class="group"/><text x="65" y="335" class="l">2. Provider access and collection</text>
+<rect x="70" y="365" width="210" height="82" class="box src"/><text x="175" y="398" text-anchor="middle" class="l">Moodle / TLS</text><text x="175" y="420" text-anchor="middle" class="s">session · API · resources</text>
+<rect x="330" y="365" width="210" height="82" class="box src"/><text x="435" y="398" text-anchor="middle" class="l">Canvas</text><text x="435" y="420" text-anchor="middle" class="s">token · courses · files</text>
+<rect x="590" y="365" width="210" height="82" class="box src"/><text x="695" y="398" text-anchor="middle" class="l">Everytime</text><text x="695" y="420" text-anchor="middle" class="s">boards · timetable · reviews</text>
+<rect x="850" y="365" width="210" height="82" class="box src"/><text x="955" y="398" text-anchor="middle" class="l">Study sources</text><text x="955" y="420" text-anchor="middle" class="s">Notability · Notion · files</text>
+<rect x="1110" y="365" width="210" height="82" class="box safe"/><text x="1215" y="398" text-anchor="middle" class="l">Sync policy</text><text x="1215" y="420" text-anchor="middle" class="s">reuse · backoff · resume</text>
+<path d="M1115 225V285H175V365M1115 285H1215V365M280 406H330M540 406H590M800 406H850M1060 406H1110" class="ar"/>
+<rect x="40" y="545" width="1320" height="125" class="group"/><text x="65" y="575" class="l">3. Local persistence and processing</text>
+<rect x="75" y="605" width="245" height="45" class="box safe"/><text x="197" y="633" text-anchor="middle" class="l">Local DB · metadata cache</text>
+<rect x="385" y="605" width="245" height="45" class="box safe"/><text x="507" y="633" text-anchor="middle" class="l">Private files · partial bytes</text>
+<rect x="695" y="605" width="245" height="45" class="box"/><text x="817" y="633" text-anchor="middle" class="l">Extract · normalize · index</text>
+<rect x="1005" y="605" width="300" height="45" class="box"/><text x="1155" y="633" text-anchor="middle" class="l">Study pipeline · question bank</text>
+<path d="M1215 447V520H197V605M197 520H507V605M507 520H817V605M817 520H1155V605" class="ar"/>
+<rect x="40" y="720" width="1320" height="65" class="group"/><text x="65" y="748" class="l">4. Local outputs</text>
+<rect x="270" y="735" width="250" height="32" class="box out"/><text x="395" y="756" text-anchor="middle" class="s">sync report · deadlines</text>
+<rect x="575" y="735" width="250" height="32" class="box out"/><text x="700" y="756" text-anchor="middle" class="s">study pack · summary</text>
+<rect x="880" y="735" width="250" height="32" class="box out"/><text x="1005" y="756" text-anchor="middle" class="s">exam web · grading</text>
+<path d="M1155 650V700H395V735M395 700H700V735M700 700H1005V735" class="ar"/>
+</svg>

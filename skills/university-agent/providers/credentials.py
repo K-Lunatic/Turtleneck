@@ -9,6 +9,8 @@ import os
 import re
 import subprocess
 import sys
+import threading
+from contextlib import contextmanager
 from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -22,6 +24,8 @@ CONFIG_PATH = Path.home() / ".university-agent" / "tls-account.json"
 SESSION_PATH = CONFIG_PATH.with_name("tls-session.json")
 DEFAULT_SITE = "tls.kku.ac.kr"
 DEFAULT_ALIAS = "default"
+
+_KEYCHAIN_INTERACTION_LOCK = threading.RLock()
 
 
 CredentialInputRequired = FormUnavailable
@@ -72,7 +76,72 @@ def _session_service(site: str) -> str:
     return SESSION_SERVICE if site == DEFAULT_SITE else f"university-agent/tls-session/{site}"
 
 
+@contextmanager
+def _keychain_interaction(security, allowed: bool):
+    """Keep normal reads silent; only explicit reconnects may show macOS UI."""
+    setter = getattr(security, "SecKeychainSetUserInteractionAllowed", None)
+    if setter is None:
+        yield
+        return
+    with _KEYCHAIN_INTERACTION_LOCK:
+        setter.argtypes = [ctypes.c_uint8]
+        setter.restype = ctypes.c_int32
+        setter(1 if allowed else 0)
+        try:
+            yield
+        finally:
+            setter(1)
+
+
 def _read_keychain_secret(service: str, account: str) -> str:
+    if sys.platform == "darwin":
+        try:
+            security = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
+            security.SecKeychainFindGenericPassword.argtypes = [
+                ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32,
+                ctypes.c_char_p, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_void_p),
+                ctypes.POINTER(ctypes.c_void_p),
+            ]
+            security.SecKeychainFindGenericPassword.restype = ctypes.c_int32
+            security.SecKeychainItemFreeContent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+            security.SecKeychainItemFreeContent.restype = ctypes.c_int32
+            core_foundation = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+            core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
+            length = ctypes.c_uint32()
+            data = ctypes.c_void_p()
+            item = ctypes.c_void_p()
+            with _keychain_interaction(
+                security, os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") == "1"
+            ):
+                status = security.SecKeychainFindGenericPassword(
+                    None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
+                    ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
+                )
+            if status == 0:
+                try:
+                    secret = ctypes.string_at(data, length.value).decode("utf-8")
+                    if not secret:
+                        raise ValueError("보호 저장소 항목이 비어 있어요.")
+                    return secret
+                finally:
+                    security.SecKeychainItemFreeContent(None, data)
+                    if item:
+                        core_foundation.CFRelease(item)
+            if status != -25300:  # errSecItemNotFound
+                raise OSError(f"Keychain read failed ({status})")
+        except OSError as error:
+            # Do not fall back to a new `security` process during normal use:
+            # macOS can treat it as a different app and ask for approval again.
+            # Reconnect explicitly if an old item needs migration.
+            if os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") != "1":
+                raise error
+        except (AttributeError, ctypes.ArgumentError, ValueError):
+            if os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") != "1":
+                raise
+    elif os.name == "nt":
+        raise OSError("Windows protected storage must use the DPAPI path")
+    if sys.platform == "darwin" and os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") != "1":
+        raise OSError("macOS Keychain access needs one explicit reconnect")
     result = subprocess.run(
         ("/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w"),
         check=True, capture_output=True, text=True, timeout=5,
@@ -81,6 +150,109 @@ def _read_keychain_secret(service: str, account: str) -> str:
     if not secret:
         raise ValueError("보호 저장소 항목이 비어 있어요.")
     return secret
+
+
+# Other local providers use the same native read path so their first use does
+# not fall back to a new `security` process on every request.
+read_keychain_secret = _read_keychain_secret
+
+
+def _trust_current_executable(security, foundation, item) -> bool:
+    """Allow this exact executable without granting Keychain access to all apps."""
+    executable = os.path.realpath(sys.executable or "")
+    if not executable:
+        return False
+    trusted = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
+    trusted_list = ctypes.c_void_p()
+    access = ctypes.c_void_p()
+    try:
+        security.SecTrustedApplicationCreateFromPath.argtypes = [
+            ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p),
+        ]
+        security.SecTrustedApplicationCreateFromPath.restype = ctypes.c_int32
+        if security.SecTrustedApplicationCreateFromPath(
+            executable.encode("utf-8"), ctypes.byref(trusted)
+        ) != 0:
+            return False
+
+        foundation.CFStringCreateWithCString.argtypes = [
+            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32,
+        ]
+        foundation.CFStringCreateWithCString.restype = ctypes.c_void_p
+        descriptor = ctypes.c_void_p(foundation.CFStringCreateWithCString(
+            None, b"Turtleneck protected credential", 0x08000100,
+        ))
+        values = (ctypes.c_void_p * 1)(trusted.value)
+        foundation.CFArrayCreate.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.c_long, ctypes.c_void_p,
+        ]
+        foundation.CFArrayCreate.restype = ctypes.c_void_p
+        trusted_list = ctypes.c_void_p(foundation.CFArrayCreate(None, values, 1, None))
+        if not trusted_list:
+            return False
+        security.SecAccessCreate.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+        ]
+        security.SecAccessCreate.restype = ctypes.c_int32
+        if security.SecAccessCreate(descriptor, trusted_list, ctypes.byref(access)) != 0:
+            return False
+        security.SecKeychainItemSetAccess.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        security.SecKeychainItemSetAccess.restype = ctypes.c_int32
+        return security.SecKeychainItemSetAccess(item, access) == 0
+    except (AttributeError, OSError, ctypes.ArgumentError, TypeError):
+        # Older macOS/packaged environments may not expose deprecated ACL APIs.
+        return False
+    finally:
+        for value in (access, trusted_list, descriptor, trusted):
+            if value:
+                try:
+                    foundation.CFRelease(value)
+                except (AttributeError, TypeError):
+                    pass
+
+
+def _delete_keychain_secret(service: str, account: str) -> None:
+    """Delete one secret without spawning a second macOS security client."""
+    if sys.platform == "darwin":
+        security = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
+        security.SecKeychainFindGenericPassword.argtypes = [
+            ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32,
+            ctypes.c_char_p, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        security.SecKeychainFindGenericPassword.restype = ctypes.c_int32
+        security.SecKeychainItemFreeContent.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        security.SecKeychainItemFreeContent.restype = ctypes.c_int32
+        security.SecKeychainItemDelete.argtypes = [ctypes.c_void_p]
+        security.SecKeychainItemDelete.restype = ctypes.c_int32
+        core_foundation = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+        core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
+        length = ctypes.c_uint32()
+        data = ctypes.c_void_p()
+        item = ctypes.c_void_p()
+        status = security.SecKeychainFindGenericPassword(
+            None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
+            ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
+        )
+        if data:
+            security.SecKeychainItemFreeContent(None, data)
+        if status == -25300:  # errSecItemNotFound
+            return
+        if status != 0:
+            raise OSError(f"Keychain lookup failed ({status})")
+        try:
+            status = security.SecKeychainItemDelete(item)
+            if status not in (0, -25300):
+                raise OSError(f"Keychain delete failed ({status})")
+        finally:
+            if item:
+                core_foundation.CFRelease(item)
+        return
+    subprocess.run(
+        ("/usr/bin/security", "delete-generic-password", "-s", service, "-a", account),
+        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
 
 
 def _save_keychain_secret(service: str, account: str, secret: str) -> None:
@@ -100,22 +272,24 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
         secret_bytes = secret.encode("utf-8")
         item = ctypes.c_void_p()
         password_buffer = ctypes.create_string_buffer(secret_bytes)
-        status = security.SecKeychainAddGenericPassword(
-            None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
-            len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
-        )
+        with _keychain_interaction(security, True):
+            status = security.SecKeychainAddGenericPassword(
+                None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
+                len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
+            )
         try:
             if status == -25299:  # errSecDuplicateItem: replace only this exact entry.
-                subprocess.run(
-                    ("/usr/bin/security", "delete-generic-password", "-s", service, "-a", account),
-                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                )
-                status = security.SecKeychainAddGenericPassword(
-                    None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
-                    len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
-                )
+                _delete_keychain_secret(service, account)
+                with _keychain_interaction(security, True):
+                    status = security.SecKeychainAddGenericPassword(
+                        None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
+                        len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
+                    )
             if status != 0:
                 raise OSError(f"Keychain write failed ({status})")
+            # Trust only the executable that saved the item. Never use an empty
+            # trusted list, which would make every local app trusted.
+            _trust_current_executable(security, core_foundation, item)
         finally:
             if item:
                 core_foundation.CFRelease(item)
@@ -484,11 +658,9 @@ def load_session(username: str, alias: str | None = None, site: str = DEFAULT_SI
         last_error = None
         for key in accounts:
             try:
-                result = subprocess.run(("/usr/bin/security", "find-generic-password", "-s", _session_service(site),
-                                         "-a", key, "-w"), check=True, capture_output=True, text=True)
-                payload = result.stdout.rstrip("\n")
+                payload = _read_keychain_secret(_session_service(site), key)
                 break
-            except subprocess.SubprocessError as error:
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
                 last_error = error
         else:
             raise last_error or ValueError("저장된 학교 세션을 읽지 못했어요.")
@@ -508,8 +680,7 @@ def clear_session(username: str, alias: str | None = None, site: str = DEFAULT_S
     selected = normalize_alias(alias or state.get("activeAlias") or DEFAULT_ALIAS)
     if os.name != "nt":
         for key in ({selected, username} if not profiles else {selected}):
-            subprocess.run(("/usr/bin/security", "delete-generic-password", "-s", _session_service(site),
-                            "-a", key), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _delete_keychain_secret(_session_service(site), key)
     if profiles and selected in profiles:
         profiles.pop(selected, None)
         if profiles:

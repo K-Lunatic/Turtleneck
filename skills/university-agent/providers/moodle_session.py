@@ -282,6 +282,7 @@ class MoodleSession:
         finally:
             response.close()
         if self.logged_in and ("/login" in urlsplit(response.geturl()).path or re.search(r'name=["\']username["\']', html, re.I)):
+            self.logged_in = False
             raise LoginError("TLS session expired; sign in again")
         return html, response
 
@@ -352,6 +353,7 @@ class MoodleSession:
         finally:
             response.close()
         if "/login" in urlsplit(response.geturl()).path or re.search(r'name=["\']username["\']', html, re.I):
+            self.logged_in = False
             raise LoginError("TLS session expired; sign in again")
         return html, response
 
@@ -441,6 +443,7 @@ class MoodleSession:
             finally:
                 response.close()
             if "/login" in urlsplit(response_url).path or re.search(r'name=["\']username["\']', html, re.I):
+                self.logged_in = False
                 raise LoginError("TLS session expired; sign in again")
             return html, response, total
         finally:
@@ -494,6 +497,7 @@ class MoodleSession:
             check_download_url(response.geturl())
             check_download_origin(response.geturl(), allowed_origin)
             if "/login" in urlsplit(response.geturl()).path:
+                self.logged_in = False
                 raise LoginError("TLS session expired; sign in again")
             payload = response.read() if max_bytes is None else response.read(max_bytes + 1)
             if max_bytes is not None and len(payload) > max_bytes:
@@ -508,7 +512,8 @@ class MoodleSession:
             response.close()
 
     def stream_bytes_to_file(self, path: str, target, *, allowed_origin=None,
-                             max_bytes=None, chunk_size=1024 * 1024) -> dict:
+                             max_bytes=None, chunk_size=1024 * 1024,
+                             resume_existing=False) -> dict:
         """Write one binary response directly to a temporary file, resuming safe ranges."""
         if not self.logged_in:
             raise LoginError("Call login() before stream_bytes_to_file()")
@@ -518,6 +523,10 @@ class MoodleSession:
         check_download_url(url)
         check_download_origin(url, allowed_origin)
         written = 0
+        if resume_existing and Path(target).is_file():
+            written = Path(target).stat().st_size
+            if max_bytes is not None and written > max_bytes:
+                raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')
         response_url = url
         response_headers = None
         for attempt in range(3):
@@ -533,6 +542,7 @@ class MoodleSession:
                 check_download_url(response.geturl())
                 check_download_origin(response.geturl(), allowed_origin)
                 if "/login" in urlsplit(response.geturl()).path:
+                    self.logged_in = False
                     raise LoginError("TLS session expired; sign in again")
                 if response.headers.get('Content-Encoding', '').lower() not in ('', 'identity'):
                     raise ValueError('영상 응답 형식이 달라 가져오기를 멈췄어요.')
@@ -543,8 +553,17 @@ class MoodleSession:
                     match = re.fullmatch(r'bytes\s+(\d+)-(\d+)/(\d+|\*)', content_range.strip(), re.I)
                     if status != 206 or not match or int(match.group(1)) != written:
                         raise ValueError('학교가 자료 이어받기를 지원하지 않아 처음부터 다시 확인해야 해요.')
+                    range_start, range_end = int(match.group(1)), int(match.group(2))
+                    if range_end < range_start or (match.group(3) != '*' and int(match.group(3)) <= range_end):
+                        raise ValueError('학교가 자료 이어받기 범위를 올바르게 알려주지 않았어요.')
                     if match.group(3) != '*':
                         total_size = int(match.group(3))
+                    if declared := response.headers.get('Content-Length'):
+                        try:
+                            if int(declared) != range_end - range_start + 1:
+                                raise ValueError('학교가 자료 이어받기 크기를 올바르게 알려주지 않았어요.')
+                        except ValueError:
+                            raise ValueError('학교가 자료 이어받기 크기를 올바르게 알려주지 않았어요.')
                 declared = response.headers.get('Content-Length')
                 try:
                     declared_size = int(declared) if declared is not None else None
@@ -563,6 +582,8 @@ class MoodleSession:
                         chunk = response.read(chunk_size)
                         if not chunk:
                             break
+                        if total_size is not None and written + len(chunk) > total_size:
+                            raise ValueError('학교가 알려준 자료 크기보다 많은 데이터를 보내 가져오기를 멈췄어요.')
                         written += len(chunk)
                         if max_bytes is not None and written > max_bytes:
                             raise ValueError('자료가 허용된 크기를 넘어 가져오기를 멈췄어요.')

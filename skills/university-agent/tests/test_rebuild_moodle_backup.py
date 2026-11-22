@@ -25,6 +25,7 @@ class RebuildMoodleBackupTests(unittest.TestCase):
             "sections/section_20/inforef.xml": b'<inforef/>',
             "activities/quiz_30/module.xml": b'<module id="30"/>',
             "files/1/blob": b'old file',
+            "course/banner.bin": b'large binary placeholder',
             "gradebook.xml": b'<gradebook><old/></gradebook>',
         }
         with tarfile.open(path, "w:gz") as archive:
@@ -47,9 +48,12 @@ class RebuildMoodleBackupTests(unittest.TestCase):
                 names = archive.getnames()
                 self.assertFalse(any(name.startswith("activities/") for name in names))
                 self.assertFalse(any(name.startswith("files/") for name in names))
+                self.assertEqual(archive.extractfile("course/banner.bin").read(), b'large binary placeholder')
                 sections = ET.fromstring(archive.extractfile("moodle_backup.xml").read())
                 titles = [node.findtext("title") for node in sections.findall("./information/contents/sections/section")]
                 self.assertEqual(titles, ["강의 개요", "자료구조", "고급웹프로그래밍"])
+                course = ET.fromstring(archive.extractfile("course/course.xml").read())
+                self.assertEqual(course.findtext("numsections"), "3")
                 settings = sections.findall("./information/settings/setting")
                 self.assertFalse(any(item.findtext("level") in {"activity", "section"} for item in settings))
                 self.assertEqual(next(item.findtext("value") for item in settings if item.findtext("name") == "activities"), "0")

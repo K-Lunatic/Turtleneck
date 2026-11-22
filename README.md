@@ -4,9 +4,13 @@
 
 <h1 align="center">터틀넥 · Turtleneck</h1>
 
+![Turtleneck system flow](docs/architecture/system-flow.svg)
+
+학교 계정과 수업 자료를 사용자의 컴퓨터에서 관리하는 로컬 우선 학습 도구입니다.
+
 <p align="center">
   <strong>학교 자료를 모으고, 공부할 만큼 나누고, 시험처럼 풀어요.</strong><br>
-  <sub>KKU TLS와 수업자료를 연결하는 Codex / Claude Code / Gemini 대학생활 스킬</sub>
+  <sub>Moodle·TLS 수업 자료를 정리하고 학습을 돕는 Codex·Gemini·Antigravity용 도구</sub>
 </p>
 
 <p align="center">
@@ -40,10 +44,10 @@
 
 ---
 
-## 개발자 응원
+## 후원
 
-터틀넥이 도움이 됐다면 [GitHub Sponsors에서 개발자를 응원](https://github.com/sponsors/K-Lunatic)할 수 있어요.
-물리치료비, 커피비, 맥주비처럼 편한 이름과 금액을 선택해 주세요. 후원은 선택 사항이며 기능이나 지원 범위를 제한하지 않습니다.
+터틀넥이 도움이 됐다면 [GitHub Sponsors](https://github.com/sponsors/K-Lunatic)로 개발을 후원할 수 있습니다.
+후원 여부는 기능과 지원 범위에 영향을 주지 않습니다.
 
 ## 터틀넥은 무엇인가요?
 
@@ -62,7 +66,7 @@
 
 > 기본 실행 환경은 **Codex·Claude Code·Gemini가 설치된 macOS·Windows**입니다. 모바일은 독립 실행형 앱이 아니라, 사용자의 컴퓨터에서 켜 둔 ChatGPT Actions 게이트웨이를 통해 정식 보조 경로로 지원합니다. 모바일 기기와 DB를 자동 동기화하지 않고, 컴퓨터 안에 원본 자료를 보관합니다.
 
-## 성능 검증은 계속 업데이트해요
+## 성능 검증
 
 터틀넥은 전체 속도를 하나의 숫자로 포장하지 않고 학습 파이프라인·로컬 캐시·미디어·TLS 동기화·전사를
 파트별로 나눠 측정합니다. 각 결과에는 버전 커밋, 실행 시각, 운영체제, Python 버전, 머신과 논리 코어 수가
@@ -102,6 +106,20 @@
 | 공지 7개 일반 재조회 | 8 → 1 요청 | **87.50% 감소** |
 | 같은 공지 구간의 응답 본문량 | 85,620B → 10,402B | **87.85% 감소** |
 
+위 표는 단계별 최적화의 이전 비교 기록이다. 최신 실서버 반복 측정은 8과목 중 1과목만
+변경된 것으로 표시하고 메타데이터만 조회했다. 두 회 모두 선택 과목 결과와 기존 과목을
+보존했으며 원본 DB는 바뀌지 않았다.
+
+| 최신 TLS 반복 측정 | 이전 로직 → 현재 로직 |
+| --- | ---: |
+| 1회차 요청 | 342 → 12 |
+| 1회차 응답 본문 | 1,358,134B → 138,144B |
+| 2회차 요청 | 342 → 12 |
+| 2회차 응답 본문 | 1,358,206B → 138,142B |
+
+원시 결과는 [`live-repeat.json`](tls-optimization-results/live-repeat.json)에 저장했다.
+파일 원본·동영상·서버 CPU/DB 사용량은 이 측정에 포함하지 않는다.
+
 강제로 최신 상태를 확인하면 57개 요청을 다시 보내며, 이는 캐시를 무시하고 현재 값을 확인하기 위한
 의도된 동작입니다. 대신 실측 피크 요청 빈도는 7→4로 낮아졌습니다. 현재 동기화는 한 계정에서 읽기 작업을
 최대 2개까지만 병렬화하고, 요청 사이에 0.25초 간격을 두며, 서버가 요구한 대기 시간과 실패 재시도를
@@ -134,24 +152,56 @@ python experiments/benchmarks/traffic_curve.py \
 
 ## 빠른 시작
 
-터틀넥은 GitHub에서 `Turtleneck AI Skill` 또는 `터틀넥 스킬`로 찾을 수 있고, Codex·Claude Code
-마켓플레이스와 Gemini 스킬 경로에 같은 패키지로 등록되어 있습니다. 설치 환경만 먼저 확인하려면 아래를
-실행하고, 실제 등록은 확인 후 `--apply`를 붙이세요.
+처음 설치한다면 GitHub Release의 무설치 번들을 권장합니다. Python과 Git이 없어도 로컬 실행기를
+사용할 수 있습니다. 다만 터틀넥을 호출할 로컬 AI 호스트(Codex, Gemini CLI, Antigravity CLI 등)는
+별도로 필요합니다. Claude Code는 선택 사항이며 무료 플랜에는 포함되지 않을 수 있습니다.
+
+### 가장 쉬운 설치
+
+1. [최신 Release](https://github.com/K-Lunatic/Turtleneck/releases)에서 운영체제에 맞는 파일을 받습니다.
+2. ZIP과 같은 이름의 `.sha256` 파일로 체크섬을 확인합니다.
+3. 압축을 풀고 macOS에서는 `turtleneck`, Windows에서는 `turtleneck.exe`를 실행합니다.
+4. 사용하는 AI 호스트에 터틀넥 플러그인 또는 스킬을 등록한 뒤 `$turtleneck`을 호출합니다.
+
+macOS와 Windows 번들은 현재 코드 서명이 되어 있지 않아 운영체제의 경고가 표시될 수 있습니다.
+공식 Release에서 받은 파일인지, 체크섬이 일치하는지 확인한 뒤 실행하세요.
+
+### 소스 설치
+
+저장소를 내려받아 설치 환경만 확인하려면 아래 명령을 사용합니다. 실제 등록은 확인 결과를 본 뒤
+`--apply`를 붙여 실행합니다.
 
 ```bash
 python3 skills/university-agent/scripts/install_turtleneck.py
 python3 skills/university-agent/scripts/install_turtleneck.py --apply
 ```
 
-설치가 끝났을 때만 “도움이 됐다면 GitHub에서 별 하나만 눌러 주세요”라는 안내를 한 번 표시합니다. 별은 선택 사항이며 기능·지원 범위와 무관합니다.
+설치가 완료되면 선택적인 후원 안내가 한 번 표시됩니다.
 
-### 1. 설치
+Git이 없어도 설치할 수 있습니다. GitHub 저장소의 **Code → Download ZIP**으로 압축을 받은 뒤
+압축을 풀고 같은 스크립트를 실행하면, 터틀넥이 현재 폴더를 로컬 설치 원본으로 사용합니다.
+저장소 폴더 없이 스크립트만 실행한 경우에는 공개 `turtleneck` 브랜치의 현재 커밋을 먼저 확인하고,
+그 커밋 SHA에 고정된 GitHub ZIP을 임시 폴더에 받아 설치한 뒤 즉시 삭제합니다. 설치 과정에서 GitHub ZIP 전체 크기와 압축 경로를 검사하며, 학교 계정·비밀번호·쿠키는 읽지 않습니다.
+따라서 Git이 없는 새 컴퓨터에서는 다음 흐름이면 됩니다.
 
-로컬 Codex, Claude Code 또는 Gemini가 필요합니다. 소스 설치와 직접 스크립트 실행에는 Python 3.10 이상이 필요합니다. Python이 없는 컴퓨터에서는 GitHub Releases의 무서명 `turtleneck-macos-arm64-unsigned`, `turtleneck-macos-x64-unsigned` 또는 `turtleneck-windows-x64-unsigned` 무설치 번들을 사용할 수 있습니다. 번들에는 PDF 읽기와 완료된 강의 오디오 변환에 필요한 런타임도 포함합니다. 첫 실행 때 운영체제의 보안 경고가 나올 수 있으므로 아래 확인 절차를 거친 뒤 실행하세요.
+1. [Turtleneck 저장소](https://github.com/K-Lunatic/Turtleneck)에서 **Code → Download ZIP**
+2. 압축 해제 후 `skills/university-agent/scripts/install_turtleneck.py` 실행
+3. 먼저 확인 결과를 보고, 동의할 때만 `--apply` 실행
 
-무설치 번들은 압축을 푼 뒤 macOS의 `turtleneck` 또는 Windows의 `turtleneck.exe`를 실행합니다. 플러그인 자체는 사용하는 Codex·Claude Code의 설치 명령으로 등록하고, 번들은 로컬 실행기와 Python 런타임을 제공하는 방식입니다. 배포 절차는 [릴리스 정책](RELEASE.md), 변경 내역은 [변경 기록](CHANGELOG.md)에서 확인할 수 있습니다.
+Codex·Claude Code·Gemini CLI·Antigravity CLI 자체가 설치되어 있지 않은 경우에는 먼저 사용 가능한 호스트 하나를 설치해야 합니다.
+Git은 터틀넥 설치의 필수 조건이 아닙니다.
 
-#### 설치 중 보안 경고가 뜨는 이유
+자동 실행과 호스트별 훅 동작은 [자동 실행 안내](docs/HOST_AUTOMATION.md)에 정리했습니다. 현재는
+대화마다 로그인하거나 전체 동기화를 시작하는 라이프사이클 훅을 사용하지 않습니다.
+
+### 공개 마켓플레이스 상태
+
+현재 패키지는 호스트의 마켓플레이스 형식으로 준비되어 있지만, 건국대 TLS·에브리타임처럼
+터틀넥이 접근하는 제3자 엔드포인트의 공개 사용 권리를 확인하지 못해 공개 마켓플레이스 제출은 보류 중입니다.
+사용자 본인 계정으로 접근할 권한과 플러그인 제작자가 제3자 엔드포인트를 공개 배포할 권리는 다릅니다.
+권리 확인 전에는 공개 등록을 완료했다고 안내하지 않습니다.
+
+### 설치 중 보안 경고가 뜨는 이유
 
 공개 번들은 현재 Apple 개발자 인증서와 Windows 코드 서명 인증서가 없어 **무서명** 상태입니다. 따라서 macOS Gatekeeper가 “확인되지 않은 개발자”라고 표시하거나 Windows SmartScreen이 실행을 막을 수 있습니다. 이는 Python이 없어서 생기는 오류가 아니라 운영체제가 파일의 개발자 서명을 확인하지 못했다는 안내입니다.
 
@@ -171,7 +221,7 @@ $turtleneck
 ```
 
 처음 호출할 때 설치 폴더를 다시 복사하거나 `setup` 명령을 따로 입력할 필요가 없습니다. 터틀넥이
-이 컴퓨터의 준비 상태만 먼저 읽고, 연결되지 않은 항목이 있을 때만 한 번 쓰는 로컬 연결 화면을 열어요.
+이 컴퓨터의 준비 상태만 먼저 읽고, 연결되지 않은 항목이 있을 때만 한 번 쓰는 로컬 연결 화면을 엽니다.
 이미 준비된 학교 자료·에타 캐시는 그대로 재사용합니다.
 
 **Claude Code:** 공개 저장소에서 아래 두 명령으로 설치합니다.
@@ -183,8 +233,8 @@ claude plugin install university-agent@turtleneck
 
 새 Claude Code 대화에서 `/university-agent:turtleneck`을 호출하세요. 설치 없이 개발본을 확인하려면
 `claude --plugin-dir .`로 시작해 같은 명령을 사용합니다. 경로의 `.`은 이 저장소 루트입니다.
-저장소가 없다면 먼저 `git clone --branch turtleneck https://github.com/K-Lunatic/Turtleneck.git`로
-받은 뒤 `Turtleneck` 폴더에서 설치합니다.
+Git이 없는 Windows 사용자는 `git clone`을 실행하지 않습니다. 위 ZIP 흐름을 사용하거나 GitHub Releases의
+Windows 무설치 번들을 받으세요. 압축을 푼 폴더를 로컬 플러그인 경로로 전달할 수 있는 호스트는 Git 없이 설치됩니다.
 스킬 폴더만 쓸 때는 `skills/university-agent`를 `~/.claude/skills/turtleneck`에 복사하고 `/turtleneck`을
 호출합니다. 이 경우 플러그인 자동 업데이트 대신 폴더를 다시 복사해 갱신합니다.
 [Claude 설치 규칙](https://code.claude.com/docs/en/plugin-marketplaces)과 [실행 지침](skills/university-agent/references/claude-code.md)을 참고하세요.
@@ -197,9 +247,19 @@ gemini skills install https://github.com/K-Lunatic/Turtleneck.git \
 gemini skills list --all
 ```
 
-개발 중인 저장소는 루트에서 `gemini skills link "$PWD/skills/university-agent" --scope workspace`를 사용합니다. 로컬 파일·명령 실행이 없는 일반 Gemini 웹 대화에서는 학교 로그인·동기화·로컬 시험지를 사용할 수 없습니다. [Gemini 실행 지침](skills/university-agent/references/gemini.md)을 참고하세요.
+개발 저장소는 루트에서 `gemini skills link "$PWD/skills/university-agent" --scope workspace`를 사용합니다. 로컬 파일·명령 실행이 없는 일반 Gemini 웹 대화에서는 학교 로그인·동기화·로컬 시험지를 사용할 수 없습니다. [Gemini 실행 지침](skills/university-agent/references/gemini.md)을 참고하세요.
 
-로컬 시험 서버나 Actions 연결을 실행할 때는 `University Agent.command`(macOS) 또는 `University Agent.bat`(Windows)를 더블클릭하세요. Python이 없으면 공식 설치 안내가 표시됩니다. 실행 전 터틀넥은 신뢰한 `turtleneck` 버전을 확인하지만 자동으로 덮어쓰지 않으며, 사용자가 확인한 뒤 `--apply`를 선택해야 업데이트합니다. 개발 중인 Git 저장소는 자동으로 덮어쓰지 않습니다.
+**Antigravity CLI:** 개인/무료 Gemini CLI 사용자는 현재 Antigravity CLI(`agy`) 경로를 우선 사용합니다.
+
+```bash
+agy plugin install https://github.com/K-Lunatic/Turtleneck.git
+agy plugin list
+```
+
+Antigravity 공식 문서는 GitHub URL과 로컬 플러그인 폴더 설치를 모두 지원합니다. Git이 없으면 ZIP을
+내려받아 압축을 푼 뒤 `agy plugin install <압축을 푼 Turtleneck 폴더>`를 사용하세요.
+
+로컬 시험 서버나 Actions 연결을 실행할 때는 `University Agent.command`(macOS) 또는 `University Agent.bat`(Windows)를 실행합니다. Python이 없으면 공식 설치 안내가 표시됩니다. 실행 전 터틀넥은 신뢰한 `turtleneck` 버전을 확인하지만 자동으로 덮어쓰지 않으며, 사용자가 확인한 뒤 `--apply`를 선택해야 업데이트합니다. 개발 Git 저장소는 자동으로 덮어쓰지 않습니다.
 
 ### 공개 저장소 사용 범위
 
@@ -288,9 +348,9 @@ python3 skills/university-agent/scripts/canvas_sync.py \
 
 ### 2. 처음 한 번 연결
 
-처음 호출하면 이 컴퓨터의 브라우저에 한 번만 쓰는 터틀넥 연결 화면이 열립니다. 학교 이름이 아니라 **사이트별 계정 별칭**도 함께 입력할 수 있어요. 예를 들어 `건국대학교 TLS / 본계정`, `목원대학교 LMS / 본계정`, 같은 학교의 `조교계정`을 따로 저장합니다. 비밀번호는 macOS Keychain 또는 Windows 보호 저장소에만 저장합니다. 아이디나 비밀번호가 틀리면 실패했다고 숨기지 않고 입력 화면을 다시 열어요. 에브리타임을 함께 쓰려면 이어지는 공식 로그인 화면에서 로그인과 2차 인증을 직접 마칩니다.
+처음 호출하면 이 컴퓨터의 브라우저에 한 번만 쓰는 터틀넥 연결 화면이 열립니다. 학교 이름이 아니라 **사이트별 계정 별칭**도 함께 입력할 수 있습니다. 예를 들어 `건국대학교 TLS / 본계정`, `목원대학교 LMS / 본계정`, 같은 학교의 `조교계정`을 따로 저장합니다. 비밀번호는 macOS Keychain 또는 Windows 보호 저장소에만 저장합니다. 아이디나 비밀번호가 틀리면 실패 사실을 표시하고 입력 화면을 다시 엽니다. 에브리타임을 함께 쓰려면 이어지는 공식 로그인 화면에서 로그인과 2차 인증을 직접 마칩니다.
 
-비밀번호를 채팅이나 터미널에 입력하지 마세요. 이미 연결한 계정과 캐시는 다음 실행에서 재사용합니다.
+비밀번호를 채팅이나 터미널에 입력하지 마세요. 이미 연결한 계정과 캐시는 다음 실행에서 재사용합니다. macOS는 최초 저장·접근 시 운영체제의 키체인 승인을 한 번 요구할 수 있습니다. 이때 **항상 허용(Always Allow)**을 선택하면 현재 터틀넥 실행 파일만 다음부터 바로 읽을 수 있고, 모든 앱 허용은 선택하지 않습니다. 일반 동기화에서는 키체인이 승인창을 띄우지 않도록 조회를 막아두었기 때문에, 오래된 항목이나 실행 파일이 바뀌면 조용히 멈추고 다시 묻지 않습니다. 이 경우 `연결`을 한 번만 다시 실행해 새 접근 정책으로 저장하세요.
 
 요청에 과목명이 들어 있으면 터틀넥은 각 프로필의 **로컬 과목 목록만** 대조해 연결을 고릅니다. `자료구조 과제 확인해줘`가 한 프로필에서만 발견되면 그 공간의 DB와 파일만 읽고, 두 학교나 두 계정에 같은 과목이 있으면 임의로 고르지 않고 선택을 요청합니다. 직접 고르려면 `--site`와 `--account-alias`를 함께 지정할 수 있습니다.
 
@@ -654,7 +714,7 @@ node skills/university-agent/tests/test_exam_client.js
 python3 skills/university-agent/integrations/everytime/scripts/self_check.py
 ```
 
-2026-11-15 기준 로컬 회귀 테스트는 **455개 실행 통과·2개 건너뜀**입니다. 이번 실행은
+2026-11-20 기준 로컬 회귀 테스트는 **551개 실행 통과·2개 건너뜀**입니다. 이번 실행은
 Canvas 읽기 전용 연결, Moodle 이식성·교수 기능, 비밀값 없는 마이그레이션 리포트와 기존 학습 흐름을
 포함했으며, 건너뛴 검사는 선택적 환경 의존 검사입니다. 게이트웨이와 시험 화면 검사는 별도 명령으로
 분리해 실행합니다.

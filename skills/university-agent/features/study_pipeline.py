@@ -124,10 +124,9 @@ def start(session, state, selected, material=None):
                 session.files_root.parent / 'cache', 'analysis', session.user, analysis_key(state, m, size))
                 for size in (CHUNK_CHARS, 8000)) and not material_cache.get(
                     session.files_root.parent / 'cache', 'source-analysis', session.user, source_analysis_key(state, m)))]
-        if len(missing) > 1:
-            # Warm local text only; the model still receives one bounded part at a time.
-            study_materials(courses, resources, files_root=session.files_root,
-                course_id=state['selection']['courseId'], resource_ids=missing, include_ids=True, max_chars=0)
+        # Do not warm every missing file here. That blocks the first response and the
+        # active file is read again by advance(); process the next file only after the
+        # current batch is persisted.
     # Keep long transcripts in the detachable pipeline, not the live answer-save state.
     state['selection'].pop('examReferences', None)
     state['examReferences'] = [{k: v for k, v in r.items() if k != 'text' or r['kind'] != 'instructor_transcript'}
@@ -354,7 +353,8 @@ def _finish_file(session, state, target):
     operation_id = p.get('batchId') or state.get('requestId') or secrets.token_hex(12)
     analysis_records.save(session.files_root.parent, session.user,
         [s for u in units for s in u['sources']], state['settings'], 'exam_analysis',
-        {'units': units, 'candidates': candidates, 'candidateCount': len(candidates)}, operation_id=operation_id)
+        {'units': units, 'candidates': candidates, 'candidateCount': len(candidates),
+         'imageRefs': p.get('imageRefs', {})}, operation_id=operation_id)
     material_cache.put(session.files_root.parent / 'cache', 'analysis', session.user, p['analysisKey'],
         {'units': units, 'candidates': candidates, 'candidateBudget': target, 'imageRefs': p.get('imageRefs', {}),
          'sourceAnalysisKey': p.get('sourceAnalysisKey')})

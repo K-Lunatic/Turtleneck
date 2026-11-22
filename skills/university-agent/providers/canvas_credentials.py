@@ -4,10 +4,11 @@ from __future__ import annotations
 import base64
 import json
 import os
-import subprocess
+import subprocess  # Kept as a patchable compatibility boundary for host tests.
 from pathlib import Path
 
 from providers.credentials import (
+    read_keychain_secret,
     _save_keychain_secret,
     _windows_protect,
     _windows_unprotect,
@@ -85,11 +86,7 @@ def load_token(alias: str | None, site: str) -> str:
         if not protected:
             raise ValueError("저장된 Canvas 토큰을 읽지 못했어요.")
         return _windows_unprotect(base64.b64decode(protected)).decode("utf-8")
-    result = subprocess.run(
-        ("/usr/bin/security", "find-generic-password", "-s", _service(site),
-         "-a", alias, "-w"),
-        check=True, capture_output=True, text=True)
-    token = result.stdout.rstrip("\n")
+    token = read_keychain_secret(_service(site), alias)
     if not token:
         raise ValueError("저장된 Canvas 토큰을 읽지 못했어요.")
     return token

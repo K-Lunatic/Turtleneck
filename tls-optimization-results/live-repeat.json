@@ -1,0 +1,29 @@
+{
+  "measurement": "live TLS, controlled one-course fingerprint mismatch, repeated",
+  "measuredAt": "2026-11-20 Asia/Seoul",
+  "metadataOnly": true,
+  "runs": [
+    {
+      "status": "MEASURED",
+      "before": {"requests": 342, "responseBodyBytes": 1358134, "elapsedSeconds": 95.6878},
+      "after": {"requests": 12, "responseBodyBytes": 138144, "elapsedSeconds": 4.0594},
+      "selectedCourseResultsEqual": true,
+      "unselectedRecordsPreserved": true,
+      "sourceDbBytesUnchanged": true
+    },
+    {
+      "status": "MEASURED",
+      "before": {"requests": 342, "responseBodyBytes": 1358206, "elapsedSeconds": 91.1166},
+      "after": {"requests": 12, "responseBodyBytes": 138142, "elapsedSeconds": 3.799},
+      "selectedCourseResultsEqual": true,
+      "unselectedRecordsPreserved": true,
+      "sourceDbBytesUnchanged": true
+    }
+  ],
+  "notes": [
+    "Both runs reused the stored protected session and used the same private DB backup.",
+    "Only a local fingerprint was altered to force one course refresh; TLS data was not modified.",
+    "No raw file or video bytes were downloaded; only metadata/status responses were measured.",
+    "Authentication, server CPU/DB usage, and all-student peak traffic were not measured."
+  ]
+}

@@ -18,9 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts')]
 from features import lecture_audio
 from features import lecture_review
-from providers.lecture_media import media_plan, download_media
+from providers.lecture_media import media_plan, media_window, download_media
 from providers.moodle_provider import MoodleTLSProvider, _download_restriction
-from providers.moodle_session import MoodleSession, DownloadRestricted, _DownloadRedirectHandler, check_download_origin
+from providers.moodle_session import MoodleSession, DownloadRestricted, RequestBackoff, _DownloadRedirectHandler, check_download_origin
 from storage.local_db import LocalDatabase
 from scripts import lecture_audio as audio_script
 
@@ -71,6 +71,26 @@ class StreamingSession(Session):
             for offset in range(0, len(content), 2):
                 output.write(content[offset:offset + 2])
         return len(content)
+
+
+class ResumableMp4Session:
+    def __init__(self):
+        self.content = b'\x00\x00\x00\x18ftypmp42' + b'video-data'
+        self.calls = []
+        self.failed = True
+
+    def stream_bytes_to_file(self, url, target, **kwargs):
+        self.calls.append((url, Path(target).stat().st_size if Path(target).exists() else 0, kwargs))
+        target = Path(target)
+        offset = target.stat().st_size if target.exists() else 0
+        if self.failed:
+            target.write_bytes(self.content[:8])
+            self.failed = False
+            raise URLError('temporary reset')
+        self.assert_resume = kwargs.get('resume_existing')
+        with target.open('ab') as stream:
+            stream.write(self.content[offset:])
+        return {'size': len(self.content)}
 
 
 class LectureAudioTests(unittest.TestCase):
@@ -135,6 +155,13 @@ class LectureAudioTests(unittest.TestCase):
         self.assertEqual(plan['format'], 'mpegts')
         self.assertIn(SOURCE, session.calls)
 
+    def test_media_backoff_stops_candidate_fallback(self):
+        session = Session()
+        with patch('providers.lecture_media.media_plan', side_effect=RequestBackoff(60)) as plan:
+            with self.assertRaises(RequestBackoff):
+                MoodleTLSProvider(session).get_lecture_media('u', LECTURE, [])
+        plan.assert_called_once()
+
     def test_visible_notice_or_player_prohibition_blocks_before_original(self):
         self.assertIsNone(_download_restriction('', 'slides.pdf', [{'title': '전체 영상 다운로드 금지', 'content': ''}]))
         for place in ('activity', 'notice', 'viewer', 'flag', 'drm'):
@@ -174,7 +201,7 @@ class LectureAudioTests(unittest.TestCase):
         plan = MoodleTLSProvider(session).get_lecture_media('u', LECTURE, [])
         self.assertEqual(plan['format'], 'mov')
 
-    def test_hls_prefers_explicit_audio_and_rejects_video_fallback(self):
+    def test_hls_prefers_audio_and_uses_lowest_video_fallback_for_local_audio(self):
         session = Session()
         master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=900\nhigh.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=100\nlow.m3u8\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio.m3u8"\n'
         selected = SOURCE.rsplit('/', 1)[0] + '/audio.m3u8'
@@ -186,7 +213,44 @@ class LectureAudioTests(unittest.TestCase):
 
         session = Session()
         session.files[SOURCE] = master.replace('#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",URI="audio.m3u8"\n', '').encode()
-        with self.assertRaises(DownloadRestricted):
+        low = SOURCE.rsplit('/', 1)[0] + '/low.m3u8'
+        session.files[low] = PLAYLIST.encode()
+        plan = media_plan(session, SOURCE)
+        self.assertEqual(session.calls, [SOURCE, low])
+        self.assertEqual(len(plan['chunks']), 2)
+
+    def test_hls_fragmented_mp4_keeps_init_segment_and_window_alignment(self):
+        session = Session()
+        init = SOURCE.rsplit('/', 1)[0] + '/init.mp4'
+        first = SOURCE.rsplit('/', 1)[0] + '/one.m4s'
+        second = SOURCE.rsplit('/', 1)[0] + '/two.m4s'
+        session.files[SOURCE] = (
+            '#EXTM3U\n#EXT-X-MAP:URI="init.mp4"\n'
+            '#EXTINF:10,\none.m4s\n#EXTINF:10,\ntwo.m4s\n#EXT-X-ENDLIST\n'
+        ).encode()
+        session.files[init] = b'\x00\x00\x00\x18ftypisom'
+        session.files[first] = b'\x00\x00\x00\x10mdat-first'
+        session.files[second] = b'\x00\x00\x00\x10mdat-second'
+        plan = media_plan(session, SOURCE)
+        self.assertEqual(plan['format'], 'mp4')
+        self.assertEqual(plan['chunks'], [init, first, second])
+        window = media_window(plan, 9, 2)
+        self.assertEqual(window['chunks'], [init, first, second])
+        self.assertNotEqual(window['sourceKey'], plan['sourceKey'])
+        self.assertNotEqual(window['sourceKey'], media_window(plan, 0, 2)['sourceKey'])
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / 'media.mp4'
+            download_media(session, plan, target)
+            self.assertEqual(target.read_bytes(), session.files[init] + session.files[first] + session.files[second])
+            session.files[second] = b'<html>sign in</html>'
+            with self.assertRaises(ValueError):
+                download_media(session, plan, Path(folder) / 'rejected.mp4')
+
+    def test_hls_playlist_over_chunk_limit_is_rejected_before_media_requests(self):
+        session = Session()
+        segments = ''.join(f'#EXTINF:1,\nchunk-{index}.ts\n' for index in range(4001))
+        session.files[SOURCE] = ('#EXTM3U\n' + segments + '#EXT-X-ENDLIST\n').encode()
+        with self.assertRaisesRegex(ValueError, '영상 길이'):
             media_plan(session, SOURCE)
         self.assertEqual(session.calls, [SOURCE])
 
@@ -260,6 +324,20 @@ class LectureAudioTests(unittest.TestCase):
         response.read.assert_not_called()
         response.close.assert_called_once()
 
+    def test_stream_bytes_to_file_rejects_bytes_beyond_declared_size(self):
+        session = MoodleSession()
+        session.logged_in = True
+        headers = Message()
+        headers['Content-Length'] = '3'
+        response = Mock(headers=headers, geturl=lambda: SOURCE, getcode=lambda: 200)
+        response.read.side_effect = [b'four', b'']
+        with tempfile.TemporaryDirectory() as folder, patch.object(session.opener, 'open', return_value=response):
+            target = Path(folder) / 'chunk.ts'
+            with self.assertRaisesRegex(ValueError, '많은 데이터를'):
+                session.stream_bytes_to_file(SOURCE, target, allowed_origin='tlsvod.kku.ac.kr:8443')
+            self.assertEqual(target.read_bytes(), b'')
+        response.close.assert_called_once()
+
     def test_stream_bytes_to_file_resumes_after_a_short_response_with_http_range(self):
         session = MoodleSession()
         session.logged_in = True
@@ -284,6 +362,22 @@ class LectureAudioTests(unittest.TestCase):
         first.close.assert_called_once()
         second.close.assert_called_once()
 
+    def test_stream_bytes_to_file_rejects_invalid_content_range_without_appending(self):
+        session = MoodleSession()
+        session.logged_in = True
+        headers = Message()
+        headers['Content-Length'] = '4'
+        headers['Content-Range'] = 'bytes 5-3/10'
+        response = Mock(headers=headers, geturl=lambda: SOURCE, getcode=lambda: 206)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / 'chunk.ts'
+            target.write_bytes(b'Gdone')
+            with patch.object(session.opener, 'open', return_value=response), self.assertRaisesRegex(ValueError, '범위'):
+                session.stream_bytes_to_file(SOURCE, target, allowed_origin='tlsvod.kku.ac.kr:8443', resume_existing=True)
+            self.assertEqual(target.read_bytes(), b'Gdone')
+        response.read.assert_not_called()
+        response.close.assert_called_once()
+
     def test_download_order_is_preserved_and_html_or_http_denial_never_succeeds(self):
         session = Session()
         plan = media_plan(session, SOURCE)
@@ -304,6 +398,22 @@ class LectureAudioTests(unittest.TestCase):
             download_media(session, plan, path)
             self.assertEqual(path.read_bytes(), b'GfirstGsecond')
             self.assertEqual(list(Path(folder).glob('.media-*')), [])
+
+    def test_direct_mp4_keeps_partial_and_resumes_with_range(self):
+        session = ResumableMp4Session()
+        plan = {'format': 'mov', 'chunks': ['https://media.example/video.mp4'],
+                'origin': 'media.example', 'sourceKey': 'mp4-resume'}
+        with tempfile.TemporaryDirectory() as folder, patch('providers.lecture_media.time.sleep'):
+            path = Path(folder) / 'video.mp4'
+            with self.assertRaises(URLError):
+                download_media(session, plan, path)
+            self.assertFalse(path.exists())
+            self.assertTrue((Path(folder) / '.video.mp4.partial').exists())
+            download_media(session, plan, path)
+            self.assertEqual(path.read_bytes(), session.content)
+            self.assertEqual(session.calls[1][1], 8)
+            self.assertTrue(session.calls[1][2]['resume_existing'])
+            self.assertFalse((Path(folder) / '.video.mp4.partial').exists())
 
     def test_failed_download_preserves_existing_target_and_cleans_partial_output(self):
         session = Session()
@@ -345,6 +455,34 @@ class LectureAudioTests(unittest.TestCase):
             download_media(session, plan, path)
             self.assertEqual(path.read_bytes(), b'GfirstGsecondGfirstGsecondGthird')
             self.assertNotIn(plan['chunks'][0], session.calls)
+
+    def test_corrupt_checkpoint_is_discarded_before_resuming(self):
+        session = Session()
+        plan = media_plan(session, SOURCE)
+        session.files[SOURCE.rsplit('/', 1)[0] + '/three.ts'] = b'Gthird'
+        plan = {**plan, 'sourceKey': 'corrupt-checkpoint',
+                'chunks': [plan['chunks'][0], plan['chunks'][1],
+                           SOURCE.rsplit('/', 1)[0] + '/three.ts']}
+        attempts = {'three.ts': 0}
+        original = session.get_bytes
+
+        def flaky(url, **kwargs):
+            if url.endswith('/three.ts') and attempts['three.ts'] < 3:
+                attempts['three.ts'] += 1
+                raise URLError('temporary reset')
+            return original(url, **kwargs)
+
+        session.get_bytes = flaky
+        with tempfile.TemporaryDirectory() as folder, patch('providers.lecture_media.time.sleep'):
+            path = Path(folder) / 'media.bin'
+            with self.assertRaises(URLError):
+                download_media(session, plan, path)
+            partial = Path(folder) / '.media.bin.partial'
+            partial.write_bytes(b'X' + partial.read_bytes()[1:])
+            session.calls.clear()
+            download_media(session, plan, path)
+            self.assertIn(plan['chunks'][0], session.calls)
+            self.assertEqual(path.read_bytes(), b'GfirstGsecondGthird')
 
     def test_transient_chunk_failure_retries_but_server_denial_does_not(self):
         session = Session()
@@ -393,6 +531,35 @@ class LectureAudioTests(unittest.TestCase):
             self.assertIsNone(lecture_audio.cached_audio(saved, root, saved['sourceKey']))
             with self.assertRaises(ValueError), patch.object(lecture_audio, 'ffmpeg_path', return_value='ffmpeg'):
                 lecture_audio.extract_audio(provider, 'u', {**LECTURE, 'courseId': '../escape'}, plan, root)
+
+    def test_audio_retry_keeps_media_staging_after_process_failure(self):
+        provider = Mock()
+        attempts = {'count': 0}
+
+        def save(plan, target, progress):
+            attempts['count'] += 1
+            if attempts['count'] == 1:
+                partial = Path(target).with_name('.media.bin.partial')
+                partial.write_bytes(b'Gpartial')
+                raise OSError('temporary reset')
+            Path(target).write_bytes(b'Gcomplete')
+
+        provider.save_lecture_media.side_effect = save
+        def convert(command, **kwargs):
+            Path(command[-1]).write_bytes(b'\x00\x00\x00\x20ftypM4A ' + b'a' * 200)
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / 'audio'
+            plan = {'format': 'mpegts', 'sourceKey': 'source'}
+            with patch.object(lecture_audio, 'ffmpeg_path', return_value='ffmpeg'), \
+                 patch.object(lecture_audio.subprocess, 'run', side_effect=convert):
+                with self.assertRaises(OSError):
+                    lecture_audio.extract_audio(provider, 'u', LECTURE, plan, root)
+                self.assertTrue(list((root / '.media-staging').rglob('*.partial')))
+                result = lecture_audio.extract_audio(provider, 'u', LECTURE, plan, root)
+            self.assertFalse(result['reused'])
+            self.assertEqual(provider.save_lecture_media.call_count, 2)
+            self.assertFalse(list((root / '.media-staging').rglob('*')))
 
     def test_old_url_bound_cache_record_is_reused_and_migrated_to_stable_key(self):
         provider = Mock()

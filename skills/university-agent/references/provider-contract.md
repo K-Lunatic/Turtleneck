@@ -117,6 +117,8 @@ observed media files; no player JavaScript/tracking/attendance requests or decry
 Metadata stays outside the document-resource contract and never changes completion.
 Media chunks are staged on disk and the destination is replaced only after the complete
 bounded transfer succeeds; a failed or expired session must leave an existing local copy intact.
+Direct MP4 media keeps its single partial chunk beside the destination and resumes through
+HTTP Range only when the server returns a matching `206 Content-Range` response.
 
 ## Conditional instructor permission (local only)
 
@@ -180,6 +182,15 @@ Use ISO-8601 timestamps with timezone offsets and the statuses `NOT_SUBMITTED`, 
 The local user record also returns `lastSyncedAt`, sourced from that user's snapshot import timestamp, not a shared course timestamp.
 
 AI integrations should call the Skill commands or consume their JSON; they should not move TLS logic into a vendor-specific prompt or SDK. Add authentication and secret handling only when a real TLS API is available.
+
+## Error reports
+
+Command errors return a stable `error.code` and a random `error.reportId`. The runner writes a
+redacted JSON report under the active profile's private `error-reports/` directory with mode 0600
+where the platform supports it. The report contains only command name, platform/runtime, timestamp,
+and the redacted error code/message; passwords, cookies, sessions, tokens, headers and raw request
+URLs are never included. If the report cannot be saved, the response keeps the error code and tells
+the user to attach it manually.
 
 ## Canvas provider
 

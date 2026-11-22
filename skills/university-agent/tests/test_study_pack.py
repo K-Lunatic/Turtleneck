@@ -58,6 +58,32 @@ class StudyPackTests(unittest.TestCase):
                 self.assertEqual(db.get_resources("local-user")[0]["localPath"], None)
             self.assertEqual(analysis_records.read(right, "local-user", [resource])["records"][0]["resourceId"], "resource-1")
 
+    def test_pack_carries_question_images_without_carrying_source_paths(self):
+        course = {"id": "course-1", "externalId": "course-1", "name": "자료구조", "source": "tls"}
+        resource = {"id": "resource-1", "externalId": "resource-1", "courseId": "course-1", "title": "도표", "fileName": "chart.pdf",
+                    "extension": "pdf", "remotePath": "/resource/1", "downloadStatus": "DOWNLOADED", "source": "tls"}
+        source = {"resourceId": "resource-1", "courseId": "course-1", "name": "chart.pdf",
+                  "location": "PDF p.1", "text": "도표"}
+        with tempfile.TemporaryDirectory() as left, tempfile.TemporaryDirectory() as right:
+            left, right = Path(left), Path(right)
+            image = left / "files" / "resource-1" / "chart.png"
+            image.parent.mkdir(parents=True)
+            image.write_bytes(b"fake-png")
+            analysis_records.save(left, "student", [source], {}, "exam_analysis", {
+                "units": [{"id": "u1", "sources": [{**source, "images": [{"ref": "img-1", "path": str(image)}]}]}],
+                "candidates": [{"id": "c1", "images": [{"path": str(image), "alt": "도표"}]}],
+                "imageRefs": {"img-1": str(image)},
+            })
+            pack_path = left / "images.tpack"
+            study_pack.export_pack(left, "student", pack_path, courses=[course], resources=[resource])
+            with closing(LocalDatabase(right / "university.db")) as db:
+                study_pack.import_pack(right, "student", pack_path, database=db)
+            records = study_pack._read_analyses(right, "student", {"resource-1"})
+            encoded = json.dumps(records, ensure_ascii=False)
+            self.assertNotIn(str(image), encoded)
+            self.assertIn("pack-images", encoded)
+            self.assertTrue(list((right / "pack-images").rglob("*.png")))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,11 +1,107 @@
 {
   "measurement": "live TLS, controlled one-course fingerprint mismatch",
+  "metadata_only": true,
+  "courses": 8,
+  "intended_changed_courses": 1,
+  "authentication_setup": {
+    "not_measured": true
+  },
+  "preflight_setup": {
+    "requests": 9,
+    "requests_by_kind": {
+      "page": 9
+    },
+    "request_body_bytes": 0,
+    "response_body_bytes": 114111,
+    "response_body_bytes_by_kind": {
+      "page": 114111
+    },
+    "statuses": {
+      "200": 9
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 2.5129
+  },
+  "notes": [
+    "Both runs start from the same private DB backup and use the same authenticated account.",
+    "Only a local fingerprint is altered to force one course refresh. TLS is not modified.",
+    "Authentication is intentionally excluded from compared sync measurements.",
+    "Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.",
+    "No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.",
+    "Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.",
+    "Records from courses no longer present in the current enrollment are excluded from preservation comparison."
+  ],
+  "before": {
+    "requests": 338,
+    "requests_by_kind": {
+      "page": 318,
+      "post": 20
+    },
+    "request_body_bytes": 1000,
+    "response_body_bytes": 1209263,
+    "response_body_bytes_by_kind": {
+      "page": 1203394,
+      "post": 5869
+    },
+    "statuses": {
+      "200": 234,
+      "transport_error": 3,
+      "303": 61,
+      "302": 20,
+      "301": 20
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 163.8759
+  },
+  "after": {
+    "requests": 95,
+    "requests_by_kind": {
+      "page": 95
+    },
+    "request_body_bytes": 0,
+    "response_body_bytes": 751645,
+    "response_body_bytes_by_kind": {
+      "page": 751645
+    },
+    "statuses": {
+      "200": 94,
+      "transport_error": 1
+    },
+    "peak_open_requests": 2,
+    "peak_requests_per_second": 4,
+    "elapsed_seconds": 55.1016
+  },
+  "selected_course_results_equal": {
+    "assignments": true,
+    "lectures": true,
+    "notices": true,
+    "resources": true,
+    "activities": true
+  },
+  "unselected_records_preserved": {
+    "assignments": false,
+    "lectures": false,
+    "notices": true,
+    "resources": true,
+    "activities": true
+  },
+  "selected_course_record_counts": {
+    "assignments": 0,
+    "lectures": 2,
+    "notices": 6,
+    "resources": 10,
+    "activities": 15
+  },
   "status": "NOT_MEASURED",
-  "reason": "저장된 학교 계정의 비밀번호를 읽지 못했어요. 연결 명령으로 한 번만 다시 입력해 주세요.",
+  "reason": "실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.",
+  "inconsistent_selected_kinds": [],
+  "unpreserved_unselected_kinds": [
+    "assignments",
+    "lectures"
+  ],
   "requests": 0,
   "response_body_bytes": 0,
-  "elapsed_seconds": 0,
-  "notes": [
-    "Stored-only authentication stopped before network login; no live comparison was run."
-  ]
+  "elapsed_seconds": 0
 }

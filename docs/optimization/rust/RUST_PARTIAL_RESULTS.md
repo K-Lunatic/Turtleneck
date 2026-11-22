@@ -1,6 +1,6 @@
 # Rust 부분 채택 후속 기록
 
-작성일: 2026-11-06 · 브랜치: `experiment/rust-core-refactor` · 원격 푸시하지 않음
+작성일: 2026-11-20 · 운영 경로 부분 적용
 
 ## 결론과 변경한 기준
 
@@ -13,10 +13,10 @@
 5% 이상 악화되지 않아야 한다. 기존 기능 회귀와 실험 검사도 통과해야 한다. 이 조건은
 [PARTIAL_PLAN.md](../../../experiments/rust-core/PARTIAL_PLAN.md)에 정리했다.
 
-활동·개요 파서의 적용 범위는 명시적 실험 실행 경로다. 기본 Python 진입점과 운영 브랜치는
-변경하지 않았다. Rust 설치나 DLL이 없거나 예전 ABI이면 Python으로 실행한다. 전체 앱을
-Rust로 바꾸는 자동 승인은 하지 않는다. [partial-decision.json](../../../experiments/rust-core/results/partial-decision.json)이
-모듈별 현재 판정을 담고 있다.
+활동·개요 파서는 일반 `sync_tls.py` 동기화 경로에 선택적으로 적용했다. Rust 설치·라이브러리가
+없거나 ABI가 맞지 않으면 같은 실행에서 기존 Python 파서로 돌아간다. 개념 순위화와 전체 앱
+재작성은 승인하지 않았다. [partial-decision.json](../../../experiments/rust-core/results/partial-decision.json)이
+모듈별 판정을 담고 있다.
 
 ## 파서와 지문 계산
 
@@ -116,16 +116,16 @@ python experiments/rust-core/assess_partial.py
 python experiments/rust-core/run.py sync_tls --ensure --metadata-only --metrics
 ```
 
-기본 `python skills/university-agent/scripts/sync_tls.py ...`는 계속 Python이다. 실험 런처의
-backend 설치는 요청 스레드를 시작하기 전에 한 번 수행하며 실행 도중 전환하지 않는다.
-명시적 실행은 일반 명령과 같은 읽기/저장 효과가 있으므로 위 마지막 명령을 측정 재현 전용
-읽기 명령으로 오해하지 않는다. 회귀 재현 방법은 실험 README를 따른다.
+기본 `python skills/university-agent/scripts/sync_tls.py ...`도 Rust 라이브러리가 번들되거나
+소스 위치에 있으면 승인된 두 파서를 사용한다. backend 설치는 요청 스레드를 시작하기 전에
+동기화 한 번에 수행하며 실행 도중 전환하지 않는다. 라이브러리가 없으면 Python만 사용한다.
+실험 런처는 기존 재현용으로 남아 있고, 일반 동기화와 같은 읽기/저장 효과를 갖는다.
 
 원시 시간·프로파일·p95·CI: [partial-benchmark.json](../../../experiments/rust-core/results/partial-benchmark.json).
 검사: [partial-regression.json](../../../experiments/rust-core/results/partial-regression.json),
 [partial-tests.json](../../../experiments/rust-core/results/partial-tests.json).
-한계: Windows x64 GNU에서 검증했으며 다른 OS·배포 번들·현재 두 모듈 조합의 최대 메모리는
-아직 비교하지 않았다. `turtleneck`에는 반영하거나 푸시하지 않았다.
+한계: macOS ARM64와 Windows CI의 Rust 빌드·회귀는 확인했지만 Windows 실기기에서의 번들
+알림·서명과 현재 두 모듈 조합의 최대 메모리는 아직 별도 측정하지 않았다.
 
 ## macOS ARM64 재검증
 
@@ -145,4 +145,4 @@ Python 27개가 통과했고, 활동·개요는 채택 판정을 유지했으며
 실험 결과 원문은 `experiments/rust-core/results/partial-benchmark.json`, 빌드 환경과
 라이브러리 해시는 `partial-environment-macos.json`에 기록했다. 이 결과는 보조 앱 전체의
 Rust 전환 속도나 학교 서버 트래픽 감소를 뜻하지 않는다. 네트워크·SQLite·AI 분석은 여전히
-별도 병목이며, 현재 운영 진입점은 Python이다.
+별도 병목이며, 동기화의 나머지 경로는 Python이다.

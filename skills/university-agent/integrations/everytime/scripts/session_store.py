@@ -10,6 +10,8 @@ import subprocess
 from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 
+from providers.credentials import _save_keychain_secret, read_keychain_secret
+
 SERVICE = "everytime-skill/session"
 STATE_PATH = Path.home() / ".everytime" / "session.json"
 
@@ -82,12 +84,7 @@ def save(jar: CookieJar, path: Path = STATE_PATH) -> None:
     path.write_text(json.dumps({"account": "default"}) + "\n", encoding="utf-8")
     os.chmod(path, 0o600)
     try:
-        subprocess.run(
-            ("/usr/bin/security", "add-generic-password", "-U", "-s", SERVICE, "-a", "default", "-w", payload),
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        _save_keychain_secret(SERVICE, "default", payload)
     except (FileNotFoundError, subprocess.CalledProcessError) as error:
         path.unlink(missing_ok=True)
         raise RuntimeError("운영체제 보안 저장소에 세션을 저장하지 못했습니다.") from error
@@ -108,13 +105,7 @@ def load(path: Path = STATE_PATH) -> CookieJar:
     if os.name == "nt":
         payload = _windows_unprotect(base64.b64decode(state["protected"])).decode()
     else:
-        result = subprocess.run(
-            ("/usr/bin/security", "find-generic-password", "-s", SERVICE, "-a", "default", "-w"),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        payload = result.stdout.rstrip("\n")
+        payload = read_keychain_secret(SERVICE, "default")
     return _cookie_jar(json.loads(payload))
 
 

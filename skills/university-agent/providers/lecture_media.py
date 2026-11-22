@@ -4,7 +4,6 @@ import json
 import re
 import math
 import os
-import shutil
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -17,6 +16,22 @@ from providers.moodle_session import DownloadRestricted, check_download_origin, 
 
 _RETRYABLE_HTTP = {408, 425, 500, 502, 503, 504}
 _CHUNK_ATTEMPTS = 3
+
+
+def _sha256_file(path, size=None):
+    digest = hashlib.sha256()
+    remaining = size
+    with Path(path).open('rb') as stream:
+        while remaining is None or remaining:
+            chunk = stream.read(1024 * 1024 if remaining is None else min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            digest.update(chunk)
+            if remaining is not None:
+                remaining -= len(chunk)
+    if remaining not in (None, 0):
+        raise ValueError('영상 임시 파일이 예상보다 짧아 이어받지 않았어요.')
+    return digest.hexdigest()
 
 
 def _attributes(line):
@@ -60,9 +75,16 @@ def media_plan(session, source, *, video=False):
         for line in lines:
             if line.startswith(('#EXT-X-KEY:', '#EXT-X-SESSION-KEY:')) and _attributes(line).get('METHOD') != 'NONE':
                 raise DownloadRestricted('보호된 영상이라 음성을 가져오지 않았어요.')
-        if any(line.startswith(('#EXT-X-MAP:', '#EXT-X-BYTERANGE:', '#EXT-X-DISCONTINUITY', '#EXT-X-GAP')) for line in lines):
-            # shortcut: clear MPEG-TS VOD only; add another format after observing a real source.
+        if any(line.startswith(('#EXT-X-BYTERANGE:', '#EXT-X-DISCONTINUITY', '#EXT-X-GAP')) for line in lines):
             raise ValueError('이 영상의 조각 형식은 아직 지원하지 않아요.')
+        map_uri = None
+        for line in lines:
+            if line.startswith('#EXT-X-MAP:'):
+                attributes = _attributes(line)
+                map_uri = attributes.get('URI')
+                if not map_uri or attributes.get('BYTERANGE'):
+                    raise ValueError('영상 초기 조각 형식을 확인하지 못했어요.')
+                break
         base = response.geturl()
         audio, variants = [], []
         for index, line in enumerate(lines):
@@ -85,18 +107,21 @@ def media_plan(session, source, *, video=False):
                 # Prefer the playlist explicitly marked as the default audio track.
                 selected = sorted(audio, key=lambda item: (not item[0], not item[1], item[2]))[0][2]
             else:
-                raise DownloadRestricted('음성 전용 스트림이 없어 학교 트래픽 보호를 위해 가져오지 않았어요.')
+                # Some Moodle players expose only video variants. Pick the
+                # lowest bitrate so local audio extraction does not pull HD.
+                selected = min(variants)[1]
             current = urljoin(base, selected)
             continue
         if '#EXT-X-ENDLIST' not in lines:
             raise ValueError('진행 중인 영상은 가져오지 않아요.')
-        chunks = [urljoin(base, line) for line in lines if not line.startswith('#')]
+        media_chunks = [urljoin(base, line) for line in lines if not line.startswith('#')]
+        chunks = ([urljoin(base, map_uri)] if map_uri else []) + media_chunks
         if not chunks or len(chunks) > 4000:
             raise ValueError('영상 길이를 확인하지 못해 가져오기를 멈췄어요.')
         for chunk in chunks:
             check_download_origin(chunk, origin)
             check_download_url(chunk)
-            if not urlsplit(chunk).path.lower().endswith('.ts'):
+            if not map_uri and not urlsplit(chunk).path.lower().endswith('.ts'):
                 raise ValueError('이 영상의 조각 형식은 아직 지원하지 않아요.')
         durations = []
         for line in lines:
@@ -108,13 +133,14 @@ def media_plan(session, source, *, video=False):
                 if not math.isfinite(value) or value <= 0:
                     raise ValueError('영상 조각의 시간이 올바르지 않아요.')
                 durations.append(value)
-        if len(durations) != len(chunks):
+        if len(durations) != len(media_chunks):
             raise ValueError('영상 조각과 시간 정보가 맞지 않아요.')
         times, elapsed = [], 0.0
         for duration in durations:
             times.append([elapsed, elapsed + duration])
             elapsed += duration
-        return {'chunks': chunks, 'origin': origin, 'format': 'mpegts', 'segmentTimes': times,
+        return {'chunks': chunks, 'origin': origin, 'format': 'mp4' if map_uri else 'mpegts',
+                'mediaChunkOffset': 1 if map_uri else 0, 'segmentTimes': times,
                 'durationSeconds': elapsed, 'playbackKey': playback_key,
                 'sourceKey': hashlib.sha256(json.dumps([chunks, times]).encode()).hexdigest()}
     raise ValueError('영상 목록의 연결이 너무 많아 가져오기를 멈췄어요.')
@@ -124,14 +150,25 @@ def media_window(plan, start, duration):
     if not all(type(value) in (int, float) and math.isfinite(value) for value in (start, duration)) or start < 0 or not 0 < duration <= 300:
         raise ValueError('강의 구간은 시작 0초 이상, 길이 1–300초로 골라 주세요.')
     if plan['format'] == 'mov':
-        return {**plan, 'mediaStartSeconds': 0, 'startSeconds': start, 'endSeconds': start + duration}
+        window = {**plan, 'mediaStartSeconds': 0, 'startSeconds': start, 'endSeconds': start + duration}
+        window['sourceKey'] = hashlib.sha256(json.dumps(
+            [plan.get('sourceKey'), start, duration], separators=(',', ':')).encode()).hexdigest()
+        return window
     matches = [index for index, (left, right) in enumerate(plan['segmentTimes']) if right > start and left < start + duration]
     if not matches:
         raise ValueError('선택한 시각이 강의 범위를 벗어났어요.')
     first, last = max(0, matches[0] - 1), matches[-1] + 1
-    return {**plan, 'chunks': plan['chunks'][first:last],
+    offset = plan.get('mediaChunkOffset', 0)
+    selected_chunks = plan['chunks'][offset + first:offset + last]
+    if offset:
+        selected_chunks = plan['chunks'][:offset] + selected_chunks
+    window = {**plan, 'chunks': selected_chunks,
             'mediaStartSeconds': plan['segmentTimes'][first][0], 'startSeconds': start,
             'endSeconds': min(start + duration, plan['durationSeconds'])}
+    window['sourceKey'] = hashlib.sha256(json.dumps(
+        [plan.get('sourceKey'), selected_chunks, window['mediaStartSeconds'], window['endSeconds']],
+        separators=(',', ':')).encode()).hexdigest()
+    return window
 
 
 def download_media(session, plan, target, progress=None):
@@ -159,10 +196,18 @@ def download_media(session, plan, target, progress=None):
                 not partial.is_file() or partial.stat().st_size < saved['bytes']):
             clear_partial()
             saved = None
+        elif partial.stat().st_size == saved['bytes'] and (
+                not isinstance(saved.get('prefixSha256'), str) or
+                saved['prefixSha256'] != _sha256_file(partial, saved['bytes'])):
+            clear_partial()
+            saved = None
         if saved:
             completed, written = saved['completed'], saved['bytes']
-            with partial.open('r+b') as stream:
-                stream.truncate(written)
+            if plan['format'] == 'mov' and completed == 0:
+                written = partial.stat().st_size
+            else:
+                with partial.open('r+b') as stream:
+                    stream.truncate(written)
         else:
             clear_partial()
             partial.touch(mode=0o600)
@@ -170,8 +215,44 @@ def download_media(session, plan, target, progress=None):
         clear_partial()
         partial.touch(mode=0o600)
 
+    # A direct MP4 has one large chunk. Keep that chunk beside the destination so
+    # an interrupted transfer can use HTTP Range instead of restarting it.
+    if plan['format'] == 'mov' and hasattr(session, 'stream_bytes_to_file'):
+        try:
+            existing_bytes = partial.stat().st_size
+            manifest_tmp = manifest.with_name(f'.{manifest.name}.{os.getpid()}')
+            manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': 0,
+                                                'bytes': existing_bytes}, ensure_ascii=False), encoding='utf-8')
+            os.replace(manifest_tmp, manifest)
+            result = session.stream_bytes_to_file(
+                chunks[0], partial, allowed_origin=plan['origin'],
+                max_bytes=256_000_000, resume_existing=True,
+            )
+            size = result['size'] if isinstance(result, dict) else result
+            with partial.open('r+b') as stream:
+                if size <= 0 or stream.read(8)[4:8] != b'ftyp':
+                    raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
+                stream.flush()
+                os.fsync(stream.fileno())
+            manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': 1,
+                                                'bytes': size}, ensure_ascii=False), encoding='utf-8')
+            os.replace(manifest_tmp, manifest)
+            os.replace(partial, target)
+            manifest.unlink(missing_ok=True)
+            if progress:
+                progress('강의 영상을 이어받아 저장했어요 · 1/1 조각')
+            return
+        except HTTPError as error:
+            if error.code not in _RETRYABLE_HTTP:
+                clear_partial()
+            raise
+        except (DownloadRestricted, ValueError):
+            clear_partial()
+            raise
+
     with tempfile.TemporaryDirectory(prefix='.media-', dir=str(target.parent)) as staging:
-        def fetch(url):
+        def fetch(item):
+            index, url = item
             limit = 256_000_000 if plan['format'] == 'mov' else 32_000_000
             for attempt in range(1, _CHUNK_ATTEMPTS + 1):
                 worker = session.fork()
@@ -189,7 +270,11 @@ def download_media(session, plan, target, progress=None):
                         size = len(data or b'')
                     with temporary.open('rb') as stream:
                         header = stream.read(8)
-                    if not size or (plan['format'] == 'mpegts' and header[:1] != b'G') or (plan['format'] == 'mov' and header[4:8] != b'ftyp'):
+                    valid_header = (plan['format'] == 'mpegts' and header[:1] == b'G')
+                    if plan['format'] == 'mp4':
+                        valid_header = (index == 0 and header[4:8] == b'ftyp') or (
+                            index > 0 and header[4:8] in {b'moof', b'mdat', b'styp'})
+                    if not size or (plan['format'] in ('mpegts', 'mp4') and not valid_header) or (plan['format'] == 'mov' and header[4:8] != b'ftyp'):
                         raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
                     keep = True
                     return temporary, size
@@ -207,16 +292,28 @@ def download_media(session, plan, target, progress=None):
                         temporary.unlink(missing_ok=True)
                 time.sleep(0.5 * attempt)
 
+        prefix_digest = hashlib.sha256()
+        if written:
+            with partial.open('rb') as existing:
+                remaining = written
+                while remaining:
+                    chunk = existing.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise ValueError('영상 임시 파일이 예상보다 짧아 이어받지 않았어요.')
+                    prefix_digest.update(chunk)
+                    remaining -= len(chunk)
         try:
             with partial.open('r+b') as stream, ThreadPoolExecutor(max_workers=2) as pool:
                 stream.seek(written)
                 for start in range(completed, len(chunks), 4):
-                    for temporary, size in pool.map(fetch, chunks[start:start + 4]):
+                    for temporary, size in pool.map(fetch, list(enumerate(chunks[start:start + 4], start))):
                         total += size
                         if written + total > 1_000_000_000:
                             raise ValueError('영상이 1GB를 넘어 가져오기를 멈췄어요.')
                         with temporary.open('rb') as source:
-                            shutil.copyfileobj(source, stream, length=1024 * 1024)
+                            while data := source.read(1024 * 1024):
+                                prefix_digest.update(data)
+                                stream.write(data)
                         temporary.unlink(missing_ok=True)
                     written += total
                     completed = min(start + 4, len(chunks))
@@ -224,7 +321,8 @@ def download_media(session, plan, target, progress=None):
                     os.fsync(stream.fileno())
                     manifest_tmp = manifest.with_name(f'.{manifest.name}.{os.getpid()}')
                     manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': completed,
-                                                        'bytes': written}, ensure_ascii=False), encoding='utf-8')
+                                                        'bytes': written,
+                                                        'prefixSha256': prefix_digest.hexdigest()}, ensure_ascii=False), encoding='utf-8')
                     os.replace(manifest_tmp, manifest)
                     total = 0
                     if progress and (start == 0 or (start + 4) % 40 == 0 or start + 4 >= len(chunks)):

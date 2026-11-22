@@ -3,7 +3,9 @@
 Current: [PARTIAL_PLAN.md](PARTIAL_PLAN.md),
 [detailed results](../../docs/optimization/rust/RUST_PARTIAL_RESULTS.md),
 [report memo](../../docs/optimization/rust/RUST_PARTIAL_REPORT_MEMO.md).
-Activity and overview passed partial adoption; slower concept ranking stays Python.
+Activity and overview passed partial adoption and are now used by the normal
+Moodle sync when the optional native library is bundled or present in the source
+tree; slower concept ranking stays Python.
 The actual internal exam API was measured with ThreadingHTTPServer and called no
 HTML parsers. No Rust HTTP server was implemented.
 
@@ -21,7 +23,7 @@ There are six Rust tests and 27 Python experiment tests. Assessment also consume
 when code changes. Optional `partial_benchmark.py --live` reads TLS pages in memory
 without saving HTML/credentials or modifying source DB/school data.
 
-Explicit approved execution:
+Explicit experiment execution (the normal sync also activates the same measured modules):
 
 ```powershell
 python experiments/rust-core/run.py sync_tls --ensure --metadata-only --metrics
@@ -29,8 +31,8 @@ python experiments/rust-core/run.py sync_tls --ensure --metadata-only --metrics
 
 This is normal sync and **updates the application's DB**, not a read-only benchmark.
 The launcher selects adopted modules from `partial-decision.json`; missing/stale
-DLLs fall back to Python. Normal entry points remain Python. Install before request
-threads start; never switch the global backend while serving.
+DLLs fall back to Python. The production `sync_tls.py` path uses the same scoped
+activation before provider work; it never switches the backend while serving.
 
 To reproduce current legacy checks, adapt the historical snippet below: import
 `activate` from `backend`, use `activate(native, ('activity', 'overview', 'concept'))`
@@ -49,7 +51,8 @@ remain unvalidated. Initial evidence below is historical; preserve its hashes.
 See [PLAN.md](PLAN.md) for the decision fixed before timing, and
 [RUST_MIGRATION_RESULTS.md](../../docs/optimization/rust/RUST_MIGRATION_RESULTS.md) for measured results.
 
-This is an experiment on `experiment/rust-core-refactor`. Production remains Python.
+The unsupported concept candidate remains an experiment; production only uses the
+two measured HTML parser modules.
 The pilot does not log in, fetch URLs, alter permissions or write the user DB.
 `benchmark.py --live` separately reads current TLS course pages using an in-memory
 session; only aggregate results leave memory. It never saves HTML or credentials.

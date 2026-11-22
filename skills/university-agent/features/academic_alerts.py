@@ -146,10 +146,30 @@ def format_daily_report(provider, user_id, checked_at, *, now=None):
         progress_text = f' · 시청률 {float(progress):g}%' if progress is not None else ''
         grouped.setdefault(item.get('courseId'), []).append(
             f"- [강의] {_clean(item['title'])} · 마감: {format_deadline(item.get('availableUntil'))} · 시청: {state}{progress_text}")
+    external_guidance = []
+    seen_guidance = set()
+    for item in provider.get_notices(user_id):
+        content = _clean(item.get('content'))
+        if (item.get('source') != 'tls-overview' or
+                not re.search(r'https?://|DataCamp|외부\s*(?:과제|퀴즈)|등록', content, re.I) or
+                not re.search(r'과제|퀴즈|학습|수업', content, re.I)):
+            continue
+        key = (item.get('courseId'), item.get('title'), content)
+        if key in seen_guidance:
+            continue
+        seen_guidance.add(key)
+        external_guidance.append(item)
     lines = [f"터틀넥 학사 확인 · {format_deadline(checked_at)} (Asia/Seoul)"]
     for course_id in sorted(grouped, key=lambda key: courses.get(key, '')):
         lines.extend(['', courses.get(course_id, '과목 확인 필요'), *grouped[course_id]])
-    if not grouped:
+    if external_guidance:
+        lines.extend(['', '외부 학습 안내 · TLS 과제 목록에 없을 수 있어요'])
+        for item in external_guidance[:5]:
+            content = re.sub(r'\s+', ' ', _clean(item.get('content'))).strip()
+            if len(content) > 180:
+                content = content[:179].rstrip() + '…'
+            lines.append(f"- {courses.get(item.get('courseId'), '과목 확인 필요')} / {_clean(item.get('title')) or '강의 개요'} · 외부 안내 확인 필요" + (f" · {content}" if content else ''))
+    if not grouped and not external_guidance:
         lines.append('미제출·마감 관련 과제와 미완료 강의가 없어요.')
     return '\n'.join(lines)
 

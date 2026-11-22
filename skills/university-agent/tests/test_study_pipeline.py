@@ -58,6 +58,12 @@ class FilePipelineTests(ProjectTestBase):
             with self.assertRaises(ValueError):
                 self.session('pipeline').call({'action': 'candidate', 'candidateIds': ids})
 
+    def test_first_batch_does_not_warm_all_uncached_files(self):
+        with patch('features.study_pipeline.study_materials', wraps=__import__('features.study_pipeline', fromlist=['study_materials']).study_materials) as reader:
+            result = self.request()
+        self.assertTrue(result['needsExtraction'])
+        self.assertFalse(any(call.kwargs.get('max_chars') == 0 for call in reader.call_args_list))
+
     def test_extract_batch_requires_and_stores_every_independent_request(self):
         session = self.session('batch')
         prepared = session.call({'action': 'request',

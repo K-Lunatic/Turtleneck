@@ -63,7 +63,7 @@ jobs:
               modules="test_study"
               ;;
             sync)
-              modules="test_academic_alerts test_academic_status test_analysis_records test_connection test_everytime_connect test_setup test_sync_policy test_sync_safety test_tls_backup_download test_tls_data test_tls_login test_tls_optimization test_update"
+              modules="test_academic_alerts test_academic_status test_analysis_records test_connection test_everytime_connect test_native_backend test_setup test_sync_policy test_sync_safety test_tls_backup_download test_tls_data test_tls_login test_tls_optimization test_update"
               ;;
             assignments)
               modules="test_assignment_draft test_assignment_selection test_assignment_submission test_learner_profile test_notice_storage_optimization test_project test_resource_responses test_resource_targeting test_secret_boundary test_source_library test_gradkuya test_presentation test_companion test_private_files test_profile_accounts"
@@ -113,23 +113,43 @@ jobs:
       - name: Compile sources
         shell: bash
         run: python -m compileall -q server skills/university-agent packaging
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build optional native parsers
+        shell: bash
+        run: cargo build --release --locked --manifest-path experiments/rust-core/Cargo.toml
       - name: Validate standalone build
         shell: bash
         run: |
           python -m pip install pyinstaller==6.11.1
           python -m pip install -r packaging/desktop-requirements.txt
           pyinstaller packaging/turtleneck.spec --noconfirm --clean
+          fresh_home="$(mktemp -d)"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            dist/turtleneck/turtleneck.exe --version
+            env -i HOME="$fresh_home" USERPROFILE="$fresh_home" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --version
+            env -i HOME="$fresh_home" USERPROFILE="$fresh_home" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe --help > cli-help.txt
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -f "dist/companion/turtleneck-companion.exe"
+            env -i HOME="$fresh_home" USERPROFILE="$fresh_home" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/companion/turtleneck-companion.exe --status > companion-status.json
           else
-            dist/turtleneck/turtleneck --version
+            env -i HOME="$fresh_home" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --version
+            env -i HOME="$fresh_home" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --help > cli-help.txt
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -d "dist/companion/Turtleneck Companion.app"
+            env -i HOME="$fresh_home" PATH=/usr/bin:/bin "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
           fi
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          assert Path("cli-help.txt").read_text(encoding="utf-8").strip()
+          status = json.loads(Path("companion-status.json").read_text(encoding="utf-8"))
+          rendered = json.dumps(status, ensure_ascii=False).lower()
+          for secret_marker in ("password", "cookie", "session", "token"):
+              assert secret_marker not in rendered, secret_marker
+          assert "skill" in status and "profiles" in status
+          PY
 
   rust-core:
     name: rust-core (${{ matrix.os }})

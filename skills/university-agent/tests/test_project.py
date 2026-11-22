@@ -243,6 +243,12 @@ class ProjectTests(ProjectTestBase):
         result = rejected()
         self.assertFalse(result['data']['performed'])
         self.assertEqual(result['error']['code'], 'INVALID_BOOKMARK')
+        self.assertRegex(result['error']['reportId'], r'^bug-[0-9a-f]{16}$')
+        report = Path(result['error']['reportPath'])
+        self.assertTrue(result['error']['reportSaved'])
+        report_text = report.read_text(encoding='utf-8')
+        self.assertEqual(json.loads(report_text)['error']['code'], 'INVALID_BOOKMARK')
+        self.assertNotIn('password', report_text.lower())
         self.assertFalse(self.db_path.exists())
         self.seed()
         self.assertFalse(rejected()['data']['performed'])
@@ -389,6 +395,35 @@ class ProjectTests(ProjectTestBase):
                 self.assertEqual(request.call_args.kwargs['timeout'], 30)
                 self.assertEqual(request.call_count, 3)
 
+    def test_stream_bytes_to_file_resumes_existing_file_with_a_verified_range(self):
+        class Response:
+            def __init__(self, payload, start, total):
+                self.payload = BytesIO(payload)
+                self.headers = Message()
+                self.headers['Content-Length'] = str(len(payload))
+                self.headers['Content-Range'] = f'bytes {start}-{total - 1}/{total}'
+            def geturl(self):
+                return 'https://tls.kku.ac.kr/file.pdf'
+            def getcode(self):
+                return 206
+            def read(self, size=-1):
+                return self.payload.read(size)
+            def close(self):
+                pass
+
+        session = MoodleSession(); session.logged_in = True
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'resource.part'
+            target.write_bytes(b'%PDF-')
+            first = Response(b'fixture', 5, 12)
+            with patch.object(session, '_open', return_value=first) as opened:
+                result = session.stream_bytes_to_file('/file.pdf', target,
+                                                      allowed_origin='tls.kku.ac.kr',
+                                                      resume_existing=True)
+            self.assertEqual(target.read_bytes(), b'%PDF-fixture')
+            self.assertEqual(result['size'], 12)
+            self.assertEqual(opened.call_args.args[0].headers['Range'], 'bytes=5-')
+
     def test_html_probe_does_not_transfer_redirected_pdf(self):
         session = MoodleSession(); session.logged_in = True
         response = Mock(headers={'Content-Type': 'application/pdf'}, geturl=lambda: 'https://tls.kku.ac.kr/file.pdf')
@@ -471,8 +506,10 @@ class ProjectTests(ProjectTestBase):
         response = Mock(headers={'Content-Type': 'text/html'}, geturl=lambda: 'https://fixture.invalid/login/index.php')
         with patch.object(session.opener, 'open', return_value=response), patch.object(session, '_decode', return_value='<input name="username">'):
             for fetch in (session.get, session.get_bytes):
+                session.logged_in = True
                 with self.assertRaises(LoginError):
                     fetch('/course/view.php?id=1')
+                self.assertFalse(session.logged_in)
 
     def test_moodle_login_failures_do_not_fetch_data(self):
         session = MoodleSession()
@@ -495,7 +532,7 @@ class ProjectTests(ProjectTestBase):
 
     def test_credentials_storage_using_mock_keychain_only(self):
         config = Path(self.temp.name) / 'account.json'
-        with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials, '_save_keychain_secret'), patch.object(credentials.subprocess, 'run') as keychain:
+        with patch.object(credentials, 'CONFIG_PATH', config), patch.object(credentials, '_save_keychain_secret'), patch.object(credentials.subprocess, 'run') as keychain, patch.dict(os.environ, {'TURTLENECK_ALLOW_KEYCHAIN_MIGRATION': '1'}):
             credentials.save('fixture-user', 'fixture-password')
             if os.name != 'nt':
                 self.assertEqual(config.stat().st_mode & 0o777, 0o600)
@@ -504,6 +541,85 @@ class ProjectTests(ProjectTestBase):
             self.assertEqual(credentials.load(), ('fixture-user', 'fixture-password'))
         with patch.object(credentials, 'CONFIG_PATH', Path(self.temp.name) / 'missing.json'), patch('sys.stdin.isatty', return_value=False), patch.object(credentials, 'collect_secure', side_effect=FormUnavailable('browser form unavailable')):
             with self.assertRaises(FormUnavailable): credentials.resolve()
+
+    def test_keychain_access_error_does_not_spawn_repeated_cli_prompt(self):
+        class NativeCall:
+            def __init__(self, result):
+                self.result = result
+
+            def __call__(self, *args):
+                return self.result
+
+        security = SimpleNamespace(
+            SecKeychainFindGenericPassword=NativeCall(-25293),
+            SecKeychainItemFreeContent=NativeCall(0),
+        )
+        foundation = SimpleNamespace(CFRelease=NativeCall(0))
+        with patch.object(credentials.sys, 'platform', 'darwin'), \
+             patch.object(credentials.ctypes, 'CDLL', side_effect=[security, foundation]), \
+             patch.object(credentials.subprocess, 'run') as run:
+            with self.assertRaises(OSError):
+                credentials._read_keychain_secret('university-agent/tls', 'default')
+        run.assert_not_called()
+
+    def test_keychain_normal_read_disables_interactive_prompt(self):
+        interaction = []
+
+        class NativeCall:
+            def __init__(self, result):
+                self.result = result
+
+            def __call__(self, *args):
+                return self.result
+
+        def set_interaction(value):
+            interaction.append(value)
+            return 0
+
+        security = SimpleNamespace(
+            SecKeychainSetUserInteractionAllowed=set_interaction,
+            SecKeychainFindGenericPassword=NativeCall(-25308),
+            SecKeychainItemFreeContent=NativeCall(0),
+        )
+        foundation = SimpleNamespace(CFRelease=NativeCall(0))
+        with patch.object(credentials.sys, 'platform', 'darwin'), \
+             patch.object(credentials.ctypes, 'CDLL', side_effect=[security, foundation]), \
+             patch.dict(os.environ, {'TURTLENECK_ALLOW_KEYCHAIN_MIGRATION': '0'}), \
+             patch.object(credentials.subprocess, 'run') as run:
+            with self.assertRaises(OSError):
+                credentials._read_keychain_secret('university-agent/tls', 'default')
+        self.assertEqual(interaction, [0, 1])
+        run.assert_not_called()
+
+    def test_keychain_acl_trusts_only_current_executable(self):
+        calls = []
+
+        class NativeCall:
+            def __init__(self, result):
+                self.result = result
+
+            def __call__(self, *args):
+                calls.append(args)
+                if len(args) > 1 and hasattr(args[1], '_obj'):
+                    args[1]._obj.value = 11
+                return self.result
+
+        security = SimpleNamespace(
+            SecTrustedApplicationCreateFromPath=NativeCall(0),
+            SecAccessCreate=NativeCall(0),
+            SecKeychainItemSetAccess=NativeCall(0),
+        )
+        foundation = SimpleNamespace(
+            CFStringCreateWithCString=NativeCall(12),
+            CFArrayCreate=NativeCall(13),
+            CFRelease=NativeCall(0),
+        )
+        with patch.object(credentials.sys, 'executable', '/tmp/turtleneck'), \
+             patch.object(credentials.os.path, 'realpath', return_value='/tmp/turtleneck'):
+            self.assertTrue(credentials._trust_current_executable(security, foundation, 14))
+        trusted_path = calls[0][0].decode('utf-8')
+        self.assertEqual(trusted_path, '/tmp/turtleneck')
+        self.assertTrue(any(call and call[0] == 14 for call in calls))
 
     def test_windows_credentials_use_user_bound_protection(self):
         config = Path(self.temp.name) / 'windows-account.json'

@@ -1,4 +1,5 @@
 import io
+import os
 import sys
 import tempfile
 import threading
@@ -24,6 +25,9 @@ from scripts import sync_tls
 
 
 class TlsLoginTests(unittest.TestCase):
+    def setUp(self):
+        tls_auth.clear_process_session_cache()
+
     def test_tls_session_cache_stays_out_of_the_marker_file(self):
         jar = CookieJar()
         jar.set_cookie(Cookie(version=0, name='MoodleSession', value='fixture-cookie',
@@ -45,6 +49,7 @@ class TlsLoginTests(unittest.TestCase):
 
             with patch.object(credentials, 'SESSION_PATH', marker), \
                  patch.object(credentials, '_save_keychain_secret', side_effect=lambda service, alias, secret: keychain.append(secret)), \
+                 patch.object(credentials, '_read_keychain_secret', side_effect=lambda service, alias: keychain[-1]), \
                  patch.object(credentials.subprocess, 'run', side_effect=security):
                 credentials.save_session('student', jar)
                 self.assertNotIn('fixture-cookie', marker.read_text(encoding='utf-8'))
@@ -135,7 +140,9 @@ class TlsLoginTests(unittest.TestCase):
 
         self.assertEqual(username, 'student')
         self.assertEqual(session.calls, 1)
-        self.assertEqual(resolve.call_args_list[0].kwargs, {'force_input': False, 'site': 'tls.example'})
+        self.assertEqual(resolve.call_args_list[0].kwargs['force_input'], False)
+        self.assertEqual(resolve.call_args_list[0].kwargs['site'], 'tls.example')
+        self.assertTrue(callable(resolve.call_args_list[0].kwargs['submit_check']))
         self.assertEqual(resolve.call_args_list[1].kwargs['force_input'], True)
         self.assertEqual(resolve.call_args_list[1].kwargs['site'], 'tls.example')
         self.assertTrue(callable(resolve.call_args_list[1].kwargs['submit_check']))
@@ -206,6 +213,60 @@ class TlsLoginTests(unittest.TestCase):
         self.assertIn('보호 저장소에 세션을 보관하지 못했어요', output.getvalue())
         self.assertNotIn('secret', output.getvalue())
 
+    def test_stored_only_relogin_does_not_rewrite_password(self):
+        class Session:
+            cookies = object()
+
+            def __init__(self, _base_url):
+                pass
+
+            def login(self, _username, _password):
+                pass
+
+        with patch.object(tls_auth, 'resume_saved_session', return_value=None), \
+             patch.object(tls_auth, 'load', return_value=('student', 'secret')), \
+             patch.object(tls_auth, 'MoodleSession', Session), \
+             patch.object(tls_auth, 'save') as save, \
+             patch.object(tls_auth, 'save_session'):
+            username, _session = tls_auth.authenticated_session('https://tls.example', stored_only=True)
+        self.assertEqual(username, 'student')
+        save.assert_not_called()
+
+    def test_authenticated_session_reuses_one_process_session_without_reopening_login(self):
+        class Session:
+            logged_in = True
+            cookies = object()
+
+            def __init__(self, _base_url):
+                self.login_calls = 0
+
+            def login(self, _username, _password):
+                self.login_calls += 1
+
+        with patch.object(tls_auth, 'resume_saved_session', return_value=None) as resume, \
+             patch.object(tls_auth, 'load', return_value=('student', 'secret')), \
+             patch.object(tls_auth, 'MoodleSession', side_effect=Session) as session_type, \
+             patch.object(tls_auth, 'save'), patch.object(tls_auth, 'save_session'):
+            first = tls_auth.authenticated_session('https://tls.example')
+            second = tls_auth.authenticated_session('https://tls.example')
+        self.assertIs(first[1], second[1])
+        self.assertEqual(session_type.call_count, 1)
+        self.assertEqual(first[1].login_calls, 1)
+        resume.assert_called_once()
+
+    def test_authenticated_session_serializes_separate_process_login(self):
+        session = object()
+        with patch.object(tls_auth, 'SyncLock') as lock, \
+             patch.object(tls_auth, 'load_active_alias', return_value='default'), \
+             patch.object(tls_auth, 'profile_db_path', return_value=Path('/tmp/turtleneck-auth.db')), \
+             patch.object(tls_auth, '_authenticated_session_unlocked', return_value=('student', session)) as login:
+            lock.return_value.__enter__.return_value = lock.return_value
+            result = tls_auth.authenticated_session('https://tls.example')
+        self.assertEqual(result, ('student', session))
+        lock.assert_called_once()
+        login.assert_called_once_with('https://tls.example', None, stored_only=False,
+                                      profile_alias='default', allow_prompt=False)
+
     def test_shared_credential_resolver_does_not_reopen_form_for_empty_secret(self):
         with patch.object(credentials, 'load', side_effect=ValueError('empty')), \
              patch.object(credentials, 'load_username', return_value='student'), \
@@ -271,6 +332,18 @@ class TlsLoginTests(unittest.TestCase):
         with patch.object(tls_auth, 'load_username', return_value='student'), \
              patch.object(tls_auth, 'load_session', side_effect=credentials.subprocess.CalledProcessError(44, 'security')):
             self.assertIsNone(tls_auth.resume_saved_session('https://tls.example'))
+
+    @unittest.skipIf(os.name == 'nt', 'Windows sessions use DPAPI and need no Keychain deletion')
+    def test_expired_session_cleanup_uses_shared_keychain_delete_path(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'tls-session.json'
+            marker.write_text('{"activeAlias":"default","profiles":{"default":{"username":"student"}}}', encoding='utf-8')
+            with patch.object(credentials, 'SESSION_PATH', marker), \
+                 patch.object(credentials, '_delete_keychain_secret') as delete_secret, \
+                 patch.object(credentials.subprocess, 'run') as run:
+                credentials.clear_session('student')
+            delete_secret.assert_called_once_with(credentials.SESSION_SERVICE, 'default')
+            run.assert_not_called()
 
 
 if __name__ == '__main__':

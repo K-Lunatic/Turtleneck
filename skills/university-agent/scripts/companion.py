@@ -172,22 +172,51 @@ def dashboard_snapshot() -> dict:
     return data
 
 
+def _main_bundle() -> Path | None:
+    if not getattr(sys, "frozen", False):
+        return None
+    executable = Path(sys.executable).resolve()
+    names = ("turtleneck.exe", "turtleneck") if sys.platform == "win32" else ("turtleneck",)
+    candidates: list[Path] = []
+    for directory in (executable.parent, *executable.parents):
+        for name in names:
+            candidates.extend((directory / name, directory / "turtleneck" / name))
+        if directory.parent != directory:
+            for name in names:
+                candidates.append(directory.parent / "turtleneck" / name)
+    installed = shutil.which("turtleneck")
+    if installed:
+        candidates.append(Path(installed))
+    return next((candidate for candidate in dict.fromkeys(candidates) if candidate.is_file()), None)
+
+
 def _exam_command() -> list[str]:
     if getattr(sys, "frozen", False):
-        executable = Path(sys.executable).resolve()
-        candidates = [executable.with_name('turtleneck')]
-        if sys.platform == 'win32':
-            candidates.insert(0, executable.with_name('turtleneck.exe'))
-        if len(executable.parents) > 3:
-            candidates.append(executable.parents[3] / 'turtleneck' / 'turtleneck')
-        installed = shutil.which('turtleneck')
-        if installed:
-            candidates.append(Path(installed))
-        for candidate in candidates:
-            if candidate.is_file():
-                return [str(candidate), "skills/university-agent/scripts/exam_web.py"]
+        main_bundle = _main_bundle()
+        if main_bundle:
+            return [str(main_bundle), "skills/university-agent/scripts/exam_web.py"]
         return [sys.executable, "skills/university-agent/scripts/exam_web.py"]
     return [sys.executable, str(ROOT / "scripts" / "exam_web.py")]
+
+
+def _setup_command() -> list[str]:
+    """Use the main bundle for setup when this process is the frozen companion."""
+    if getattr(sys, "frozen", False):
+        main_bundle = _main_bundle()
+        if main_bundle:
+            return [str(main_bundle), "skills/university-agent/scripts/setup_turtleneck.py"]
+        return [sys.executable, "skills/university-agent/scripts/setup_turtleneck.py"]
+    return [sys.executable, str(ROOT / "scripts" / "setup_turtleneck.py")]
+
+
+def _watch_command() -> list[str]:
+    """Use the main bundle for the same bounded TLS watcher as scheduled runs."""
+    if getattr(sys, "frozen", False):
+        main_bundle = _main_bundle()
+        if main_bundle:
+            return [str(main_bundle), "skills/university-agent/scripts/academic_watch.py", "--once"]
+        return [sys.executable, "skills/university-agent/scripts/academic_watch.py", "--once"]
+    return [sys.executable, str(ROOT / "scripts" / "academic_watch.py"), "--once"]
 
 
 def _open_exam(site: str, alias: str, exam_id: str) -> None:
@@ -360,7 +389,7 @@ def _build_tray_icon(image_module, draw_module):
 def _open_setup() -> None:
     # Let setup_turtleneck decide whether a login form is needed; --status alone
     # can never reach the form from the companion menu.
-    command = [sys.executable, str(ROOT / "scripts" / "setup_turtleneck.py"), "--only", "tls"]
+    command = _setup_command() + ["--only", "tls"]
     options = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if os.name == "nt":
         options["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -406,6 +435,18 @@ def run_tray() -> int:
         if icon is not None:
             icon.update_menu()
 
+    def run_watch(_icon, _item):
+        options = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if os.name == "nt":
+            options["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        else:
+            options["start_new_session"] = True
+        try:
+            subprocess.Popen(_watch_command(), cwd=str(ROOT.parent), **options)
+        except OSError:
+            return
+        refresh(_icon)
+
     def poll(icon):
         while not stop.wait(POLL_SECONDS):
             refresh(icon)
@@ -440,7 +481,7 @@ def run_tray() -> int:
         pystray.MenuItem(label, None, enabled=False),
         pystray.MenuItem("프로필 보기", profile_items),
         pystray.MenuItem("시험·점수 대시보드", open_dashboard),
-        pystray.MenuItem("새로 확인", refresh),
+        pystray.MenuItem("새로 확인", run_watch),
         pystray.MenuItem("학교 로그인·연결", lambda _icon, _item: _open_setup()),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("터틀넥 안내", open_repository),

@@ -100,10 +100,24 @@ def main():
                       'Authentication is intentionally excluded from compared sync measurements.',
                       'Only aggregate counters are saved. Response bodies, URLs, course IDs and credentials are not saved.',
                       'No raw original file bytes are downloaded; metadata/viewer/status requests may still occur.',
-                      'Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.'],
+                      'Two live runs are sequential; changing server content and network conditions affect byte/time comparisons.',
+                      'Records from courses no longer present in the current enrollment are excluded from preservation comparison.'],
         }
         data = {}
         seed_data = None
+
+        stable_courses = [dict(course) for course in provider._courses or []]
+        stable_pages = provider._course_pages.copy()
+        stable_preflight = {'courseIds': list(preflight['courseIds']),
+                            'fingerprints': dict(preflight['fingerprints'])}
+
+        def fixed_preflight(instance, _user_id):
+            # Keep the one-course change controlled; a live page can change
+            # between setup and either compared run.
+            instance._courses = [dict(course) for course in stable_courses]
+            instance._course_pages = stable_pages.copy()
+            return dict(stable_preflight)
+
         for label, module in (('before', before), ('after', sync_tls)):
             path = folder / 'case.db'
             shutil.copyfile(seed, path)
@@ -114,6 +128,7 @@ def main():
             with patch.object(sys, 'argv', ['sync_tls.py', '--ensure', '--metadata-only']), \
                  patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': username}), \
                  patch.object(module, '_login_with_retries', return_value=(username, child)), \
+                 patch.object(module.MoodleTLSProvider, 'preflight', fixed_preflight), \
                  redirect_stdout(StringIO()), redirect_stderr(StringIO()):
                 module.main()
             report[label] = metrics.snapshot()
@@ -124,20 +139,47 @@ def main():
             if label == 'after':
                 with closing(LocalDatabase(seed, read_only=True)) as database:
                     seed_data = {kind: getattr(database, 'get_' + kind)(username) for kind in data[label]}
+        current_course_ids = set(preflight['courseIds'])
+
         def normalized(rows, selected_only):
             return sorted([{key: value for key, value in row.items()
-                            if key not in ('updatedAt', 'updated_at', 'downloadedAt')}
-                           for row in rows if (row.get('courseId') == selected) == selected_only],
+                            if key not in ('updatedAt', 'updated_at', 'downloadedAt', 'lastSyncedAt')}
+                           for row in rows
+                           if row.get('courseId') in current_course_ids
+                           and (row.get('courseId') == selected) == selected_only],
                           key=lambda row: row['id'])
         report['selected_course_results_equal'] = {
             kind: normalized(data['before'][kind], True) == normalized(data['after'][kind], True)
             for kind in data['before']}
+        stable_kinds = ('notices', 'resources', 'activities')
         report['unselected_records_preserved'] = {
             kind: normalized(seed_data[kind], False) == normalized(data['after'][kind], False)
-            for kind in seed_data}
+            for kind in stable_kinds}
+        report['academic_statuses_may_change'] = {
+            kind: normalized(seed_data[kind], False) != normalized(data['after'][kind], False)
+            for kind in ('assignments', 'lectures')}
         report['selected_course_record_counts'] = {
             kind: sum(row.get('courseId') == selected for row in rows) for kind, rows in data['after'].items()}
+    if not all(report['selected_course_results_equal'].values()) or not all(report['unselected_records_preserved'].values()):
+        report.update({
+            'status': 'NOT_MEASURED',
+            'reason': '실시간 응답이 일관되지 않아 측정값을 저장하지 않았어요.',
+            'inconsistent_selected_kinds': [
+                kind for kind, equal in report['selected_course_results_equal'].items() if not equal
+            ],
+            'unpreserved_unselected_kinds': [
+                kind for kind, equal in report['unselected_records_preserved'].items() if not equal
+            ],
+            'requests': 0,
+            'response_body_bytes': 0,
+            'elapsed_seconds': 0,
+        })
+        (REPO / 'tls-optimization-results/live-attempt.json').write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return
     report['source_db_bytes_unchanged'] = hashlib.sha256(source.read_bytes()).hexdigest() == original_hash
+    report['status'] = 'MEASURED'
     for key in ('requests', 'response_body_bytes', 'elapsed_seconds'):
         report[key + '_reduction_percent'] = round((1 - report['after'][key] / report['before'][key]) * 100, 2)
     output = REPO / 'tls-optimization-results/live.json'
@@ -148,13 +190,13 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (OSError, TimeoutError, ConnectionError) as error:
+    except (OSError, TimeoutError, ConnectionError, RuntimeError, SystemExit) as error:
         # A slow school response is a measurement failure, not a reason to
         # replace the last successful aggregate with partial counters.
         report = {
             'measurement': 'live TLS, controlled one-course fingerprint mismatch',
             'status': 'NOT_MEASURED',
-            'reason': '학교 서버 응답이 시간 제한을 넘겨 측정을 완료하지 못했어요.',
+            'reason': str(error) or '학교 서버 응답이 시간 제한을 넘겨 측정을 완료하지 못했어요.',
             'error_type': type(error).__name__,
             'requests': 0,
             'response_body_bytes': 0,

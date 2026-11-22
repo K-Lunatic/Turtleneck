@@ -77,7 +77,12 @@ def save_generated_exam(data_dir, db_path, user: str, conversation: str, payload
     if not source_pool:
         raise ValueError("이 기기에는 새 문제를 만들 분석 자료가 없어요.")
     cfg = settings({**(payload.get("settings") or {}), "delivery": "web"})
-    state = {"settings": cfg, "sources": source_pool}
+    image_refs = {}
+    for record in records:
+        data = record.get("data") if isinstance(record.get("data"), dict) else {}
+        refs = data.get("imageRefs") if isinstance(data.get("imageRefs"), dict) else {}
+        image_refs.update({key: value for key, value in refs.items() if isinstance(key, str) and isinstance(value, str)})
+    state = {"settings": cfg, "sources": source_pool, "imageRefs": image_refs}
     questions = validate_generated(payload.get("data"), state)
     if not questions:
         raise ValueError("새 문제를 만들지 못했어요.")

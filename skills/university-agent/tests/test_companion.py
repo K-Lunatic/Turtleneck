@@ -48,6 +48,11 @@ class CompanionTests(unittest.TestCase):
         self.assertNotIn('--status', command)
         self.assertEqual(launch.call_args.kwargs['stdout'], companion.subprocess.DEVNULL)
 
+    def test_watch_command_reuses_academic_watcher(self):
+        command = companion._watch_command()
+        self.assertTrue(command[-3:].count('--once') == 1)
+        self.assertEqual(Path(command[-2]).name, 'academic_watch.py')
+
     def test_present_routes_login_and_exam_to_the_embedded_window(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = Path(folder) / 'companion-runtime.json'
@@ -92,6 +97,35 @@ class CompanionTests(unittest.TestCase):
                 command = companion._exam_command()
             self.assertEqual(command[0], str((root / 'turtleneck' / 'turtleneck').resolve()))
             self.assertTrue(command[1].endswith('scripts/exam_web.py'))
+
+    def test_frozen_setup_uses_adjacent_main_bundle_when_available(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            app_dir = root / 'Turtleneck Companion.app' / 'Contents' / 'MacOS'
+            app_dir.mkdir(parents=True)
+            (root / 'turtleneck' / 'turtleneck').parent.mkdir()
+            (root / 'turtleneck' / 'turtleneck').write_bytes(b'')
+            with patch.object(sys, 'frozen', True, create=True), \
+                 patch.object(sys, 'executable', str(app_dir / 'turtleneck-companion')):
+                command = companion._setup_command()
+            self.assertEqual(command[0], str((root / 'turtleneck' / 'turtleneck').resolve()))
+            self.assertTrue(command[1].endswith('scripts/setup_turtleneck.py'))
+
+    def test_frozen_commands_find_sibling_main_bundle_in_release_layout(self):
+        with tempfile.TemporaryDirectory() as folder:
+            dist = Path(folder) / 'dist'
+            companion_dir = dist / 'companion'
+            companion_dir.mkdir(parents=True)
+            main = dist / 'turtleneck' / 'turtleneck'
+            main.parent.mkdir()
+            main.write_bytes(b'')
+            executable = companion_dir / 'turtleneck-companion'
+            with patch.object(sys, 'frozen', True, create=True), \
+                 patch.object(sys, 'executable', str(executable)):
+                exam = companion._exam_command()
+                setup = companion._setup_command()
+            self.assertEqual(exam[0], str(main.resolve()))
+            self.assertEqual(setup[0], str(main.resolve()))
 
     def test_skill_status_is_local_and_does_not_require_secrets(self):
         with tempfile.TemporaryDirectory() as folder:

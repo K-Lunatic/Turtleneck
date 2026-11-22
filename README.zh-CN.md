@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>收集课程资料，分段学习，像考试一样练习。</strong><br>
-  面向 Codex、Claude Code 和 Gemini 的本地优先大学学习技能。
+  面向 Codex、Gemini CLI 和 Antigravity CLI 的本地优先大学学习工具。
 </p>
 
 <p align="center"><small>搜索：Turtleneck AI Skill · 터틀넥 스킬 · Codex Skill · Claude Code Skill · Gemini Skill · Moodle study assistant</small></p>
@@ -34,17 +34,27 @@ Turtleneck 会在运行它的电脑上整理作业、通知、课程视频、课
 
 ## 快速开始
 
-在 GitHub 搜索 `Turtleneck AI Skill` 或 `터틀넥 스킬` 即可找到项目。仓库同时提供 Codex、
-Claude Code marketplace 文件和 Gemini skill 路径。先检测环境，确认官方命令后再加 `--apply`：
+在 GitHub 搜索 `Turtleneck AI Skill` 或 `터틀넥 스킬` 即可找到项目。仓库提供 Codex、Claude Code、
+Gemini CLI 和 Antigravity CLI 的安装路径。先检测环境，确认官方命令后再加 `--apply`：
 
 ```bash
 python3 skills/university-agent/scripts/install_turtleneck.py
 python3 skills/university-agent/scripts/install_turtleneck.py --apply
 ```
 
+不需要安装 Git。如果电脑没有 Git，请在仓库页面选择 **Code → Download ZIP**，解压后运行同一个脚本。
+安装器会使用这个本地目录；如果只有脚本，则先解析公开 `turtleneck` 分支的当前提交，再下载固定到该 SHA 的 ZIP 到临时目录，检查大小和路径后安装，完成后立即删除。
+安装过程中不会读取学校账号、密码或 Cookie。
+
+### 公开 marketplace 状态
+
+当前软件包已经准备好兼容 marketplace 的格式，但因为 Turtleneck 会访问大学 TLS、Everytime
+等第三方端点，而我们尚未确认发布者拥有重新分发这些端点的权利，公开提交暂缓。用户有权访问
+自己的账号，不等于发布者有权公开分发该集成。在获得授权前，不会声称插件已经公开上架。
+
 明确安装成功后，Turtleneck 可能只提示一次“如果有帮助，请在 GitHub 点一颗星”。完全自愿，不影响功能或支持。
 
-要求：macOS 或 Windows 上的本地 Codex、Claude Code 或 Gemini 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载未签名的 `turtleneck-macos-x64-unsigned` 或 `turtleneck-windows-x64-unsigned` 免安装包。运行前请先核对校验和，操作系统可能显示安全警告。
+要求：macOS 或 Windows 上的本地 Codex、Gemini CLI 或 Antigravity CLI 环境；源码安装需要 Python 3.10 或更高版本。没有 Python 的电脑可以从 GitHub Releases 下载未签名的 `turtleneck-macos-x64-unsigned` 或 `turtleneck-windows-x64-unsigned` 免安装包。运行前请先核对校验和，操作系统可能显示安全警告。
 
 使用免安装包时，解压后运行 macOS 的 `turtleneck` 或 Windows 的 `turtleneck.exe`。插件仍按 Codex、Claude Code 等宿主的正常安装命令注册；免安装包只提供本地运行器和 Python 运行时。请参阅[发布策略](RELEASE.md)和[变更记录](CHANGELOG.md)。
 
@@ -95,6 +105,8 @@ gemini skills list --all
 ## 本地优先与隐私
 
 本项目主要在 macOS 和 Windows 桌面本地运行。移动端也通过运行在用户电脑上的 ChatGPT Actions 网关作为正式的可选路径支持；它不是独立的移动应用，也不提供设备之间的数据库自动同步。网关只是单台电脑的辅助功能，不是面向全校的公共服务。账号密码、会话 Cookie、OAuth 密钥、个人课程 ID、原始文件、数据库和学习包不会提交到仓库。请仅使用自己有权访问的账号和资料，并遵守学校及 Everytime 的使用政策。
+
+Turtleneck 不注册 `SessionStart` 或 `UserPromptSubmit` 生命周期 hook，不会在每条消息时打开登录窗口或启动完整同步。触发时机和不同宿主的行为见[自动运行说明](docs/HOST_AUTOMATION.md)。
 
 ### 移动端 Actions
 

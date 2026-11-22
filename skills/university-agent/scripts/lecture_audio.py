@@ -17,11 +17,22 @@ from features.secret_boundary import redact_output
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import DownloadRestricted, LoginError
 from providers.credentials import load_active_alias, profile_db_path, site_key
+from providers.request_metrics import RequestMetrics, measure_requests
 from scripts.sync_tls import _login_with_retries
 from storage.local_db import LocalDatabase
 
 
 def main():
+    metrics = RequestMetrics() if '--metrics' in sys.argv else None
+    with measure_requests(metrics):
+        try:
+            return _main()
+        finally:
+            if metrics is not None:
+                print('TLS_MEDIA_METRICS ' + json.dumps(metrics.snapshot(), sort_keys=True), file=sys.stderr)
+
+
+def _main():
     parser = argparse.ArgumentParser(description='끝까지 본 강의의 음성만 로컬에 보관')
     parser.add_argument('--course', default='')
     parser.add_argument('--lecture', default='')
@@ -29,6 +40,7 @@ def main():
     parser.add_argument('--all-completed', action='store_true', help='명시적으로 요청한 전체 시청 완료 강의')
     parser.add_argument('--allow-bulk-traffic', action='store_true', help='학교 전체 트래픽을 사용할 수 있음을 확인하고 전체 추출 허용')
     parser.add_argument('--check', action='store_true', help='완료·제한·제공 형식만 확인하고 음성은 받지 않음')
+    parser.add_argument('--metrics', action='store_true', help='비밀값 없는 요청·본문량 계측을 stderr에 출력')
     args = parser.parse_args()
     if args.all_completed and not args.check and not args.allow_bulk_traffic:
         raise SystemExit('전체 강의 음원 추출은 학교 트래픽을 크게 사용할 수 있어요. 확인했다면 --allow-bulk-traffic를 함께 지정해 주세요.')

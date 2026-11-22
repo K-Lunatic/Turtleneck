@@ -28,6 +28,10 @@ def run_script(relative: str, args: list[str]) -> int:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
     args = sys.argv[1:]
     if args and args[0] in {"--version", "-V"}:
         try:

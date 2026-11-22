@@ -6,7 +6,6 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import tempfile
 from datetime import datetime, timezone
 
 from features.assignment_selection import normalize
@@ -73,7 +72,7 @@ def _source_fingerprint(plan):
 def extract_audio(provider, user, lecture, plan, root, cached=None, progress=None):
     if lecture.get('completed') is not True:
         raise ValueError('끝까지 본 강의만 음성을 가져올 수 있어요.')
-    if plan.get('format') not in ('mpegts', 'mov'):
+    if plan.get('format') not in ('mpegts', 'mp4', 'mov'):
         raise ValueError('학교 영상 형식을 확인하지 못해 음성을 가져오지 않았어요.')
     root = root.resolve()
     source_key = 'v3-' + hashlib.sha256((_source_fingerprint(plan) + lecture['courseId'] + lecture['title']).encode()).hexdigest()
@@ -93,9 +92,16 @@ def extract_audio(provider, user, lecture, plan, root, cached=None, progress=Non
     if not target.resolve().is_relative_to(root):
         raise ValueError('허용된 음성 폴더 밖에는 저장하지 않아요.')
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with tempfile.TemporaryDirectory(prefix='.audio-', dir=root) as folder:
-        source, output = Path(folder) / 'media.bin', Path(folder) / 'audio.m4a'
-        provider.save_lecture_media(plan, source, progress)
+    staging = root / '.media-staging' / hashlib.sha256(
+        f'{user}:{lecture["courseId"]}:{lecture["id"]}:{source_key}'.encode()
+    ).hexdigest()[:24]
+    staging.mkdir(parents=True, exist_ok=True, mode=0o700)
+    source, output = staging / 'media.bin', staging / 'audio.m4a'
+    try:
+        # A completed source survives a conversion-only retry; incomplete HLS work
+        # remains in lecture_media's .partial checkpoint beside this path.
+        if not source.is_file() or source.stat().st_size == 0:
+            provider.save_lecture_media(plan, source, progress)
         if progress:
             progress('다 받아왔어요. 화면은 빼고 교수님 음성만 보관할게요…')
         command = [executable, '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
@@ -127,5 +133,11 @@ def extract_audio(provider, user, lecture, plan, root, cached=None, progress=Non
         if not target.resolve().is_relative_to(root):
             raise ValueError('허용된 음성 폴더 밖에는 저장하지 않아요.')
         os.replace(output, target)
+    except Exception:
+        # Keep media.bin/.partial for the next run, but never keep a failed audio output.
+        output.unlink(missing_ok=True)
+        raise
+    else:
+        shutil.rmtree(staging, ignore_errors=True)
     return {'lectureId': lecture['id'], 'sourceKey': source_key, 'localPath': str(target),
             'contentHash': content_hash, 'savedAt': datetime.now(timezone.utc).isoformat(), 'reused': False}

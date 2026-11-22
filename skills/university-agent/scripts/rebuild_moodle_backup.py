@@ -53,7 +53,13 @@ def _max_id(payloads: list[bytes]) -> int:
 def _read_archive(path: Path) -> tuple[list[tarfile.TarInfo], dict[str, bytes]]:
     with tarfile.open(path, "r:*") as archive:
         members = archive.getmembers()
-        files = {member.name: archive.extractfile(member).read() for member in members if member.isfile()}
+        # XML controls the rebuilt structure; binary assets are copied directly
+        # from the source archive during output instead of entering RAM.
+        files = {
+            member.name: archive.extractfile(member).read()
+            for member in members
+            if member.isfile() and member.name.lower().endswith(".xml")
+        }
     return members, files
 
 
@@ -158,7 +164,7 @@ def rebuild_backup(template: Path, output: Path, subjects: list[str], *, include
 
     course_numsections = course_root.find("numsections")
     if course_numsections is not None:
-        course_numsections.text = str(len(clean_subjects))
+        course_numsections.text = str(len(topic_names))
     files["course/course.xml"] = _xml_bytes(course_root)
     files["moodle_backup.xml"] = _xml_bytes(backup_root)
     files["questions.xml"] = _empty_question_bank(course_id, new_base + len(topic_names) + 1)
@@ -169,7 +175,7 @@ def rebuild_backup(template: Path, output: Path, subjects: list[str], *, include
         temporary = Path(temp.name)
     now = int(time.time())
     try:
-        with tarfile.open(temporary, "w:gz") as archive:
+        with tarfile.open(template, "r:*") as source_archive, tarfile.open(temporary, "w:gz") as archive:
             written = set()
             for member in members:
                 if member.name == ".ARCHIVE_INDEX" or member.name.startswith(("activities/", "sections/", "files/")) or member.name in _DROP_ROOT_FILES:
@@ -179,6 +185,10 @@ def rebuild_backup(template: Path, output: Path, subjects: list[str], *, include
                     info.size = len(files[member.name])
                     archive.addfile(info, io.BytesIO(files[member.name]))
                     written.add(member.name)
+                elif member.isfile():
+                    source = source_archive.extractfile(member)
+                    if source is not None:
+                        archive.addfile(copy.copy(member), source)
                 elif member.isdir() and not member.name.startswith(("activities/", "sections/", "files/")):
                     archive.addfile(copy.copy(member))
             for path, payload in files.items():
