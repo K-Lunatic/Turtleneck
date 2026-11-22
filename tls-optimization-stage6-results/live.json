@@ -1,5 +1,5 @@
 {
-  "measured_at": "2026-11-22T16:57:51.050829+09:00",
+  "measured_at": "2026-11-23T01:00:01.881809+09:00",
   "measurement": "live TLS resource-detail resolution only; metadata mode",
   "resources_in_selected_course": 37,
   "courses_in_preflight": 8,
@@ -10,10 +10,10 @@
       "post": 2
     },
     "request_body_bytes": 41,
-    "response_body_bytes": 32829,
+    "response_body_bytes": 32819,
     "response_body_bytes_by_kind": {
-      "page": 19283,
-      "post": 13546
+      "page": 19280,
+      "post": 13539
     },
     "statuses": {
       "303": 2,
@@ -21,7 +21,7 @@
     },
     "peak_open_requests": 1,
     "peak_requests_per_second": 3,
-    "elapsed_seconds": 4.4515
+    "elapsed_seconds": 4.8917
   },
   "preflight_and_notices_setup": {
     "requests": 10,
@@ -29,16 +29,16 @@
       "page": 10
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 106711,
+    "response_body_bytes": 106715,
     "response_body_bytes_by_kind": {
-      "page": 106711
+      "page": 106715
     },
     "statuses": {
       "200": 10
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 2.6202
+    "elapsed_seconds": 2.7057
   },
   "before": {
     "requests": 74,
@@ -56,7 +56,7 @@
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 19.5683
+    "elapsed_seconds": 19.6477
   },
   "resource_records_before": 37,
   "after": {
@@ -75,14 +75,14 @@
     },
     "peak_open_requests": 1,
     "peak_requests_per_second": 2,
-    "elapsed_seconds": 0.7733
+    "elapsed_seconds": 0.4798
   },
   "target_results_equal": true,
   "selected_count": 1,
   "source_db_bytes_unchanged": true,
   "requests_reduction_percent": 97.3,
   "response_body_bytes_reduction_percent": 97.05,
-  "elapsed_seconds_reduction_percent": 96.05,
+  "elapsed_seconds_reduction_percent": 97.56,
   "notes": [
     "Before: every resource detail in the course. After: one selected resource detail.",
     "Common authentication, all-course preflight and selected-course notice reads excluded from comparison.",
