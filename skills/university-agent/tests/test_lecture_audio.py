@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import io
 import json
+import hashlib
 import os
 import tempfile
 from types import SimpleNamespace
@@ -483,6 +484,24 @@ class LectureAudioTests(unittest.TestCase):
             download_media(session, plan, path)
             self.assertIn(plan['chunks'][0], session.calls)
             self.assertEqual(path.read_bytes(), b'GfirstGsecondGthird')
+
+    def test_checkpoint_with_same_source_key_but_missing_chunk_fingerprint_is_discarded(self):
+        session = Session()
+        plan = media_plan(session, SOURCE)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'media.bin'
+            partial = Path(folder) / '.media.bin.partial'
+            manifest = Path(folder) / '.media.bin.partial.json'
+            partial.write_bytes(b'Gfirst')
+            manifest.write_text(json.dumps({
+                'identity': {'sourceKey': plan['sourceKey'], 'format': plan['format'], 'chunks': 2},
+                'completed': 1, 'bytes': 6,
+                'prefixSha256': hashlib.sha256(b'Gfirst').hexdigest(),
+            }), encoding='utf-8')
+            session.calls.clear()
+            download_media(session, plan, path)
+            self.assertIn(plan['chunks'][0], session.calls)
+            self.assertEqual(path.read_bytes(), b'GfirstGsecond')
 
     def test_transient_chunk_failure_retries_but_server_denial_does_not(self):
         session = Session()

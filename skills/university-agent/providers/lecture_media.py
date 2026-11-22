@@ -180,7 +180,10 @@ def download_media(session, plan, target, progress=None):
     partial = target.with_name(f'.{target.name}.partial')
     manifest = partial.with_name(partial.name + '.json')
     source_key = str(plan.get('sourceKey') or '')
-    identity = {'sourceKey': source_key, 'format': plan.get('format'), 'chunks': len(chunks)}
+    chunk_digest = hashlib.sha256(json.dumps(
+        chunks, ensure_ascii=False, separators=(',', ':')).encode('utf-8')).hexdigest()
+    identity = {'sourceKey': source_key, 'format': plan.get('format'),
+                'chunks': len(chunks), 'chunkDigest': chunk_digest}
 
     def clear_partial():
         partial.unlink(missing_ok=True)
