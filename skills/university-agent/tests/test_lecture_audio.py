@@ -75,18 +75,18 @@ class StreamingSession(Session):
 
 
 class ResumableMp4Session:
-    def __init__(self):
+    def __init__(self, failures=3):
         self.content = b'\x00\x00\x00\x18ftypmp42' + b'video-data'
         self.calls = []
-        self.failed = True
+        self.failures_remaining = failures
 
     def stream_bytes_to_file(self, url, target, **kwargs):
         self.calls.append((url, Path(target).stat().st_size if Path(target).exists() else 0, kwargs))
         target = Path(target)
         offset = target.stat().st_size if target.exists() else 0
-        if self.failed:
+        if self.failures_remaining:
             target.write_bytes(self.content[:8])
-            self.failed = False
+            self.failures_remaining -= 1
             raise URLError('temporary reset')
         self.assert_resume = kwargs.get('resume_existing')
         with target.open('ab') as stream:
@@ -414,6 +414,18 @@ class LectureAudioTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), session.content)
             self.assertEqual(session.calls[1][1], 8)
             self.assertTrue(session.calls[1][2]['resume_existing'])
+            self.assertFalse((Path(folder) / '.video.mp4.partial').exists())
+
+    def test_direct_mp4_retries_transient_failure_before_returning(self):
+        session = ResumableMp4Session(failures=1)
+        plan = {'format': 'mov', 'chunks': ['https://media.example/video.mp4'],
+                'origin': 'media.example', 'sourceKey': 'mp4-retry'}
+        with tempfile.TemporaryDirectory() as folder, patch('providers.lecture_media.time.sleep'):
+            path = Path(folder) / 'video.mp4'
+            download_media(session, plan, path)
+            self.assertEqual(path.read_bytes(), session.content)
+            self.assertEqual(len(session.calls), 2)
+            self.assertEqual(session.calls[1][1], 8)
             self.assertFalse((Path(folder) / '.video.mp4.partial').exists())
 
     def test_failed_download_preserves_existing_target_and_cleans_partial_output(self):

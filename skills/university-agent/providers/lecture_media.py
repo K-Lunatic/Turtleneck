@@ -221,37 +221,48 @@ def download_media(session, plan, target, progress=None):
     # A direct MP4 has one large chunk. Keep that chunk beside the destination so
     # an interrupted transfer can use HTTP Range instead of restarting it.
     if plan['format'] == 'mov' and hasattr(session, 'stream_bytes_to_file'):
-        try:
-            existing_bytes = partial.stat().st_size
-            manifest_tmp = manifest.with_name(f'.{manifest.name}.{os.getpid()}')
-            manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': 0,
-                                                'bytes': existing_bytes}, ensure_ascii=False), encoding='utf-8')
-            os.replace(manifest_tmp, manifest)
-            result = session.stream_bytes_to_file(
-                chunks[0], partial, allowed_origin=plan['origin'],
-                max_bytes=256_000_000, resume_existing=True,
-            )
-            size = result['size'] if isinstance(result, dict) else result
-            with partial.open('r+b') as stream:
-                if size <= 0 or stream.read(8)[4:8] != b'ftyp':
-                    raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
-                stream.flush()
-                os.fsync(stream.fileno())
-            manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': 1,
-                                                'bytes': size}, ensure_ascii=False), encoding='utf-8')
-            os.replace(manifest_tmp, manifest)
-            os.replace(partial, target)
-            manifest.unlink(missing_ok=True)
-            if progress:
-                progress('강의 영상을 이어받아 저장했어요 · 1/1 조각')
-            return
-        except HTTPError as error:
-            if error.code not in _RETRYABLE_HTTP:
+        for attempt in range(1, _CHUNK_ATTEMPTS + 1):
+            try:
+                existing_bytes = partial.stat().st_size
+                manifest_tmp = manifest.with_name(f'.{manifest.name}.{os.getpid()}')
+                manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': 0,
+                                                    'bytes': existing_bytes}, ensure_ascii=False), encoding='utf-8')
+                os.replace(manifest_tmp, manifest)
+                result = session.stream_bytes_to_file(
+                    chunks[0], partial, allowed_origin=plan['origin'],
+                    max_bytes=256_000_000, resume_existing=True,
+                )
+                size = result['size'] if isinstance(result, dict) else result
+                with partial.open('r+b') as stream:
+                    if size <= 0 or stream.read(8)[4:8] != b'ftyp':
+                        raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                manifest_tmp.write_text(json.dumps({'identity': identity, 'completed': 1,
+                                                    'bytes': size}, ensure_ascii=False), encoding='utf-8')
+                os.replace(manifest_tmp, manifest)
+                os.replace(partial, target)
+                manifest.unlink(missing_ok=True)
+                if progress:
+                    progress('강의 영상을 이어받아 저장했어요 · 1/1 조각')
+                return
+            except HTTPError as error:
+                retry = error.code in _RETRYABLE_HTTP
+                if getattr(error, 'fp', None) is not None:
+                    error.close()
+                if not retry or attempt == _CHUNK_ATTEMPTS:
+                    if not retry:
+                        clear_partial()
+                    raise
+            except (URLError, TimeoutError):
+                if attempt == _CHUNK_ATTEMPTS:
+                    raise
+            except (DownloadRestricted, ValueError):
                 clear_partial()
-            raise
-        except (DownloadRestricted, ValueError):
-            clear_partial()
-            raise
+                raise
+            if progress:
+                progress(f'강의 영상 연결이 끊겨 다시 이어받는 중이에요 · {attempt}/{_CHUNK_ATTEMPTS}')
+            time.sleep(0.5 * attempt)
 
     with tempfile.TemporaryDirectory(prefix='.media-', dir=str(target.parent)) as staging:
         def fetch(item):
