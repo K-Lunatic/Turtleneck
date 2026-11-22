@@ -13,6 +13,9 @@ class MoodleApiError(RuntimeError):
         super().__init__(f"Moodle API 요청 실패: {message}")
 
 
+MAX_API_RESPONSE_BYTES = 16 * 1024 * 1024
+
+
 def _flatten(prefix: str, value, output: dict[str, str]) -> None:
     if isinstance(value, (list, tuple)):
         for index, item in enumerate(value):
@@ -49,7 +52,18 @@ class MoodleWebServiceClient:
                                    "User-Agent": "Turtleneck/MoodleProvider"}, method="POST")
         try:
             with self._opener(request, timeout=self.timeout) as response:
-                status, body = response.status, response.read(2_000_000).decode("utf-8", "replace")
+                status = response.status
+                declared = response.headers.get("Content-Length")
+                try:
+                    declared_size = int(declared) if declared else None
+                except (TypeError, ValueError):
+                    declared_size = None
+                if declared_size is not None and declared_size > MAX_API_RESPONSE_BYTES:
+                    raise MoodleApiError(status, "response_too_large", "Moodle API 응답이 너무 커서 안전하게 처리하지 못했어요.")
+                raw = response.read(MAX_API_RESPONSE_BYTES + 1)
+                if len(raw) > MAX_API_RESPONSE_BYTES:
+                    raise MoodleApiError(status, "response_too_large", "Moodle API 응답이 너무 커서 안전하게 처리하지 못했어요.")
+                body = raw.decode("utf-8", "replace")
         except HTTPError as error:
             body = error.read(4096).decode("utf-8", "replace")
             raise MoodleApiError(error.code, "http_error", body[:500]) from error

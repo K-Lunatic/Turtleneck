@@ -56,6 +56,38 @@ class MoodleApiTests(unittest.TestCase):
         with self.assertRaisesRegex(MoodleApiError, "bad token"):
             MoodleWebServiceClient("https://tls.example", "token", opener=opener).site_info()
 
+    def test_oversized_moodle_response_is_reported_without_json_truncation(self):
+        class OversizedResponse(Response):
+            def __init__(self):
+                self.status = 200
+                self.headers = {}
+
+            def read(self, limit=-1):
+                return b"{" + b"x" * (limit + 1)
+
+        with self.assertRaisesRegex(MoodleApiError, "너무 커서"):
+            MoodleWebServiceClient(
+                "https://tls.example", "token", opener=lambda *_args, **_kwargs: OversizedResponse()
+            ).site_info()
+
+    def test_declared_oversized_moodle_response_is_rejected_before_read(self):
+        class DeclaredOversizedResponse(Response):
+            def __init__(self):
+                self.status = 200
+                self.headers = {"Content-Length": str(16 * 1024 * 1024 + 1)}
+                self.read_called = False
+
+            def read(self, _limit=-1):
+                self.read_called = True
+                return b"{}"
+
+        response = DeclaredOversizedResponse()
+        with self.assertRaisesRegex(MoodleApiError, "너무 커서"):
+            MoodleWebServiceClient(
+                "https://tls.example", "token", opener=lambda *_args, **_kwargs: response
+            ).site_info()
+        self.assertFalse(response.read_called)
+
     def test_token_marker_does_not_contain_plaintext(self):
         with tempfile.TemporaryDirectory() as folder, \
              patch.object(moodle_api_credentials, "CONFIG_PATH", Path(folder) / "moodle-api-accounts.json"), \
