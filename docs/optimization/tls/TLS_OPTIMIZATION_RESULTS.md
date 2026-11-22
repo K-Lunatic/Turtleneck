@@ -134,6 +134,16 @@ python skills/university-agent/scripts/sync_tls.py --ensure --metadata-only --me
 python skills/university-agent/scripts/benchmark_tls_live.py
 ```
 
+2026-11-22 재측정에서는 저장된 세션만 사용해 8개 수강 과목 중 1개 과목의
+로컬 지문만 변경했다. 원본 파일은 다운로드하지 않았고, 사용자 DB는 읽기 전용
+백업으로 사용했다. 전체 동기화 비교는 **308→12 HTTP 요청(96.10% 감소)**,
+응답 본문은 **1,054,367→121,061 B(88.52% 감소)**, 시간은
+**80.207→3.669초(95.43% 감소)**였다. 선택 과목의 과제·강의·공지·자료·활동
+결과와 나머지 7개 현재 수강 과목의 기록은 모두 일치했고, 원본 DB SHA-256도
+변하지 않았다. 로컬에만 남은 자율강좌·탈락 과목 기록은 정상적인 수강 목록
+정리 대상이므로 보존 비교에서 제외했다. 상세 집계는
+[live.json](../../../tls-optimization-results/live.json)에 있다.
+
 변경 전 소스는 [baseline_sources.zip](../../../tls-optimization-results/baseline_sources.zip)에 보관했다. 원본 소스 SHA-256은 `offline.json`에 기록했다. Git 저장소가 없는 작업 폴더이므로 이 보관본을 변경 전 기준으로 사용했다.
 
 수정 파일의 비교는 [changes.patch](../../../tls-optimization-results/changes.patch), 최종 소스·측정 파일 해시는 [source_hashes.json](../../../tls-optimization-results/source_hashes.json)에 보관한다.

@@ -37,16 +37,17 @@ if getattr(sys, 'frozen', False):
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from providers.credentials import list_profiles  # noqa: E402
-from features.presentation import RUNTIME_PATH, validate_page, open_local_page
-from storage.private_files import atomic_write_text
-from features import study_sources
-
-
 STATE_PATH = Path.home() / ".university-agent" / "companion.json"
+RUNTIME_PATH = Path.home() / ".university-agent" / "companion-runtime.json"
 ICON_PATH = ROOT / "assets" / "turtleneck.png"
 POLL_SECONDS = 60
 EXAM_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
+
+
+def list_profiles():
+    """Load non-secret profile markers only when a screen actually needs them."""
+    from providers.credentials import list_profiles as load_profiles
+    return load_profiles()
 
 
 def skill_status(skill_root: Path = ROOT) -> dict[str, str | bool]:
@@ -145,6 +146,8 @@ def _study_exams(profile: dict) -> list[dict[str, object]]:
 
 def dashboard_snapshot() -> dict:
     """Return the local dashboard payload; never include questions or credentials."""
+    from features import study_sources
+
     data = snapshot()
     exams = []
     documents = []
@@ -279,6 +282,9 @@ class DashboardServer:
                     self._send(200, json.dumps(dashboard_snapshot(), ensure_ascii=False), "application/json; charset=utf-8")
                 elif parsed.path == '/api/source':
                     try:
+                        from providers.credentials import list_profiles
+                        from features import study_sources
+
                         if not skill_status()['installed']:
                             raise ValueError('스킬 설치를 먼저 확인해 주세요.')
                         profiles = [item for item in list_profiles()
@@ -316,6 +322,7 @@ class DashboardServer:
                     if not 0 < length <= 8192 or owner.presenter is None:
                         raise ValueError('화면 요청을 확인하지 못했어요.')
                     value = json.loads(self.rfile.read(length))
+                    from features.presentation import validate_page
                     url = validate_page(value['url'], value['kind'])
                     owner.presenter(url, value['kind'])
                 except (ValueError, TypeError, KeyError, RuntimeError):
@@ -327,10 +334,13 @@ class DashboardServer:
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         if self.presenter is not None:
+            from storage.private_files import atomic_write_text
             atomic_write_text(RUNTIME_PATH, json.dumps({'port': self.server.server_port, 'token': self.token}))
         return f"http://127.0.0.1:{self.server.server_port}/?{urlencode({'token': self.token})}"
 
     def open(self) -> str:
+        from features.presentation import open_local_page
+
         if self.server is None:
             url = self.start()
         else:

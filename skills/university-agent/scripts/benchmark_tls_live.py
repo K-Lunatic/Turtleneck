@@ -158,6 +158,11 @@ def main():
         report['academic_statuses_may_change'] = {
             kind: normalized(seed_data[kind], False) != normalized(data['after'][kind], False)
             for kind in ('assignments', 'lectures')}
+        report['unselected_course_scope'] = {
+            'compared_course_count': len(current_course_ids - {selected}),
+            'excluded_local_course_records': True,
+            'note': '로컬에만 남은 자율강좌·탈락 과목 기록은 수강 목록 정리 대상으로 비교에서 제외했다.',
+        }
         report['selected_course_record_counts'] = {
             kind: sum(row.get('courseId') == selected for row in rows) for kind, rows in data['after'].items()}
     if not all(report['selected_course_results_equal'].values()) or not all(report['unselected_records_preserved'].values()):

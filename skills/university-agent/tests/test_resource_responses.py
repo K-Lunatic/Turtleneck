@@ -58,6 +58,19 @@ class StreamingResourceSession(Session):
         return {'size': len(self.content), 'url': path, 'headers': self.response_headers}
 
 
+class RevalidatingStreamingResourceSession(StreamingResourceSession):
+    def __init__(self):
+        super().__init__()
+        self.revalidated = []
+
+    def revalidate(self, path, cached):
+        self.revalidated.append(path)
+        return self.content, SimpleNamespace(
+            headers=self.response_headers,
+            geturl=lambda: path,
+        )
+
+
 class InterruptedStreamingResourceSession(StreamingResourceSession):
     def __init__(self):
         super().__init__()
@@ -132,6 +145,38 @@ class ResourceResponseTests(unittest.TestCase):
         with patch('providers.moodle_provider.Path.read_bytes', side_effect=AssertionError('whole file read')):
             item = provider(session).get_resources('u', save_file=sink)[0]
         self.assertEqual(item['downloadStatus'], 'NOT_DOWNLOADED')
+
+    def test_cached_revalidation_does_not_use_a_missing_partial_path(self):
+        session = RevalidatingStreamingResourceSession()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'files'
+            cached_path = root / 'cached.pdf'
+            cached_path.parent.mkdir(parents=True)
+            cached_path.write_bytes(b'%PDF-old')
+            saved = []
+
+            def sink(item):
+                self.assertNotIn('_content_path', item)
+                self.assertEqual(item['_content'], b'%PDF-fixture')
+                saved.append(item['_content'])
+                return item
+
+            item = provider(session).get_resources(
+                'u',
+                existing_resources={'10': {
+                    'localPath': str(cached_path),
+                    'remotePath': ACTIVITY,
+                    'mimeType': 'application/pdf',
+                }},
+                save_file=sink,
+                partial_root=root,
+            )[0]
+
+            self.assertEqual(saved, [b'%PDF-fixture'])
+            self.assertEqual(len(session.revalidated), 1)
+            self.assertIn('/local/ubdoc/download.php', session.revalidated[0])
+            self.assertFalse((root / '.partials' / 'course-a' / '10.part').exists())
+            self.assertEqual(item['downloadStatus'], 'NOT_DOWNLOADED')
 
     def test_interrupted_resource_download_resumes_and_cleans_checkpoint(self):
         session = InterruptedStreamingResourceSession()
