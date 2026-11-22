@@ -5,12 +5,14 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.assemble_moodle_backup import assemble_backup
+import scripts.assemble_moodle_backup as backup_module
 from scripts.validate_moodle_backup import validate_backup
 
 
@@ -90,6 +92,28 @@ class AssembleMoodleBackupTests(unittest.TestCase):
             self.make_questions(questions)
             with self.assertRaisesRegex(ValueError, "기존 백업의 금지된 표시 이름"):
                 assemble_backup(template, questions, root / "new.mbz", section_name="자료구조", quiz_name="자료구조 · 모의시험")
+
+    def test_oversized_control_xml_is_rejected_before_assembly(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            template, questions = root / "base.mbz", root / "questions.xml"
+            self.make_template(template)
+            self.make_questions(questions)
+            oversized = root / "oversized.mbz"
+            payload = b"<extra>" + (b"x" * 32) + b"</extra>"
+            with tarfile.open(template, "r:*") as source, tarfile.open(oversized, "w:gz") as target:
+                for member in source.getmembers():
+                    source_file = source.extractfile(member) if member.isfile() else None
+                    target.addfile(member, source_file)
+                    if source_file is not None:
+                        source_file.close()
+                info = tarfile.TarInfo("course/oversized.xml")
+                info.size = len(payload)
+                target.addfile(info, io.BytesIO(payload))
+            with patch.object(backup_module, "MAX_XML_MEMBER_BYTES", 16):
+                with self.assertRaisesRegex(ValueError, "XML 파일이 너무 커서"):
+                    assemble_backup(oversized, questions, root / "new.mbz",
+                                    section_name="자료구조", quiz_name="자료구조 · 모의시험")
 
 
 if __name__ == "__main__":

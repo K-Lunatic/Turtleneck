@@ -32,6 +32,30 @@ class MoodleBackupAssemblyError(ValueError):
 
 
 _XML_DECL = b'<?xml version="1.0" encoding="UTF-8"?>\n'
+MAX_XML_MEMBER_BYTES = 64 * 1024 * 1024
+MAX_XML_TOTAL_BYTES = 256 * 1024 * 1024
+
+
+def _read_xml_member(archive: tarfile.TarFile, member: tarfile.TarInfo, total: int) -> tuple[bytes, int]:
+    """Read only bounded XML control data; course binaries remain streamed."""
+    if member.size < 0 or member.size > MAX_XML_MEMBER_BYTES:
+        raise MoodleBackupAssemblyError(
+            f"백업 XML 파일이 너무 커서 안전하게 읽지 않았어요: {member.name}"
+        )
+    if total + member.size > MAX_XML_TOTAL_BYTES:
+        raise MoodleBackupAssemblyError("백업 XML 전체 크기가 너무 커서 안전하게 읽지 않았어요.")
+    source = archive.extractfile(member)
+    if source is None:
+        raise MoodleBackupAssemblyError(f"백업 XML 파일을 읽지 못했어요: {member.name}")
+    try:
+        payload = source.read(MAX_XML_MEMBER_BYTES + 1)
+    finally:
+        source.close()
+    if len(payload) > MAX_XML_MEMBER_BYTES:
+        raise MoodleBackupAssemblyError(
+            f"백업 XML 파일이 너무 커서 안전하게 읽지 않았어요: {member.name}"
+        )
+    return payload, total + len(payload)
 
 
 def _xml_bytes(root: ET.Element) -> bytes:
@@ -204,10 +228,14 @@ def assemble_backup(template: Path, questions_xml: Path, output: Path, *, sectio
 
     with tarfile.open(template, "r:*") as source_archive:
         members = source_archive.getmembers()
-        # XML is small control data; binary course files stay in the input tar
-        # and are copied as streams below instead of being materialized.
-        files = {member.name: source_archive.extractfile(member).read()
-                 for member in members if member.isfile() and member.name.endswith(".xml")}
+        # XML is control data with an explicit bound; binary course files stay
+        # in the input tar and are copied as streams below instead of being
+        # materialized.
+        files = {}
+        xml_total = 0
+        for member in members:
+            if member.isfile() and member.name.endswith(".xml"):
+                files[member.name], xml_total = _read_xml_member(source_archive, member, xml_total)
         try:
             _reject_banned_existing_names(files)
         except ET.ParseError as error:
