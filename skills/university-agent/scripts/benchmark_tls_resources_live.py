@@ -7,6 +7,8 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -44,7 +46,8 @@ def main():
     if not count(course):
         raise RuntimeError('No resource activities are available for comparison.')
     notices = setup.for_courses(username, {course['id']}).get_notices(username)
-    report = {'measurement': 'live TLS resource-detail resolution only; metadata mode',
+    report = {'measured_at': datetime.now(ZoneInfo('Asia/Seoul')).isoformat(),
+              'measurement': 'live TLS resource-detail resolution only; metadata mode',
               'resources_in_selected_course': count(course), 'courses_in_preflight': len(preflight['courseIds']),
               'authentication_setup': auth_metrics.snapshot(), 'preflight_and_notices_setup': setup_metrics.snapshot()}
     with tempfile.TemporaryDirectory(prefix='tls-resource-measure-') as directory:

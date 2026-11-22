@@ -1,4 +1,5 @@
 {
+  "measured_at": "2026-11-22T16:57:51.050829+09:00",
   "measurement": "live TLS resource-detail resolution only; metadata mode",
   "resources_in_selected_course": 37,
   "courses_in_preflight": 8,
@@ -9,10 +10,10 @@
       "post": 2
     },
     "request_body_bytes": 41,
-    "response_body_bytes": 31024,
+    "response_body_bytes": 32829,
     "response_body_bytes_by_kind": {
-      "page": 18377,
-      "post": 12647
+      "page": 19283,
+      "post": 13546
     },
     "statuses": {
       "303": 2,
@@ -20,7 +21,7 @@
     },
     "peak_open_requests": 1,
     "peak_requests_per_second": 3,
-    "elapsed_seconds": 5.9339
+    "elapsed_seconds": 4.4515
   },
   "preflight_and_notices_setup": {
     "requests": 10,
@@ -28,16 +29,16 @@
       "page": 10
     },
     "request_body_bytes": 0,
-    "response_body_bytes": 106352,
+    "response_body_bytes": 106711,
     "response_body_bytes_by_kind": {
-      "page": 106352
+      "page": 106711
     },
     "statuses": {
       "200": 10
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 2.7518
+    "elapsed_seconds": 2.6202
   },
   "before": {
     "requests": 74,
@@ -55,7 +56,7 @@
     },
     "peak_open_requests": 2,
     "peak_requests_per_second": 4,
-    "elapsed_seconds": 19.8189
+    "elapsed_seconds": 19.5683
   },
   "resource_records_before": 37,
   "after": {
@@ -74,14 +75,14 @@
     },
     "peak_open_requests": 1,
     "peak_requests_per_second": 2,
-    "elapsed_seconds": 0.5241
+    "elapsed_seconds": 0.7733
   },
   "target_results_equal": true,
   "selected_count": 1,
   "source_db_bytes_unchanged": true,
   "requests_reduction_percent": 97.3,
   "response_body_bytes_reduction_percent": 97.05,
-  "elapsed_seconds_reduction_percent": 97.36,
+  "elapsed_seconds_reduction_percent": 96.05,
   "notes": [
     "Before: every resource detail in the course. After: one selected resource detail.",
     "Common authentication, all-course preflight and selected-course notice reads excluded from comparison.",
