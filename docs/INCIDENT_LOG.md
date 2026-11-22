@@ -180,6 +180,14 @@
 
 ## Windows·CI·패키징
 
+### 15-0. GitHub Actions의 Node.js 20 런타임 경고
+
+- **증상**: 테스트 자체는 성공했지만 `checkout@v4`, `setup-python@v5`, `setup-node@v4`가 Node.js 20 런타임을 사용한다는 경고가 CI에 남았다.
+- **원인**: 워크플로가 Node.js 24 호환 액션 버전으로 갱신되지 않았다.
+- **해결**: `checkout@v5`, `setup-python@v6`, `setup-node@v5`로 갱신했다. 제품 코드와 실행 환경은 변경하지 않았다.
+- **검증**: 커밋 `ce2f15b`의 GitHub Actions run `45002364611`에서 macOS·Windows 24개 job 전체 성공.
+- **상태**: 해결. 향후 액션 메이저 버전 변경 시 새 runner 최소 버전과 함께 다시 검토한다.
+
 ### 15. Windows SQLite 읽기 핸들·DPAPI·업데이트 임시 파일 문제
 
 - **증상**: Windows에서 읽기 전용 DB 파일이 삭제/교체되지 않거나 보호 저장소 테스트와 업데이트가 실패했다.
