@@ -30,6 +30,7 @@ from providers.credentials import (CredentialInputRequired, ProtectedStoreAccess
                                    set_active_alias, site_key)
 from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
+from features.secret_boundary import redact_output
 from features.autonomous_course_watch import refresh as refresh_autonomous_course
 from providers.tls_auth import resume_saved_session
 from providers.native_backend import activate as activate_native_backend
@@ -86,6 +87,12 @@ def _cached_resources(db_path: Path, user_id: str, file_root: Path) -> dict[str,
     finally:
         if database is not None:
             database.close()
+
+
+def _login_failure_message(error: LoginError) -> str:
+    """Keep the provider's safe classification visible without exposing secrets."""
+    detail = redact_output(str(error)).strip()
+    return f'학교에 연결하지 못했어요. 원인: {detail}' if detail else '학교에 연결하지 못했어요.'
 
 
 def store_resource(file_root, item):
@@ -560,7 +567,7 @@ def _main() -> None:
     except RequestBackoff as error:
         raise SystemExit(f'학교 요청을 잠시 쉬고 있어요. 약 {max(1, int(error.seconds + 0.999))}초 후 다시 확인해 주세요. 기존 기록의 확인 시각은 갱신하지 않았어요.') from error
     except LoginError as error:
-        raise SystemExit('학교에 연결하지 못했어요. 아이디와 비밀번호를 확인해 주세요.') from error
+        raise SystemExit(_login_failure_message(error)) from error
     except (sync_policy.SyncBusy, CredentialInputRequired, RuntimeError, ValueError) as error:
         raise SystemExit(str(error)) from error
     except (URLError, TimeoutError, ConnectionError) as error:

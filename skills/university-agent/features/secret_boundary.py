@@ -15,6 +15,7 @@ _SECRET_TEXT = (
     re.compile(r"(?i)(\b(?:cookie|set-cookie|authorization)\s*:\s*)[^\r\n]+"),
     re.compile(r"(?i)(\b(?:authorization)\s+bearer\s+)[^\s,]+"),
     re.compile(r"(?i)([?&](?:password|passwd|pwd|secret|token|access_token|refresh_token|sesskey|client_secret|code_verifier|api_key)=)[^&#\s]+"),
+    re.compile(r"(?i)(\b(?:password|passwd|pwd|secret|token|access_token|refresh_token|sesskey|client_secret|code_verifier|api[_-]?key)\s*[:=]\s*)[^\s,;]+"),
     re.compile(r"(?i)(\b(?:client_secret|code_verifier|api[_-]?key)\s*[:=]\s*)[^\s,;]+"),
 )
 

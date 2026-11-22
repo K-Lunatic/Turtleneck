@@ -28,6 +28,16 @@ class TlsLoginTests(unittest.TestCase):
     def setUp(self):
         tls_auth.clear_process_session_cache()
 
+    def test_login_failure_message_keeps_safe_provider_error_code(self):
+        message = sync_tls._login_failure_message(LoginError('TLS login failed (Moodle errorcode=3)'))
+        self.assertIn('Moodle errorcode=3', message)
+        self.assertNotIn('password', message.lower())
+
+    def test_login_failure_message_redacts_secret_shaped_text(self):
+        message = sync_tls._login_failure_message(LoginError('login failed token=secret-value'))
+        self.assertNotIn('secret-value', message)
+        self.assertIn('[REDACTED]', message)
+
     def test_tls_session_cache_stays_out_of_the_marker_file(self):
         jar = CookieJar()
         jar.set_cookie(Cookie(version=0, name='MoodleSession', value='fixture-cookie',
