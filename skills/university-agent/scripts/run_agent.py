@@ -59,10 +59,14 @@ from features.language import apply_preferred_language
 from storage.local_db import LocalDatabase
 from storage.private_files import atomic_write_text
 
-try:
-    default_user_id = load_username()
-except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
+# An explicit local identity must not trigger a Keychain lookup for read-only commands.
+if os.environ.get("UNIVERSITY_AGENT_USER_ID"):
     default_user_id = ""
+else:
+    try:
+        default_user_id = load_username()
+    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
+        default_user_id = ""
 DB_PATH = Path(os.environ.get("UNIVERSITY_AGENT_DB", Path.home() / ".university-agent" / "university.db")).expanduser()
 DEVICE_ID_PATH = DB_PATH.parent / "device-id"
 
