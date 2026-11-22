@@ -233,6 +233,9 @@ def download_media(session, plan, target, progress=None):
                     max_bytes=256_000_000, resume_existing=True,
                 )
                 size = result['size'] if isinstance(result, dict) else result
+                actual_size = partial.stat().st_size
+                if type(size) is not int or size != actual_size:
+                    raise ValueError('영상 수신 크기가 실제 저장 파일과 달라 저장하지 않았어요.')
                 with partial.open('r+b') as stream:
                     if size <= 0 or stream.read(8)[4:8] != b'ftyp':
                         raise ValueError('영상 대신 다른 응답이 와서 저장하지 않았어요.')
@@ -282,6 +285,10 @@ def download_media(session, plan, target, progress=None):
                         data, _ = worker.get_bytes(url, allowed_origin=plan['origin'], max_bytes=limit)
                         temporary.write_bytes(data or b'')
                         size = len(data or b'')
+                    actual_size = temporary.stat().st_size
+                    if type(size) is not int or size != actual_size:
+                        raise ValueError('영상 조각 수신 크기가 실제 저장 파일과 달라 저장하지 않았어요.')
+                    size = actual_size
                     with temporary.open('rb') as stream:
                         header = stream.read(8)
                     valid_header = (plan['format'] == 'mpegts' and header[:1] == b'G')

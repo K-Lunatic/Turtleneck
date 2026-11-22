@@ -94,6 +94,15 @@ class ResumableMp4Session:
         return {'size': len(self.content)}
 
 
+class WrongSizeMp4Session(ResumableMp4Session):
+    def __init__(self):
+        super().__init__(failures=0)
+
+    def stream_bytes_to_file(self, url, target, **kwargs):
+        result = super().stream_bytes_to_file(url, target, **kwargs)
+        return {'size': result['size'] + 1}
+
+
 class LectureAudioTests(unittest.TestCase):
     def test_asr_keeps_cpu_headroom_and_falls_back_when_gpu_fails(self):
         with patch.object(lecture_review.os, 'cpu_count', return_value=8):
@@ -426,6 +435,17 @@ class LectureAudioTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), session.content)
             self.assertEqual(len(session.calls), 2)
             self.assertEqual(session.calls[1][1], 8)
+            self.assertFalse((Path(folder) / '.video.mp4.partial').exists())
+
+    def test_direct_mp4_rejects_reported_size_that_differs_from_disk(self):
+        session = WrongSizeMp4Session()
+        plan = {'format': 'mov', 'chunks': ['https://media.example/video.mp4'],
+                'origin': 'media.example', 'sourceKey': 'mp4-size-mismatch'}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'video.mp4'
+            with self.assertRaisesRegex(ValueError, '수신 크기'):
+                download_media(session, plan, path)
+            self.assertFalse(path.exists())
             self.assertFalse((Path(folder) / '.video.mp4.partial').exists())
 
     def test_failed_download_preserves_existing_target_and_cleans_partial_output(self):
