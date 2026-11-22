@@ -15,10 +15,11 @@
 > 유지한다. 이는 복구·배포 격리 검증을 보강한 것이며, 실기기 장시간 미디어 수신과 학교 서버
 > 사용량 계측을 완료했다는 뜻은 아니다.
 
-> 최신 CI run `45026617337`은 `aafdb64` 기준 macOS Intel·Apple Silicon·Windows standalone을 포함한
+> 최신 CI run `45041436735`은 `18f0135` 기준 macOS Intel·Apple Silicon·Windows standalone을 포함한
 > 25개 job을 모두 성공했다. standalone 검사는 빈 임시 HOME에서 본체와 보조 앱을 실행한다.
-> 최신 커밋은 `aafdb64`이며 로컬 `turtleneck`과 `origin/turtleneck`이 일치한다.
-> 이전 CI run `45006354560`은 `44ef801` 기준 macOS·Windows 24개 job을 모두 성공했다.
+> 최신 커밋은 `18f0135`이며 로컬 `turtleneck`과 `origin/turtleneck`이 일치한다.
+> 이전 CI run `45026617337`은 `aafdb64` 기준 macOS Intel·Apple Silicon·Windows standalone을 포함한
+> 25개 job을 모두 성공했다.
 > CI에서 Node.js 20 런타임 경고가 발생하던 `checkout`, `setup-python`, `setup-node`를 각각
 > Node.js 24 호환 버전(`checkout@v5`, `setup-python@v6`, `setup-node@v5`)으로 갱신했다.
 > 이 변경은 제품 런타임을 바꾸지 않으며, 실제 물리 기기의 설치·GUI 검증을 대신하지 않는다.
