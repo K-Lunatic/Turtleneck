@@ -11,6 +11,14 @@
 
 ## 인증·세션·로그인
 
+### 0. macOS Keychain 접근 거부를 비밀번호 누락으로 오인해 로그인 폼 반복
+
+- **증상**: 저장된 계정이 있는데도 Keychain 오류 뒤 비밀번호가 비어 있다고 안내하고 로그인 폼을 다시 열었다.
+- **원인**: macOS `SecKeychainFindGenericPassword`의 `-25293`(인증 거부)와 항목 없음·일반 읽기 오류를 모두 `None` 또는 일반 `OSError`로 처리했다.
+- **해결**: 보호 저장소 접근 거부를 `ProtectedStoreAccessError`로 분리하고, 세션 복구·동기화·프로필 입력 경로에서 폼을 반복하지 않도록 했다.
+- **검증**: Keychain 거부 회귀 2개, 로그인 회귀 22개, 전체 회귀 564개, macOS·Windows CI 24개 job.
+- **상태**: 해결. 실제 macOS Keychain 승인 자체는 사용자 기기에서 한 번 확인해야 한다.
+
 ### 1. 진행 기록 저장이 `readonly database` 또는 `database is locked`로 실패
 
 - **증상**: 과제명을 찾은 뒤 저장 단계에서 읽기 전용 DB 또는 SQLite 잠금 오류가 발생했다.
