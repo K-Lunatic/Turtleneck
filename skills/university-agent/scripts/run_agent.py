@@ -57,10 +57,15 @@ from scripts.gradkuya import add_arguments as gradkuya_arguments, execute as exe
 from features.language import apply_preferred_language
 from storage.local_db import LocalDatabase
 
-try:
-    default_user_id = load_username()
-except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
+# A caller-supplied identity is already an isolation boundary; do not touch the
+# OS secret store for read-only local commands.
+if os.environ.get("UNIVERSITY_AGENT_USER_ID"):
     default_user_id = ""
+else:
+    try:
+        default_user_id = load_username()
+    except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
+        default_user_id = ""
 DB_PATH = Path(os.environ.get("UNIVERSITY_AGENT_DB", Path.home() / ".university-agent" / "university.db")).expanduser()
 DEVICE_ID_PATH = DB_PATH.parent / "device-id"
 
