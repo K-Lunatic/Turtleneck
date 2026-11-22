@@ -191,6 +191,22 @@ class TlsLoginTests(unittest.TestCase):
         form.assert_not_called()
         session.assert_not_called()
 
+    def test_keychain_access_denial_is_not_misreported_as_missing_password(self):
+        denied = credentials.ProtectedStoreAccessError('Keychain denied')
+        with patch.object(tls_auth, 'resume_saved_session', side_effect=denied), \
+             patch.object(tls_auth, 'resolve_profile') as form:
+            with self.assertRaisesRegex(RuntimeError, 'Keychain 접근이 거부'):
+                tls_auth.authenticated_session('https://tls.example')
+        form.assert_not_called()
+
+    def test_sync_does_not_open_login_form_after_keychain_access_denial(self):
+        denied = credentials.ProtectedStoreAccessError('Keychain denied')
+        with patch.object(sync_tls, 'resume_saved_session', side_effect=denied), \
+             patch.object(sync_tls, 'resolve') as form:
+            with self.assertRaisesRegex(RuntimeError, 'Keychain 접근이 거부'):
+                sync_tls._login_with_retries('https://tls.example', 'student')
+        form.assert_not_called()
+
     def test_shared_authenticated_session_reports_session_cache_failure_without_secret(self):
         class Session:
             cookies = object()

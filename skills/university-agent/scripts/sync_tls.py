@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
 
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import LoginError, MoodleSession, RequestBackoff
-from providers.credentials import (CredentialInputRequired, load, load_active_alias, load_username,
+from providers.credentials import (CredentialInputRequired, ProtectedStoreAccessError, load, load_active_alias, load_username,
                                    link_account, normalize_alias, profile_db_path, resolve, save, save_session,
                                    set_active_alias, site_key)
 from storage.local_db import LocalDatabase
@@ -268,7 +268,12 @@ def _login_with_retries_unlocked(base_url: str, requested_username: str | None =
     site = site_key(base_url)
     profile_alias = profile_alias or os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site)
     if not _session_checked:
-        resumed = resume_saved_session(base_url, requested_username, profile_alias)
+        try:
+            resumed = resume_saved_session(base_url, requested_username, profile_alias)
+        except ProtectedStoreAccessError as error:
+            raise RuntimeError(
+                'macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용한 뒤 다시 시도해 주세요.'
+            ) from error
         if resumed:
             print("저장된 학교 연결을 재사용했어요.", flush=True)
             try:
@@ -279,6 +284,10 @@ def _login_with_retries_unlocked(base_url: str, requested_username: str | None =
     if not force_input and not os.environ.get('UNIVERSITY_AGENT_DB'):
         try:
             stored_username, stored_password = load(profile_alias, site)
+        except ProtectedStoreAccessError as error:
+            raise RuntimeError(
+                'macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용한 뒤 다시 시도해 주세요.'
+            ) from error
         except (OSError, KeyError, ValueError, subprocess.SubprocessError):
             try:
                 load_username(profile_alias, site)
@@ -373,7 +382,12 @@ def _login_with_retries(base_url: str, requested_username: str | None = None, *,
     alias = profile_alias or os.environ.get('TLS_ACCOUNT_ALIAS') or load_active_alias(site)
     db_path = profile_db_path(base_url, alias)
     with sync_policy.SyncLock(db_path.with_name(db_path.name + '.auth'), timeout=120):
-        resumed = resume_saved_session(base_url, requested_username, alias)
+        try:
+            resumed = resume_saved_session(base_url, requested_username, alias)
+        except ProtectedStoreAccessError as error:
+            raise RuntimeError(
+                'macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용한 뒤 다시 시도해 주세요.'
+            ) from error
         if resumed:
             print("저장된 학교 연결을 재사용했어요.", flush=True)
             try:

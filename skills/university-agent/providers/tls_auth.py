@@ -11,6 +11,7 @@ from providers.credentials import (
     load_active_alias,
     load_session,
     load_username,
+    ProtectedStoreAccessError,
     profile_db_path,
     resolve,
     resolve_profile,
@@ -76,6 +77,8 @@ def resume_saved_session(base_url: str, requested_username: str | None = None,
     except LoginError:
         if username:
             clear_session(username, profile_alias, site)
+    except ProtectedStoreAccessError:
+        raise
     except (OSError, KeyError, TypeError, ValueError, subprocess.SubprocessError):
         return None
     return None
@@ -90,7 +93,12 @@ def _authenticated_session_unlocked(base_url: str, requested_username: str | Non
     cached = _cached_process_session(_session_cache_key(base_url, site, profile_alias, requested_username))
     if cached:
         return cached
-    resumed = resume_saved_session(base_url, requested_username, profile_alias)
+    try:
+        resumed = resume_saved_session(base_url, requested_username, profile_alias)
+    except ProtectedStoreAccessError as error:
+        raise RuntimeError(
+            'macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용한 뒤 다시 시도해 주세요.'
+        ) from error
     if resumed:
         _remember_authenticated_session(base_url, site, profile_alias, resumed)
         return resumed
@@ -102,6 +110,10 @@ def _authenticated_session_unlocked(base_url: str, requested_username: str | Non
         needs_prompt = False
         try:
             username, password = load(profile_alias, site)
+        except ProtectedStoreAccessError as error:
+            raise RuntimeError(
+                'macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용한 뒤 다시 시도해 주세요.'
+            ) from error
         except (OSError, KeyError, TypeError, ValueError, subprocess.SubprocessError) as error:
             if not allow_prompt:
                 raise RuntimeError(

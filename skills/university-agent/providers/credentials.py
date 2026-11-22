@@ -31,6 +31,10 @@ _KEYCHAIN_INTERACTION_LOCK = threading.RLock()
 CredentialInputRequired = FormUnavailable
 
 
+class ProtectedStoreAccessError(OSError):
+    """The OS secret store exists but denied this process access."""
+
+
 def site_key(base_url: str | None = None) -> str:
     """Return a stable, non-secret account namespace for one LMS host."""
     value = (base_url or DEFAULT_SITE).strip()
@@ -127,6 +131,10 @@ def _read_keychain_secret(service: str, account: str) -> str:
                     security.SecKeychainItemFreeContent(None, data)
                     if item:
                         core_foundation.CFRelease(item)
+            if status in {-25293, -25308, -128}:  # auth failed, interaction not allowed, user canceled
+                raise ProtectedStoreAccessError(
+                    "macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용해 주세요."
+                )
             if status != -25300:  # errSecItemNotFound
                 raise OSError(f"Keychain read failed ({status})")
         except OSError as error:
@@ -660,6 +668,8 @@ def load_session(username: str, alias: str | None = None, site: str = DEFAULT_SI
             try:
                 payload = _read_keychain_secret(_session_service(site), key)
                 break
+            except ProtectedStoreAccessError:
+                raise
             except (OSError, ValueError, subprocess.SubprocessError) as error:
                 last_error = error
         else:
@@ -731,6 +741,10 @@ def resolve_profile(username: str | None = None, alias: str | None = None, *, fo
     alias = normalize_alias(alias or os.environ.get("TLS_ACCOUNT_ALIAS") or load_active_alias(site))
     try:
         stored_username, stored_password = load(alias, site)
+    except ProtectedStoreAccessError as error:
+        raise FormUnavailable(
+            "macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용한 뒤 다시 시도해 주세요."
+        ) from error
     except (OSError, KeyError, ValueError, subprocess.SubprocessError):
         try:
             load_username(alias, site)
