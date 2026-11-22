@@ -130,14 +130,16 @@ jobs:
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -f "dist/companion/turtleneck-companion.exe"
-            env -i HOME="$fresh_home" USERPROFILE="$fresh_home" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/companion/turtleneck-companion.exe --status > companion-status.json
+            # The companion is a GUI process; use the console bundle for the finite status smoke test.
+            env -i HOME="$fresh_home" USERPROFILE="$fresh_home" SYSTEMROOT="${SYSTEMROOT:-}" WINDIR="${WINDIR:-}" TEMP="${TEMP:-}" TMP="${TMP:-}" PATH=/usr/bin:/bin:/c/Windows/System32 dist/turtleneck/turtleneck.exe companion --status > companion-status.json
           else
             env -i HOME="$fresh_home" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --version
             env -i HOME="$fresh_home" PATH=/usr/bin:/bin dist/turtleneck/turtleneck --help > cli-help.txt
             pyinstaller packaging/companion.spec --noconfirm --clean \
               --distpath dist/companion --workpath build/companion
             test -d "dist/companion/Turtleneck Companion.app"
-            env -i HOME="$fresh_home" PATH=/usr/bin:/bin "dist/companion/Turtleneck Companion.app/Contents/MacOS/turtleneck-companion" --status > companion-status.json
+            # The companion is a GUI process; use the console bundle for the finite status smoke test.
+            env -i HOME="$fresh_home" PATH=/usr/bin:/bin dist/turtleneck/turtleneck companion --status > companion-status.json
           fi
           python - <<'PY'
           import json
