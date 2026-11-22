@@ -42,6 +42,7 @@ class SyncSafetyTests(unittest.TestCase):
             with patch.object(sys, 'argv', ['sync_tls.py', '--academic-only']), \
                  patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': 'u'}), \
                  patch.object(sync_tls, 'load', return_value=('u', 'fixture')), \
+                 patch.object(sync_tls, 'resume_saved_session', return_value=None), \
                  patch.object(sync_tls, 'resolve', side_effect=AssertionError('no form')), \
                  patch.object(sync_tls, '_cached_resources', side_effect=AssertionError('no file scan')), \
                  patch.object(sync_tls, 'MoodleSession', return_value=FakeTLSSession()), \
@@ -66,6 +67,7 @@ class SyncSafetyTests(unittest.TestCase):
             with patch.object(sys, 'argv', ['sync_tls.py', '--academic-only']), \
                  patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': 'u'}), \
                  patch.object(sync_tls, 'load', return_value=('u', 'fixture')), \
+                 patch.object(sync_tls, 'resume_saved_session', return_value=None), \
                  patch.object(sync_tls, 'MoodleSession', return_value=FakeTLSSession()), \
                  patch.object(FakeTLSSession, 'login', create=True), \
                  patch.object(MoodleTLSProvider, 'get_lectures', side_effect=URLError('network failure')), \
@@ -557,7 +559,8 @@ class SyncSafetyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'test.db'
             with patch.object(sys, 'argv', ['sync_tls.py']), patch.dict(os.environ, {'UNIVERSITY_AGENT_DB': str(path), 'UNIVERSITY_AGENT_USER_ID': 'u'}), \
-                 patch.object(sync_tls, 'resolve', return_value=('u', 'fixture')), patch.object(sync_tls, 'save'), \
+                 patch.object(sync_tls, 'resolve', return_value=('u', 'fixture')), \
+                 patch.object(sync_tls, 'resume_saved_session', return_value=None), patch.object(sync_tls, 'save'), \
                  patch.object(MoodleSession, 'login'), patch.object(sync_tls, 'MoodleTLSProvider', Provider), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit): sync_tls.main()
             database = LocalDatabase(path, read_only=True)
