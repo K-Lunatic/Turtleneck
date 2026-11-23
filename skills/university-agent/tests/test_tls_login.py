@@ -224,7 +224,7 @@ class TlsLoginTests(unittest.TestCase):
                 sync_tls._login_with_retries('https://tls.example', 'student')
         form.assert_not_called()
 
-    def test_shared_authenticated_session_reports_session_cache_failure_without_secret(self):
+    def test_shared_background_relogin_does_not_write_keychain_session(self):
         class Session:
             cookies = object()
 
@@ -238,12 +238,13 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(tls_auth, 'load', return_value=('student', 'secret')), \
              patch.object(tls_auth, 'MoodleSession', Session), \
              patch.object(tls_auth, 'save'), \
-             patch.object(tls_auth, 'save_session', side_effect=RuntimeError('keychain unavailable')), \
+             patch.object(tls_auth, 'save_session') as save_session, \
              redirect_stdout(io.StringIO()) as output:
             username, _session = tls_auth.authenticated_session('https://tls.example')
 
         self.assertEqual(username, 'student')
-        self.assertIn('보호 저장소에 세션을 보관하지 못했어요', output.getvalue())
+        save_session.assert_not_called()
+        self.assertNotIn('Keychain', output.getvalue())
         self.assertNotIn('secret', output.getvalue())
 
     def test_stored_only_relogin_does_not_rewrite_password(self):
@@ -323,7 +324,7 @@ class TlsLoginTests(unittest.TestCase):
                 sync_tls._login_with_retries('https://tls.example', stored_only=True)
         self.assertNotIn('secret', str(caught.exception))
 
-    def test_session_store_failure_is_reported_without_exposing_secrets(self):
+    def test_background_sync_does_not_write_keychain_session(self):
         class Session:
             cookies = object()
 
@@ -337,13 +338,13 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(sync_tls, 'resolve', return_value=('student', 'secret')), \
              patch.object(sync_tls, 'MoodleSession', Session), \
              patch.object(sync_tls, 'save'), \
-             patch.object(sync_tls, 'save_session', side_effect=RuntimeError('keychain unavailable')), \
+             patch.object(sync_tls, 'save_session') as save_session, \
              redirect_stdout(io.StringIO()) as output:
             username, _session = sync_tls._login_with_retries('https://tls.example', 'student')
 
         self.assertEqual(username, 'student')
         message = output.getvalue()
-        self.assertIn('보호 저장소에 세션을 보관하지 못했어요', message)
+        save_session.assert_not_called()
         self.assertNotIn('secret', message)
 
     def test_rejected_saved_session_is_removed_before_password_fallback(self):

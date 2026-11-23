@@ -377,12 +377,13 @@ def _login_with_retries_unlocked(base_url: str, requested_username: str | None =
         finally:
             password = None
         if hasattr(session, "cookies"):
-            try:
-                save_session(username, session.cookies, profile_alias, site)
-            except (OSError, RuntimeError, ValueError):
-                # A successful login must remain usable, but do not hide why the
-                # next run may need another login when the OS store is unavailable.
-                print("학교 연결은 성공했지만 이 컴퓨터의 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 로그인할 수 있어요.", flush=True)
+            if force_input or os.environ.get('TURTLENECK_ALLOW_KEYCHAIN_MIGRATION') == '1':
+                try:
+                    save_session(username, session.cookies, profile_alias, site)
+                except (OSError, RuntimeError, ValueError):
+                    # A successful login must remain usable, but do not hide why the
+                    # next explicit connection may need to repair the OS store.
+                    print("학교 연결은 성공했지만 이 컴퓨터의 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 연결할 수 있어요.", flush=True)
         session.profile_alias = profile_alias
         return username, session
     raise AssertionError("unreachable")
