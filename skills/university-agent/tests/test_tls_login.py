@@ -127,6 +127,13 @@ class TlsLoginTests(unittest.TestCase):
             except PermissionError:
                 self.skipTest("이 실행 환경에서는 localhost 소켓을 열 수 없음")
 
+    def test_explicit_reconnect_enables_keychain_repair_only_for_child_process(self):
+        with patch.object(sync_tls.subprocess, 'Popen') as popen:
+            sync_tls.open_connection_terminal(['python', 'sync_tls.py', '--reconnect'])
+        options = popen.call_args.kwargs
+        self.assertEqual(options['env']['TURTLENECK_ALLOW_KEYCHAIN_MIGRATION'], '1')
+        self.assertNotEqual(os.environ.get('TURTLENECK_ALLOW_KEYCHAIN_MIGRATION'), '1')
+
     def test_failed_saved_login_reopens_secure_form_and_saves_only_after_success(self):
         class Session:
             total_calls = 0

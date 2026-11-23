@@ -260,6 +260,12 @@ def open_connection_terminal(command: list[str] | None = None) -> None:
     """Start the private local flow without opening a terminal window."""
     command = command or [sys.executable, str(Path(__file__).resolve()), '--reconnect']
     options = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL}
+    # An explicit reconnect is the only flow allowed to repair a legacy
+    # Keychain ACL. Normal reads stay non-interactive so background sync cannot
+    # spawn a password prompt after every reboot.
+    environment = os.environ.copy()
+    environment['TURTLENECK_ALLOW_KEYCHAIN_MIGRATION'] = '1'
+    options['env'] = environment
     if os.name == 'nt':
         options['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
     else:
