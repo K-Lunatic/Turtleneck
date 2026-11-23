@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import LoginError, MoodleSession, RequestBackoff
 from providers.credentials import (CredentialInputRequired, ProtectedStoreAccessError, load, load_active_alias, load_username,
-                                   link_account, normalize_alias, profile_db_path, resolve, save, save_session,
+                                   link_account, normalize_alias, profile_db_path, resolve, save,
                                    set_active_alias, site_key)
 from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
@@ -326,7 +326,6 @@ def _login_with_retries_unlocked(base_url: str, requested_username: str | None =
             try:
                 candidate_session.login(candidate_username, candidate_password)
                 save(candidate_username, candidate_password, selected_alias, site)
-                save_session(candidate_username, candidate_session.cookies, selected_alias, site)
             except LoginError:
                 return '학교 로그인에 실패했어요. 아이디와 비밀번호를 다시 확인해 주세요.'
             except (OSError, RuntimeError, ValueError, subprocess.SubprocessError):
@@ -376,14 +375,6 @@ def _login_with_retries_unlocked(base_url: str, requested_username: str | None =
                 save(username, password, profile_alias, site)
         finally:
             password = None
-        if hasattr(session, "cookies"):
-            if force_input or os.environ.get('TURTLENECK_ALLOW_KEYCHAIN_MIGRATION') == '1':
-                try:
-                    save_session(username, session.cookies, profile_alias, site)
-                except (OSError, RuntimeError, ValueError):
-                    # A successful login must remain usable, but do not hide why the
-                    # next explicit connection may need to repair the OS store.
-                    print("학교 연결은 성공했지만 이 컴퓨터의 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 연결할 수 있어요.", flush=True)
         session.profile_alias = profile_alias
         return username, session
     raise AssertionError("unreachable")

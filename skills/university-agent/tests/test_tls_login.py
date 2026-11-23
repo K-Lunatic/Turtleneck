@@ -338,13 +338,11 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(sync_tls, 'resolve', return_value=('student', 'secret')), \
              patch.object(sync_tls, 'MoodleSession', Session), \
              patch.object(sync_tls, 'save'), \
-             patch.object(sync_tls, 'save_session') as save_session, \
              redirect_stdout(io.StringIO()) as output:
             username, _session = sync_tls._login_with_retries('https://tls.example', 'student')
 
         self.assertEqual(username, 'student')
         message = output.getvalue()
-        save_session.assert_not_called()
         self.assertNotIn('secret', message)
 
     def test_rejected_saved_session_is_removed_before_password_fallback(self):
