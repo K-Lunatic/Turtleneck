@@ -239,10 +239,13 @@ def _delete_keychain_secret(service: str, account: str) -> None:
         length = ctypes.c_uint32()
         data = ctypes.c_void_p()
         item = ctypes.c_void_p()
-        status = security.SecKeychainFindGenericPassword(
-            None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
-            ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
-        )
+        with _keychain_interaction(
+            security, os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") == "1"
+        ):
+            status = security.SecKeychainFindGenericPassword(
+                None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
+                ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
+            )
         if data:
             security.SecKeychainItemFreeContent(None, data)
         if status == -25300:  # errSecItemNotFound
@@ -250,7 +253,10 @@ def _delete_keychain_secret(service: str, account: str) -> None:
         if status != 0:
             raise OSError(f"Keychain lookup failed ({status})")
         try:
-            status = security.SecKeychainItemDelete(item)
+            with _keychain_interaction(
+                security, os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") == "1"
+            ):
+                status = security.SecKeychainItemDelete(item)
             if status not in (0, -25300):
                 raise OSError(f"Keychain delete failed ({status})")
         finally:
@@ -280,7 +286,9 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
         secret_bytes = secret.encode("utf-8")
         item = ctypes.c_void_p()
         password_buffer = ctypes.create_string_buffer(secret_bytes)
-        with _keychain_interaction(security, True):
+        with _keychain_interaction(
+            security, os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") == "1"
+        ):
             status = security.SecKeychainAddGenericPassword(
                 None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
                 len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
@@ -288,7 +296,9 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
         try:
             if status == -25299:  # errSecDuplicateItem: replace only this exact entry.
                 _delete_keychain_secret(service, account)
-                with _keychain_interaction(security, True):
+                with _keychain_interaction(
+                    security, os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") == "1"
+                ):
                     status = security.SecKeychainAddGenericPassword(
                         None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
                         len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
