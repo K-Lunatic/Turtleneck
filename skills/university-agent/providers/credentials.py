@@ -132,8 +132,32 @@ def _read_keychain_secret(service: str, account: str) -> str:
                     if item:
                         core_foundation.CFRelease(item)
             if status in {-25293, -25308, -128}:  # auth failed, interaction not allowed, user canceled
+                # Older entries may still have the pre-bundle ACL. Repair the
+                # exact item without opening a Keychain prompt, then retry once.
+                # If macOS does not return an item handle, keep the explicit
+                # permission error instead of weakening the store boundary.
+                if item and _trust_current_executable(security, core_foundation, item):
+                    core_foundation.CFRelease(item)
+                    length = ctypes.c_uint32()
+                    data = ctypes.c_void_p()
+                    item = ctypes.c_void_p()
+                    with _keychain_interaction(security, False):
+                        status = security.SecKeychainFindGenericPassword(
+                            None, len(service.encode()), service.encode(), len(account.encode()), account.encode(),
+                            ctypes.byref(length), ctypes.byref(data), ctypes.byref(item),
+                        )
+                    if status == 0:
+                        try:
+                            secret = ctypes.string_at(data, length.value).decode("utf-8")
+                            if not secret:
+                                raise ValueError("보호 저장소 항목이 비어 있어요.")
+                            return secret
+                        finally:
+                            security.SecKeychainItemFreeContent(None, data)
+                            if item:
+                                core_foundation.CFRelease(item)
                 raise ProtectedStoreAccessError(
-                    "macOS Keychain 접근이 거부됐어요. 연결 화면에서 이 앱의 Keychain 접근을 한 번 허용해 주세요."
+                    "macOS Keychain이 잠겨 있거나 접근 권한이 없어요. Keychain Access에서 해당 항목을 한 번 잠금 해제·항상 허용한 뒤 다시 시도해 주세요."
                 )
             if status != -25300:  # errSecItemNotFound
                 raise OSError(f"Keychain read failed ({status})")
