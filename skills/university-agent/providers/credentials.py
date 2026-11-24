@@ -302,6 +302,16 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
             ctypes.c_char_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
         ]
         security.SecKeychainAddGenericPassword.restype = ctypes.c_int32
+        security.SecKeychainFindGenericPassword.argtypes = [
+            ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32,
+            ctypes.c_char_p, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_void_p),
+        ]
+        security.SecKeychainFindGenericPassword.restype = ctypes.c_int32
+        security.SecKeychainItemModifyAttributesAndData.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p,
+        ]
+        security.SecKeychainItemModifyAttributesAndData.restype = ctypes.c_int32
         core_foundation = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
         core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
 
@@ -319,14 +329,29 @@ def _save_keychain_secret(service: str, account: str, secret: str) -> None:
             )
         try:
             if status == -25299:  # errSecDuplicateItem: replace only this exact entry.
-                _delete_keychain_secret(service, account)
+                length = ctypes.c_uint32()
+                data = ctypes.c_void_p()
+                existing = ctypes.c_void_p()
                 with _keychain_interaction(
                     security, os.environ.get("TURTLENECK_ALLOW_KEYCHAIN_MIGRATION") == "1"
                 ):
-                    status = security.SecKeychainAddGenericPassword(
+                    lookup = security.SecKeychainFindGenericPassword(
                         None, len(service_bytes), service_bytes, len(account_bytes), account_bytes,
-                        len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p), ctypes.byref(item),
+                        ctypes.byref(length), ctypes.byref(data), ctypes.byref(existing),
                     )
+                if data:
+                    security.SecKeychainItemFreeContent(None, data)
+                if lookup != 0 or not existing:
+                    raise OSError(f"Keychain lookup failed ({lookup})")
+                try:
+                    status = security.SecKeychainItemModifyAttributesAndData(
+                        existing, None, len(secret_bytes), ctypes.cast(password_buffer, ctypes.c_void_p)
+                    )
+                    item = existing
+                    existing = ctypes.c_void_p()
+                finally:
+                    if existing:
+                        core_foundation.CFRelease(existing)
             if status != 0:
                 raise OSError(f"Keychain write failed ({status})")
             # Trust only the executable that saved the item. Never use an empty
