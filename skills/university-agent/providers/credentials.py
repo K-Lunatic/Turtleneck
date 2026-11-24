@@ -788,10 +788,14 @@ def resolve_profile(username: str | None = None, alias: str | None = None, *, fo
             raise FormUnavailable(
                 "저장된 학교 계정의 비밀번호가 비어 있어요. 연결 명령으로 한 번만 다시 입력해 주세요."
             ) from None
+    notice = None
+    if force_input and stored_username:
+        notice = f"아이디 {stored_username}는 이미 이 학교에 등록되어 있어요. 현재 별칭 '{alias}'의 연결을 갱신합니다."
     if force_input:
         values = collect_secure(
             TLS_CREDENTIALS_FORM,
             initial={"alias": alias, "username": username or stored_username},
+            notice=notice,
             submit_check=submit_check,
             success_message="안전하게 등록되었습니다. 학교 연결과 보호 저장소 저장을 확인했어요.",
         )

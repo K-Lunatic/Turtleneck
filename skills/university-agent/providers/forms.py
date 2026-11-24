@@ -72,6 +72,7 @@ def collect_local(
     form: FormDefinition,
     *,
     initial: Mapping[str, str] | None = None,
+    notice: str | None = None,
     submit_check: Callable[[Mapping[str, str]], str | None] | None = None,
     input_fn: Callable[[str], str] = input,
     secret_input_fn: Callable[[str], str] = getpass,
@@ -80,6 +81,8 @@ def collect_local(
     if not sys.stdin.isatty() or not sys.stderr.isatty():
         raise FormUnavailable(f"{form.title} 연결이 아직 필요해요. 비밀번호는 채팅에 보내지 말고 보안 입력 화면에서 입력해 주세요.")
     values = dict(initial or {})
+    if notice:
+        print(notice, file=sys.stderr, flush=True)
     for field in form.fields:
         if values.get(field.name):
             continue
@@ -99,6 +102,7 @@ def collect_browser(
     form: FormDefinition,
     *,
     initial: Mapping[str, str] | None = None,
+    notice: str | None = None,
     submit_check: Callable[[Mapping[str, str]], str | None] | None = None,
     success_message: str | None = None,
     timeout: int = 600,
@@ -129,10 +133,12 @@ def collect_browser(
         )
         if message:
             body = f'<div class="message {"success" if success else "error"}">{escape(message)}</div>' + body
+        if notice and not success:
+            body = f'<div class="message notice">{escape(notice)}</div>' + body
         if success:
             body = f'<div class="message success">{escape(success_message or "입력을 안전하게 확인했어요.")} 이 창을 닫아도 괜찮아요.</div><script>setTimeout(()=>window.close(),1200)</script>'
         return f'''<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(form.title)}</title><style>
-        :root{{color-scheme:light}}body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#edf8ef;color:#17231a;font:16px system-ui,-apple-system,sans-serif}}main{{width:min(420px,calc(100% - 40px));padding:32px;border:1px solid #c8dfcc;border-radius:24px;background:#fff;box-shadow:0 16px 50px #17391c1a}}.mark{{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#bdebc4;color:#17391c;font-weight:800;font-size:24px}}h1{{margin:20px 0 8px;font-size:25px}}p{{margin:0 0 24px;line-height:1.6;color:#5b6c5e}}label{{display:block;margin:16px 0 6px;font-weight:650}}input{{box-sizing:border-box;width:100%;margin-top:8px;padding:13px 14px;border:1px solid #c9d8cb;border-radius:12px;font-size:16px}}button{{width:100%;margin-top:24px;padding:14px;border:0;border-radius:12px;background:#226b35;color:white;font-size:16px;font-weight:700;cursor:pointer}}.message{{margin-bottom:18px;padding:12px;border-radius:10px;line-height:1.5}}.error{{background:#fff0ed;color:#9b3424}}.success{{background:#e7f7e9;color:#226b35}}</style><main>{body}</main></html>'''
+        :root{{color-scheme:light}}body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#edf8ef;color:#17231a;font:16px system-ui,-apple-system,sans-serif}}main{{width:min(420px,calc(100% - 40px));padding:32px;border:1px solid #c8dfcc;border-radius:24px;background:#fff;box-shadow:0 16px 50px #17391c1a}}.mark{{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#bdebc4;color:#17391c;font-weight:800;font-size:24px}}h1{{margin:20px 0 8px;font-size:25px}}p{{margin:0 0 24px;line-height:1.6;color:#5b6c5e}}label{{display:block;margin:16px 0 6px;font-weight:650}}input{{box-sizing:border-box;width:100%;margin-top:8px;padding:13px 14px;border:1px solid #c9d8cb;border-radius:12px;font-size:16px}}button{{width:100%;margin-top:24px;padding:14px;border:0;border-radius:12px;background:#226b35;color:white;font-size:16px;font-weight:700;cursor:pointer}}.message{{margin-bottom:18px;padding:12px;border-radius:10px;line-height:1.5}}.error{{background:#fff0ed;color:#9b3424}}.notice{{background:#eef7ff;color:#20517a}}.success{{background:#e7f7e9;color:#226b35}}</style><main>{body}</main></html>'''
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
