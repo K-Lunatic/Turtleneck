@@ -297,22 +297,19 @@ class MoodleSession:
             html, response = self._request(form_path, data=urlencode(fields).encode(), referer=login_response.geturl())
         finally:
             fields["password"] = None
-        has_cookie = any(cookie.name == "MoodleSession" for cookie in self.cookies)
+        has_cookie = any(cookie.name == "MoodleSession" and getattr(cookie, "value", "") for cookie in self.cookies)
         still_login_form = bool(re.search(r'name=["\']username["\']', html, re.I))
+        if not has_cookie:
+            self.logged_in = False
+            raise LoginError("TLS login could not be verified; please sign in again")
         if not has_cookie or still_login_form or "/login" in response.geturl():
             code = parse_qs(urlsplit(response.geturl()).query).get("errorcode", [None])[0]
             detail = f" (Moodle errorcode={code})" if code else ""
             raise LoginError(f"TLS login failed{detail}; check credentials or Moodle login flow")
+        # Moodle's successful POST follows its redirect to an authenticated
+        # page. The cookie, final URL, and absence of the login form are enough
+        # to verify this response; avoid a redundant dashboard GET.
         self.logged_in = True
-        try:
-            # A Moodle session cookie can be issued before the account is actually accepted.
-            self._request("/")
-        except LoginError:
-            self.logged_in = False
-            raise LoginError("TLS login could not be verified; please sign in again") from None
-        except Exception:
-            self.logged_in = False
-            raise
 
     def get(self, path: str) -> str:
         return self.get_page(path)[0]

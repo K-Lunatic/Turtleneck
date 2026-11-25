@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
 from providers.moodle_provider import MoodleTLSProvider
 from providers.moodle_session import LoginError, MoodleSession, RequestBackoff
 from providers.credentials import (CredentialInputRequired, ProtectedStoreAccessError, load, load_active_alias, load_username,
-                                   link_account, normalize_alias, profile_db_path, resolve, save,
+                                   link_account, normalize_alias, profile_db_path, resolve, save, save_session,
                                    set_active_alias, site_key)
 from storage.local_db import LocalDatabase
 from features.guidance import resource_unavailable_reason
@@ -375,6 +375,11 @@ def _login_with_retries_unlocked(base_url: str, requested_username: str | None =
                 save(username, password, profile_alias, site)
         finally:
             password = None
+        if hasattr(session, 'cookies'):
+            try:
+                save_session(username, session.cookies, profile_alias, site)
+            except (OSError, RuntimeError, ValueError):
+                print("학교 로그인은 성공했지만 세션 재사용 저장을 완료하지 못했어요. 다음 실행에서 다시 확인할 수 있어요.", flush=True)
         session.profile_alias = profile_alias
         return username, session
     raise AssertionError("unreachable")

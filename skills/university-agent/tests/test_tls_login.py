@@ -224,7 +224,7 @@ class TlsLoginTests(unittest.TestCase):
                 sync_tls._login_with_retries('https://tls.example', 'student')
         form.assert_not_called()
 
-    def test_shared_background_relogin_does_not_write_keychain_session(self):
+    def test_shared_background_relogin_refreshes_keychain_session_without_prompt(self):
         class Session:
             cookies = object()
 
@@ -243,7 +243,7 @@ class TlsLoginTests(unittest.TestCase):
             username, _session = tls_auth.authenticated_session('https://tls.example')
 
         self.assertEqual(username, 'student')
-        save_session.assert_not_called()
+        save_session.assert_called_once()
         self.assertNotIn('Keychain', output.getvalue())
         self.assertNotIn('secret', output.getvalue())
 
@@ -324,7 +324,7 @@ class TlsLoginTests(unittest.TestCase):
                 sync_tls._login_with_retries('https://tls.example', stored_only=True)
         self.assertNotIn('secret', str(caught.exception))
 
-    def test_background_sync_does_not_write_keychain_session(self):
+    def test_background_sync_refreshes_keychain_session_without_prompt(self):
         class Session:
             cookies = object()
 
@@ -338,10 +338,12 @@ class TlsLoginTests(unittest.TestCase):
              patch.object(sync_tls, 'resolve', return_value=('student', 'secret')), \
              patch.object(sync_tls, 'MoodleSession', Session), \
              patch.object(sync_tls, 'save'), \
+             patch.object(sync_tls, 'save_session') as save_session, \
              redirect_stdout(io.StringIO()) as output:
             username, _session = sync_tls._login_with_retries('https://tls.example', 'student')
 
         self.assertEqual(username, 'student')
+        save_session.assert_called_once()
         message = output.getvalue()
         self.assertNotIn('secret', message)
 

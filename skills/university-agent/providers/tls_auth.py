@@ -132,12 +132,12 @@ def _authenticated_session_unlocked(base_url: str, requested_username: str | Non
             save(username, password, profile_alias, site)
     finally:
         password = None
-    if allow_prompt or os.environ.get('TURTLENECK_ALLOW_KEYCHAIN_MIGRATION') == '1':
-        try:
-            save_session(username, session.cookies, profile_alias, site)
-        except (OSError, RuntimeError, ValueError):
-            # Keep this login usable, but explain why the next run may authenticate again.
-            print('학교 로그인은 성공했지만 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 연결할 수 있어요.', flush=True)
+    try:
+        # Normal writes are non-interactive; if the OS store rejects the write,
+        # keep the authenticated session usable and fall back next time.
+        save_session(username, session.cookies, profile_alias, site)
+    except (OSError, RuntimeError, ValueError):
+        print('학교 로그인은 성공했지만 보호 저장소에 세션을 보관하지 못했어요. 다음 실행에서 다시 연결할 수 있어요.', flush=True)
     _remember_authenticated_session(base_url, site, profile_alias, (username, session))
     return username, session
 
